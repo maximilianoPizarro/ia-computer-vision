@@ -10,7 +10,6 @@ params:
   author: Maximiliano Pizarro
   description: Multi-cluster AI Computer Vision at the Edge Validated Pattern
   BookToC: true
-  BookSection: patterns
 
 markup:
   asciidocExt:
