@@ -58,10 +58,10 @@ clusterGroup:
       channel: stable
       source: redhat-operators
     rhcl:
-      name: kuadrant-operator
+      name: rhcl-operator
       namespace: redhat-connectivity-link-operator
       channel: stable
-      source: community-operators
+      source: redhat-operators
     cluster-observability-operator:
       name: cluster-observability-operator
       namespace: openshift-cluster-observability-operator
