@@ -9,7 +9,7 @@ Deploy the AI Computer Vision Validated Pattern on three Red Hat OpenShift Conta
 
 ## Prerequisites
 
-- Three clusters running OpenShift 4.14 or later (hub, east spoke, west spoke)
+- Three clusters running OpenShift 4.20 or later (hub, east spoke, west spoke)
 - Cluster admin access and `kubeconfig` for each cluster
 - `podman` installed on your workstation (for `./pattern.sh`)
 - Validated Patterns Operator installed on each cluster

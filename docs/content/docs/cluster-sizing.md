@@ -19,7 +19,7 @@ Each `m6a.2xlarge` instance provides 8 vCPU and 32 GiB memory.
 
 ## Minimum requirements
 
-- OpenShift 4.14 or later on all clusters
+- OpenShift 4.20 or later on all clusters
 - Three worker nodes per cluster (minimum)
 - Sufficient persistent storage for Vault, Quay, GitLab, and OpenShift AI components on the hub
 
