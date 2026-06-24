@@ -1,0 +1,5 @@
+apiVersion: v2
+name: console-links
+description: OpenShift ConsoleLink resources for quick access to platform services
+type: application
+version: 0.1.0

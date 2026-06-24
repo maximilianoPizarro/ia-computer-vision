@@ -241,6 +241,16 @@ clusterGroup:
         - name: userCount
           value: "1"
 
+    console-links:
+      name: console-links
+      namespace: openshift-gitops
+      argoProject: workshop
+      path: charts/all/console-links
+      syncWave: "10"
+      overrides:
+        - name: clusterRole
+          value: hub
+
   managedClusterGroups:
     east:
       name: east

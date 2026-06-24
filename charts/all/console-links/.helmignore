@@ -1,0 +1,12 @@
+# VCS
+.git/
+.gitignore
+
+# Docs
+*.md
+
+# Editor / OS
+*~
+*.swp
+*.swo
+.DS_Store

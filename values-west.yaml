@@ -187,6 +187,16 @@ clusterGroup:
         - name: clusterName
           value: west
 
+    console-links:
+      name: console-links
+      namespace: openshift-gitops
+      argoProject: workshop
+      path: charts/all/console-links
+      syncWave: "10"
+      overrides:
+        - name: clusterRole
+          value: spoke
+
     devspaces:
       name: devspaces
       namespace: devspaces
