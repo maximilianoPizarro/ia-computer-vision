@@ -10,7 +10,7 @@ userProjects:
     memory: 1Gi
   # KServe InferenceService (CPU sklearn on hub MinIO) — RawDeployment, no Serverless/Knative.
   inferenceService:
-    enabled: true
+    enabled: false
     name: workshop-sklearn
     displayName: Workshop sklearn (CPU / MinIO)
     modelFormat: sklearn

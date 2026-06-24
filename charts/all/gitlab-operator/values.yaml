@@ -27,7 +27,7 @@ runnerOperator:
   installPlanApproval: Automatic
 
 gitlab:
-  chartVersion: "9.11.6"
+  chartVersion: "9.11.7"
   rootPasswordSecret: gitlab-gitlab-initial-root-password
   postgresStorage: 50Gi
   gitalyStorage: 50Gi
