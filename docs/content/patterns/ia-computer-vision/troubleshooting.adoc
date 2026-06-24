@@ -1,0 +1,282 @@
+---
+title: Troubleshooting
+weight: 50
+---
+:imagesdir: /images/ia-computer-vision
+:_content-type: REFERENCE
+
+= Troubleshooting AI Computer Vision
+
+This reference lists common problems during pattern installation and operation. Each entry includes symptoms, probable cause, diagnostic commands, and resolution steps.
+
+== OpenShift GitOps application Degraded or Unknown
+
+=== Symptom
+
+An application in the `vp-gitops` namespace shows `Degraded` or `Unknown` health in the OpenShift GitOps UI or CLI.
+
+=== Probable cause
+
+* Dependent operator CSV not yet `Succeeded`
+* Missing namespace or OperatorGroup conflict
+* Invalid Helm values or override syntax
+* Resource sync wave ordering — downstream app synced before prerequisite
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get applications.argoproj.io -n vp-gitops
+$ oc describe application <app_name> -n vp-gitops
+$ oc get events -n <target_namespace> --sort-by='.lastTimestamp' | tail -20
+----
+
+=== Solution
+
+. Wait for operator CSVs to reach `Succeeded`:
+
++
+[source,bash]
+----
+$ oc get csv -A | grep -v Succeeded
+----
+
+. If the error references `TooManyOperatorGroups`, delete duplicate OperatorGroups and let OpenShift GitOps resync. The pattern creates one OperatorGroup per namespace through `clustergroup` namespace definitions.
+
+. Use *Refresh* and *Sync* on the affected application in the OpenShift GitOps UI, or:
+
++
+[source,bash]
+----
+$ oc patch application <app_name> -n vp-gitops \
+  --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+----
+
+== Vault pods stuck in Init state
+
+=== Symptom
+
+Vault pods in the `vault` namespace remain `Init:0/1` or `Pending` for more than 15 minutes.
+
+=== Probable cause
+
+* Vault not initialized or unsealed
+* PVC provisioning failure on the storage class
+* Missing service account permissions
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get pods -n vault
+$ oc logs vault-0 -n vault -c vault-init 2>/dev/null || oc logs vault-0 -n vault
+$ oc get pvc -n vault
+$ oc describe pod vault-0 -n vault
+----
+
+=== Solution
+
+. Confirm PVCs are bound:
+
++
+[source,bash]
+----
+$ oc get pvc -n vault
+----
+
+. If Vault requires manual initialization in your environment, follow the HashiCorp Vault operator documentation for the `Vault` CR installed by the pattern.
+
+. Delete stuck init jobs only after confirming the root cause; OpenShift GitOps recreates them on sync:
+
++
+[source,bash]
+----
+$ oc delete job -n vault --all
+----
+
+== RHACM does not propagate to spokes
+
+=== Symptom
+
+East or west clusters appear in RHACM as `Offline` or lack the `clusterGroup` label. Hub applications that depend on managed clusters fail to deploy policies.
+
+=== Probable cause
+
+* Spoke not imported into RHACM
+* Missing or incorrect `clusterGroup=east|west` label
+* Klusterlet not healthy on spoke
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get managedcluster
+$ oc get managedcluster <spoke_name> -o yaml | grep -A5 labels
+$ oc get pods -n open-cluster-management-agent
+----
+
+(On the spoke cluster:)
+
+[source,bash]
+----
+$ oc get pods -n open-cluster-management-agent
+$ oc get klusterlet
+----
+
+=== Solution
+
+. Import the spoke through RHACM console or confirm auto-import credentials.
+
+. Apply the correct label from the hub:
+
++
+[source,bash]
+----
+$ oc label managedcluster <east_cluster_name> clusterGroup=east --overwrite
+$ oc label managedcluster <west_cluster_name> clusterGroup=west --overwrite
+----
+
+. Verify klusterlet pods are running on the spoke and restart if needed:
+
++
+[source,bash]
+----
+$ oc delete pod -n open-cluster-management-agent --all
+----
+
+== Skupper VAN does not establish cross-cluster connection
+
+=== Symptom
+
+`listener` or `connector` resources in `service-interconnect` remain `Pending` or `Error`. Cross-cluster inference returns connection timeouts.
+
+=== Probable cause
+
+* Skupper site not linked across clusters
+* Token or link secret not exchanged
+* Network firewall blocking Skupper protocol ports
+* Spoke interconnect chart not synced
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get site -n service-interconnect
+$ oc get listener,connector -n service-interconnect
+$ oc describe site -n service-interconnect
+$ oc logs deployment/skupper-router -n service-interconnect --tail=50
+----
+
+Repeat on hub and spoke clusters.
+
+=== Solution
+
+. Confirm `spoke-interconnect` application is `Synced` and `Healthy` on each spoke:
+
++
+[source,bash]
+----
+$ oc get application -n vp-gitops | grep interconnect
+----
+
+. Regenerate Skupper link tokens per Skupper operator documentation if sites show `Not Connected`.
+
+. Verify firewall rules allow Skupper data and control connections between cluster networks.
+
+== OVMS pod in CrashLoopBackOff (YOLO model not loaded)
+
+=== Symptom
+
+Pods in `neuroface-cv` namespace restart repeatedly. Inference endpoints return `503` or connection refused.
+
+=== Probable cause
+
+* Model artifact missing or wrong mount path
+* Insufficient memory for model load
+* Init container failed to download weights
+* GPU requested on CPU-only nodes
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get pods -n neuroface-cv
+$ oc logs deploy/ovms -n neuroface-cv --previous
+$ oc describe pod -n neuroface-cv -l app=ovms
+$ oc get events -n neuroface-cv --sort-by='.lastTimestamp'
+----
+
+=== Solution
+
+. Inspect logs for model path errors and correct `charts/all/spoke-neuroface-cv/values.yaml` model configuration.
+
+. Increase memory limits if logs show OOMKilled:
+
++
+[source,bash]
+----
+$ oc describe pod -n neuroface-cv -l app=ovms | grep -A3 Last State
+----
+
+. After fixing values, sync the application:
+
++
+[source,bash]
+----
+$ oc patch application east-spoke-neuroface-cv -n vp-gitops \
+  --type merge -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{}}}'
+----
+
+== RHCL HTTPRoute does not balance 50/50 between spokes
+
+=== Symptom
+
+All inference traffic routes to east or west only. Grafana or access logs show no west (or east) backend hits.
+
+=== Probable cause
+
+* Missing `clusters.west.domain` or `clusters.east.domain` in neuroface-gateway values
+* One spoke backend unhealthy — gateway removes it from rotation
+* HTTPRoute weights misconfigured
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get httproute -n neuroface-gateway-system -o yaml
+$ oc get gateway -n neuroface-gateway-system
+$ oc get svc -n neuroface-gateway-system
+----
+
+(On each spoke, verify NeuroFace is reachable:)
+
+[source,bash]
+----
+$ oc get route -n neuroface
+$ curl -sk -o /dev/null -w '%{http_code}\n' https://neuroface.apps.<east_domain>/health
+----
+
+=== Solution
+
+. Confirm both spoke domains are set in hub `neuroface-gateway` overrides or populated by the Validated Patterns Operator from managed cluster metadata.
+
+. Verify both spoke NeuroFace deployments are healthy.
+
+. Inspect HTTPRoute `backendRefs` weights in `charts/all/neuroface-gateway/templates/httproute.yaml` — default is 50/50 when both domains are present.
+
+. Resync the gateway application after spoke domains are available:
+
++
+[source,bash]
+----
+$ oc annotate application hub-neuroface-gateway -n vp-gitops \
+  argocd.argoproj.io/refresh=hard --overwrite
+----
+
+== Getting additional help
+
+* Pattern issues: link:https://github.com/maximilianoPizarro/ia-computer-vision/issues[GitHub Issues]
+* Validated Patterns framework: link:https://validatedpatterns.io/[validatedpatterns.io]
+* Support policy: see `SUPPORT.md` in the pattern repository (Sandbox tier)
+
+For preventive guidance during installation, follow xref:getting-started.adoc[Getting started] verification steps after each cluster deploy.

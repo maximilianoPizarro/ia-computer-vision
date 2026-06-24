@@ -1,41 +1,7 @@
 ---
-title: AI Computer Vision
-type: docs
+title: Documentation
+type: redirect
+url: /patterns/ia-computer-vision/
 ---
 
-# AI Computer Vision Validated Pattern
-
-Multi-cluster AI Computer Vision at the Edge with hub-spoke GitOps, NeuroFace inference, Skupper mesh, and centralized observability.
-
-## About this pattern
-
-The AI Computer Vision Validated Pattern addresses the challenge of running secure, observable AI inference workloads across geographically distributed edge clusters while maintaining centralized GitOps control.
-
-### Problem
-
-Organizations deploying computer vision at the edge face several challenges:
-
-- **Distributed operations**: Inference must run close to data sources with low latency.
-- **Security**: Edge clusters need consistent policy enforcement and vulnerability scanning.
-- **Connectivity**: Applications span hub and spoke clusters without exposing internal networks.
-- **Developer experience**: Teams need self-service scaffolding for AI workloads.
-- **Observability**: Metrics and traces must be aggregated across clusters.
-
-### Solution
-
-This pattern provides a hub-spoke Validated Pattern deployment:
-
-- **Hub cluster** runs ACM, Vault, Developer Hub, OpenShift AI, Quay, and the RHCL gateway.
-- **East and west spokes** run NeuroFace, OVMS/YOLO inference, Skupper interconnect, and ambient Service Mesh.
-- **GitOps** via OpenShift GitOps (Argo CD) ensures declarative, auditable deployments on all clusters.
-- **Load balancing** via RHCL HTTPRoute splits external traffic 50/50 between spokes.
-
-Install each cluster role independently using `clusterGroupName: hub`, `east`, or `west`.
-
-## Next steps
-
-- [Getting started]({{< relref "getting-started" >}})
-- [Cluster sizing]({{< relref "cluster-sizing" >}})
-- [Architecture]({{< relref "architecture" >}})
-- [Workshop mode]({{< relref "workshop" >}})
-- [Ideas for customization]({{< relref "ideas-for-customization" >}})
+Documentation has moved to the [AI Computer Vision pattern section](/patterns/ia-computer-vision/).

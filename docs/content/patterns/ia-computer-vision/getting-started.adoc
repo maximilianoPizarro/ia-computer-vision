@@ -1,0 +1,389 @@
+---
+title: Getting started
+weight: 10
+---
+:imagesdir: /images/ia-computer-vision
+:_content-type: ASSEMBLY
+
+= Getting started with AI Computer Vision
+
+This guide walks you through deploying the AI Computer Vision Validated Pattern from a clean environment. You install the hub cluster first, verify it, then install and verify the east and west spoke clusters.
+
+[IMPORTANT]
+====
+Complete each cluster installation before moving to the next. The hub must register spokes in Red Hat Advanced Cluster Management (RHACM) before cross-cluster features such as Skupper and multi-cluster observability become fully operational.
+====
+
+== Prerequisites
+
+Before you begin, confirm that you meet these requirements.
+
+=== Cluster count and sizing
+
+* Three OCP 4.20 or later clusters: one hub, one east spoke, and one west spoke
+* Recommended AWS sizing per cluster: 3 control plane nodes and 3 worker nodes of type `m6a.2xlarge` (see xref:cluster-sizing.adoc[Cluster sizing])
+* CPU-only inference is the default; GPU workers are optional for accelerated inference on spokes
+
+=== Network requirements
+
+* Each cluster requires outbound internet access to pull container images and operator catalogs
+* Hub and spokes must reach each other on ports required by RHACM, Skupper, and RHACS Central registration
+* A wildcard DNS record or default `*.apps.<cluster_domain>` ingress is required on each cluster
+
+=== Workstation requirements
+
+* `git` and `podman` installed on your workstation
+* Cluster administrator `kubeconfig` for each cluster (hub, east, west)
+* OpenShift CLI (`oc`) installed and configured
+* Red Hat pull secret available if you deploy clusters with the OpenShift installer
+
+=== Operator prerequisite
+
+Install the **Validated Patterns Operator** on each cluster before you run `./pattern.sh make install`:
+
+. Log in to the OCP web console as a cluster administrator.
+. Navigate to *Operators* → *OperatorHub*.
+. Search for *Validated Patterns Operator* and install it into the default namespace.
+
+== Preparing your environment
+
+=== Cloning the pattern repository
+
+[source,bash]
+----
+$ git clone https://github.com/maximilianoPizarro/ia-computer-vision.git
+$ cd ia-computer-vision
+----
+
+=== Configuring secrets
+
+Copy the secrets template and customize optional values:
+
+[source,bash]
+----
+$ cp values-secret.yaml.template ~/values-secret-ia-computer-vision.yaml
+----
+
+Edit `~/values-secret-ia-computer-vision.yaml` to set optional credentials such as GitLab scaffolder tokens or Quay push credentials. Vault auto-generates most secrets when fields use `onMissingValue: generate`.
+
+For details, see link:https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/[Validated Patterns secrets management].
+
+=== Setting the active cluster context
+
+Log in to the hub cluster before you install the hub pattern:
+
+[source,bash]
+----
+$ oc login --token=<hub_token> --server=https://api.<hub_domain>:6443
+----
+
+== Installing the hub cluster
+
+.Prerequisites
+* Validated Patterns Operator installed on the hub
+* Hub cluster administrator `kubeconfig` active in your shell
+
+. Ensure `values-global.yaml` sets `clusterGroupName: hub` (this is the default).
+. From the repository root, run:
+
++
+[source,bash]
+----
+$ ./pattern.sh make install
+----
+
+Alternatively, create a Pattern custom resource with `clusterGroupName: hub` pointing to this repository.
+
+The hub installation deploys operators and applications defined in `values-hub.yaml`, including RHACM, Vault, External Secrets Operator (ESO), RHACS Central, RHCL, GitLab, Developer Hub, OpenShift AI, Quay, Keycloak, and Showroom.
+
+== Verifying the hub installation
+
+Run the following checks after the installation completes. Allow 30–60 minutes for all operators and OpenShift GitOps applications to reach a healthy state.
+
+=== Verifying OpenShift GitOps applications
+
+[source,bash]
+----
+$ oc get applications.argoproj.io -n vp-gitops
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME                        SYNC STATUS   HEALTH STATUS
+hub-acm                     Synced        Healthy
+hub-developer-hub           Synced        Healthy
+hub-gitlab-operator         Synced        Healthy
+hub-neuroface-gateway       Synced        Healthy
+hub-openshift-ai-hub        Synced        Healthy
+hub-platform-users          Synced        Healthy
+hub-showroom                Synced        Healthy
+hub-vault                   Synced        Healthy
+...
+----
+
+[NOTE]
+====
+Application names are prefixed with the cluster group name (for example, `hub-`). Some applications remain `Progressing` while operators install their operands; recheck after operator CSVs reach `Succeeded`.
+====
+
+=== Verifying key operators
+
+[source,bash]
+----
+$ oc get csv -A | egrep 'advanced-cluster-management|rhacs-operator|rhcl-operator|rhods-operator|rhdh|quay-operator|gitlab-operator'
+----
+
+.Expected output (sample)
+[source,text]
+----
+open-cluster-management   advanced-cluster-management.v2.16.x   Advanced Cluster Management   2.16.x    Succeeded
+openshift-operators       rhacs-operator.v4.x.x                 RHACS Operator                4.x.x     Succeeded
+redhat-connectivity-link-operator   rhcl-operator.vx.x.x    RHCL Operator                 x.x.x     Succeeded
+redhat-ods-operator       rhods-operator.v3.4.x                 OpenShift AI Operator         3.4.x     Succeeded
+quay-enterprise           quay-operator.v3.17.x                  Quay Operator                 3.17.x    Succeeded
+gitlab-system             gitlab-operator-kubernetes.vx.x.x     GitLab Operator               x.x.x     Succeeded
+----
+
+=== Verifying Vault and ESO
+
+[source,bash]
+----
+$ oc get pods -n vault
+$ oc get pods -n external-secrets
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME                                    READY   STATUS    RESTARTS   AGE
+vault-0                                 1/1     Running   0          15m
+external-secrets-xxxxxxxxxx-xxxxx       1/1     Running   0          12m
+----
+
+=== Verifying RHACS Central
+
+[source,bash]
+----
+$ oc get central -n stackrox
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME      DESIRED   CURRENT   AVAILABLE   AGE
+central   1         1         True        20m
+----
+
+=== Verifying Developer Hub and Showroom routes
+
+[source,bash]
+----
+$ oc get route -n developer-hub
+$ oc get route -n showroom
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME             HOST/PORT                                      PATH   SERVICES
+backstage        developer-hub.apps.<hub_domain>                       backstage
+showroom         showroom-showroom.apps.<hub_domain>                   showroom
+----
+
+== Installing the east spoke
+
+.Prerequisites
+* Hub cluster verified and healthy
+* Validated Patterns Operator installed on the east cluster
+* East cluster administrator `kubeconfig` active in your shell
+
+. Log in to the east cluster:
+
++
+[source,bash]
+----
+$ oc login --token=<east_token> --server=https://api.<east_domain>:6443
+----
+
+. Install the east spoke pattern:
+
++
+[source,bash]
+----
+$ export TARGET_CLUSTERGROUP=east
+$ ./pattern.sh make install
+----
+
+== Verifying the east spoke
+
+=== Verifying OpenShift GitOps applications
+
+[source,bash]
+----
+$ oc get applications.argoproj.io -n vp-gitops
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME                         SYNC STATUS   HEALTH STATUS
+east-spoke-neuroface         Synced        Healthy
+east-spoke-neuroface-cv      Synced        Healthy
+east-spoke-interconnect      Synced        Healthy
+east-servicemesh-config      Synced        Healthy
+east-observability           Synced        Healthy
+east-acs-secured-cluster     Synced        Healthy
+...
+
+=== Verifying NeuroFace and OVMS workloads
+
+[source,bash]
+----
+$ oc get pods -n neuroface
+$ oc get pods -n neuroface-cv
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME                              READY   STATUS    RESTARTS   AGE
+neuroface-xxxxxxxxxx-xxxxx        1/1     Running   0          10m
+ovms-xxxxxxxxxx-xxxxx             2/2     Running   0          8m
+----
+
+=== Verifying Skupper interconnect
+
+[source,bash]
+----
+$ oc get listener,connector -n service-interconnect
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME                                        STATUS   AGE
+listener.skupper.io/neuroface-cv-listener   Ready    5m
+connector.skupper.io/neuroface-cv-connector Ready    5m
+----
+
+=== Importing the east cluster into RHACM on the hub
+
+On the hub cluster, label the east managed cluster:
+
+[source,bash]
+----
+$ oc label managedcluster <east_cluster_name> clusterGroup=east --overwrite
+----
+
+Verify import status:
+
+[source,bash]
+----
+$ oc get managedcluster <east_cluster_name> -o jsonpath='{.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status}{"\n"}'
+----
+
+.Expected output
+[source,text]
+----
+True
+----
+
+== Installing the west spoke
+
+.Prerequisites
+* East spoke verified and imported into RHACM
+* Validated Patterns Operator installed on the west cluster
+* West cluster administrator `kubeconfig` active in your shell
+
+. Log in to the west cluster:
+
++
+[source,bash]
+----
+$ oc login --token=<west_token> --server=https://api.<west_domain>:6443
+----
+
+. Install the west spoke pattern:
+
++
+[source,bash]
+----
+$ export TARGET_CLUSTERGROUP=west
+$ ./pattern.sh make install
+----
+
+. Label the west managed cluster on the hub:
+
++
+[source,bash]
+----
+$ oc label managedcluster <west_cluster_name> clusterGroup=west --overwrite
+----
+
+== Verifying end-to-end operation
+
+Perform these checks from the hub cluster or your workstation after both spokes are healthy and imported.
+
+=== Verifying the RHCL HTTPRoute
+
+[source,bash]
+----
+$ oc get httproute -n neuroface-gateway-system
+$ oc get gateway -n neuroface-gateway-system
+----
+
+.Expected output (sample)
+[source,text]
+----
+NAME                  HOSTNAMES                              AGE
+neuroface-httproute   ["neuroface.apps.<hub_domain>"]        15m
+----
+
+=== Testing inference through the hub gateway
+
+[source,bash]
+----
+$ curl -sk -o /dev/null -w '%{http_code}\n' \
+  https://neuroface-cv.apps.<hub_domain>/api/ppe/status
+----
+
+.Expected output
+[source,text]
+----
+200
+----
+
+=== Validating 50/50 load balancing
+
+Send multiple requests and inspect backend distribution in RHCL/Kuadrant metrics or NeuroFace gateway logs:
+
+[source,bash]
+----
+$ for i in $(seq 1 20); do
+    curl -sk https://neuroface.apps.<hub_domain>/health | head -c 80
+    echo
+  done
+----
+
+[NOTE]
+====
+Exact response bodies depend on NeuroFace configuration. Confirm in Grafana or Kiali that traffic splits evenly between east and west backend references on the HTTPRoute.
+====
+
+=== Opening the NeuroFace UI
+
+Open the following URL in a browser:
+
+[source,text]
+----
+https://neuroface.apps.<hub_domain>
+----
+
+You should see the NeuroFace application interface. If authentication is enabled, use your workshop or cluster credentials.
+
+== Next steps
+
+* Read xref:architecture.adoc[Architecture] for traffic flow, security, and GitOps details
+* Review xref:ideas-for-customization.adoc[Ideas for customization] to adapt the pattern
+* Consult xref:troubleshooting.adoc[Troubleshooting] if any component fails to sync

@@ -1,0 +1,97 @@
+---
+title: Workshop mode
+weight: 35
+---
+:imagesdir: /images/ia-computer-vision
+:_content-type: CONCEPT
+
+= Workshop mode
+
+The AI Computer Vision pattern includes workshop mode for hands-on events. Workshop mode is **enabled by default** with **30 users** (`user1` through `user30`).
+
+== What gets provisioned
+
+[cols="2,3,2",options="header"]
+|===
+| Platform | Access method | Default password
+
+| OCP Console
+| HTPasswd identity provider `workshop-users`
+| `Welcome123!`
+
+| Developer Hub
+| Keycloak realm `backstage` (OIDC)
+| `Welcome123!`
+
+| GitLab
+| User account + `ws-userN` group (owner)
+| `Welcome123!`
+
+| DevSpaces
+| Git credentials in `userN-devspaces` namespace
+| `Welcome123!`
+|===
+
+Special accounts: `platformadmin` (platform engineering group) and `admin` (workshop administrator).
+
+== Showroom lab guide
+
+The Showroom deployment serves an Antora lab guide from link:https://github.com/maximilianoPizarro/showroom-ia-computer-vision[showroom-ia-computer-vision].
+
+[source,text]
+----
+https://showroom-showroom.apps.<hub_domain>
+----
+
+Embedded terminal helpers:
+
+[source,bash]
+----
+hub-login user1
+east-login user1
+neuroface-cv-status
+neuroface-cv-traffic
+----
+
+== Scaling workshop users
+
+Update `userCount` consistently in these application overrides:
+
+* `platform-users`
+* `developer-hub`
+* `gitlab-operator`
+* `openshift-ai-hub`
+* `devspaces`
+* `showroom` (`showroom.terminal.userCount`)
+
+== Charts involved
+
+[cols="2,2,1,3",options="header"]
+|===
+| Chart | Cluster | Wave | Purpose
+
+| `platform-users`
+| Hub, east, west
+| 0
+| HTPasswd users, OAuth IDP, RBAC
+
+| `developer-hub`
+| Hub
+| 4
+| Keycloak realm + catalog users
+
+| `gitlab-operator`
+| Hub
+| 3
+| GitLab user bootstrap
+
+| `devspaces`
+| Hub, east, west
+| 7
+| Per-user git credentials
+
+| `showroom`
+| Hub
+| 5
+| Lab guide + terminal
+|===

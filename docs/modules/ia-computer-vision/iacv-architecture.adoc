@@ -2,7 +2,11 @@ The AI Computer Vision pattern uses a three-cluster topology.
 
 == Topology
 
-image::../../../static/images/ia-computer-vision/architecture.svg[Architecture diagram,align=center,width=100%]
+image::architecture-hub-spoke.png[Hub-spoke architecture diagram,align=center,width=100%]
+
+image::inference-traffic-flow.png[Inference request traffic flow sequence diagram,align=center,width=100%]
+
+image::architecture.svg[Architecture diagram SVG,align=center,width=100%]
 
 [source,mermaid]
 ----

@@ -1,9 +1,10 @@
 :pattern-name: ia-computer-vision
 :pattern-display-name: AI Computer Vision
 :pattern-tier: sandbox
-:pattern-version: 1.0.0
+:pattern-version: 1.0
 :pattern-repo: https://github.com/maximilianoPizarro/ia-computer-vision
-:pattern-docs: https://maximilianopizarro.github.io/ia-computer-vision/
+:pattern-docs: https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/
+:min-ocp-version: 4.20
 :maintainer-name: Maximiliano Pizarro
 :maintainer-email: mapizarr@redhat.com
 :maintainer-role: Specialist Solution Architect
@@ -20,6 +21,9 @@
 
 | Version
 | {pattern-version}
+
+| Minimum OCP version
+| {min-ocp-version}
 
 | Repository
 | {pattern-repo}

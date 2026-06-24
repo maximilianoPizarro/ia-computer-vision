@@ -1,19 +1,60 @@
 metadata_version: "1.0"
 name: ia-computer-vision
-pattern_version: "1.0.0"
+pattern_version: "1.0"
 description: >
-  Multi-cluster AI Computer Vision at the Edge pattern with hub-spoke
-  GitOps, NeuroFace inference, Skupper mesh, and centralized observability.
+  Multi-cluster AI computer vision at the edge with hub-spoke GitOps,
+  NeuroFace inference, Skupper connectivity, and centralized observability.
 display_name: AI Computer Vision
 repo_url: https://github.com/maximilianoPizarro/ia-computer-vision
-docs_url: https://maximilianopizarro.github.io/ia-computer-vision/
+docs_repo_url: https://github.com/maximilianoPizarro/ia-computer-vision
 issues_url: https://github.com/maximilianoPizarro/ia-computer-vision/issues
+docs_url: https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/
+ci_url: https://github.com/maximilianoPizarro/ia-computer-vision/actions
+logo: https://maximilianopizarro.github.io/ia-computer-vision/images/ia-computer-vision/architecture-hub-spoke.png
 tier: sandbox
-owners: maximilianoPizarro
+org: maximilianoPizarro
+owners:
+  - maximilianoPizarro
+clustergroupname: hub
 maintainers:
   - name: Maximiliano Pizarro
     email: mapizarr@redhat.com
     role: Specialist Solution Architect
+minOCPVersion: "4.20"
+gitBranch: main
+industries:
+  - manufacturing
+  - retail
+  - energy
+useCases:
+  - ai-ml
+  - edge-computing
+  - devops
+products:
+  - name: Red Hat OpenShift Container Platform
+    version: "4.20"
+  - name: Red Hat Advanced Cluster Management
+    version: "2.16"
+  - name: Red Hat OpenShift AI
+    version: "3.4"
+  - name: Red Hat Advanced Cluster Security
+    version: "4.x"
+  - name: Red Hat Connectivity Link
+    version: stable
+  - name: Red Hat OpenShift Service Mesh
+    version: "3.2"
+  - name: Red Hat Developer Hub
+    version: fast
+  - name: Red Hat Build of Keycloak
+    version: "26.4"
+  - name: Red Hat Quay
+    version: "3.17"
+  - name: Red Hat OpenShift GitOps
+    version: "1.14"
+  - name: OpenShift DevSpaces
+    version: stable
+  - name: External Secrets Operator
+    version: stable-v1
 requirements:
   hub:
     controlPlane:
