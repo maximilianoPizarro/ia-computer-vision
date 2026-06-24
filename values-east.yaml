@@ -102,6 +102,7 @@ clusterGroup:
     - mesh
     - observability
     - ai
+    - workshop
     - external-secrets
 
   sharedValueFiles:
