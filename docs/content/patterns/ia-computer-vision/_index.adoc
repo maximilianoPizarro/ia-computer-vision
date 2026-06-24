@@ -1,0 +1,75 @@
+---
+title: AI Computer Vision
+date: 2026-06-24
+tier: sandbox
+summary: Multi-cluster AI Computer Vision at the Edge with hub-spoke GitOps, NeuroFace inference, and centralized observability.
+rh_products:
+- Red Hat OpenShift Container Platform
+- Red Hat Advanced Cluster Management
+- Red Hat OpenShift AI
+- Red Hat Advanced Cluster Security
+- Red Hat Connectivity Link
+- Red Hat OpenShift GitOps
+- Red Hat Developer Hub
+- Red Hat Quay
+- Red Hat Build of Keycloak
+industries:
+- Manufacturing
+- Retail
+- Energy
+focus_areas:
+- AI/ML
+- Edge computing
+- DevOps
+aliases: /ia-computer-vision/
+pattern_logo: ia-computer-vision.png
+links:
+  github: https://github.com/maximilianoPizarro/ia-computer-vision
+  install: getting-started
+---
+:toc:
+:imagesdir: /images/ia-computer-vision
+:_content-type: ASSEMBLY
+
+= AI Computer Vision
+
+The **AI Computer Vision** Validated Pattern deploys secure, observable computer vision inference across a hub cluster and two edge spoke clusters using Red Hat OpenShift Container Platform (OCP) 4.20 or later.
+
+== About this pattern
+
+The AI Computer Vision Validated Pattern addresses the challenge of running secure, observable AI inference workloads across geographically distributed edge clusters while maintaining centralized GitOps control.
+
+=== Problem
+
+Organizations deploying computer vision at the edge face several challenges:
+
+* *Distributed operations*: Inference must run close to data sources with low latency.
+* *Security*: Edge clusters need consistent policy enforcement and vulnerability scanning.
+* *Connectivity*: Applications span hub and spoke clusters without exposing internal networks.
+* *Developer experience*: Teams need self-service scaffolding for AI workloads.
+* *Observability*: Metrics and traces must be aggregated across clusters.
+
+=== Solution
+
+This pattern provides a hub-spoke Validated Pattern deployment:
+
+* **Hub cluster** runs ACM, Vault, Developer Hub, OpenShift AI, Quay, and the RHCL gateway.
+* **East and west spokes** run NeuroFace, OVMS/YOLO inference, Skupper interconnect, and ambient Service Mesh.
+* **GitOps** via OpenShift GitOps ensures declarative, auditable deployments on all clusters.
+* **Load balancing** via RHCL HTTPRoute splits external traffic 50/50 between spokes.
+
+Install each cluster role independently using `clusterGroupName: hub`, `east`, or `west`.
+
+== Documentation map
+
+* xref:getting-started.adoc[Getting started] — install and verify hub, east, and west clusters
+* xref:architecture.adoc[Architecture] — topology, traffic flow, security, and GitOps
+* xref:cluster-sizing.adoc[Cluster sizing] — AWS instance types and resource requirements
+* xref:workshop.adoc[Workshop mode] — lab users and Showroom lab guide
+* xref:ideas-for-customization.adoc[Ideas for customization] — extend the pattern for your environment
+* xref:troubleshooting.adoc[Troubleshooting] — diagnose common installation issues
+
+[NOTE]
+====
+Workshop mode is enabled by default with 30 pre-provisioned users. See the pattern repository README for Showroom and user provisioning details.
+====
