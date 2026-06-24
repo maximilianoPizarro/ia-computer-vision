@@ -1,0 +1,23 @@
+clusterDomain: ""
+clusters:
+  east:
+    domain: ""
+  west:
+    domain: ""
+gateway:
+  weights:
+    east: 50
+    west: 50
+  circuitBreaking:
+    enabled: true
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        h2UpgradePolicy: DO_NOT_UPGRADE
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 100

@@ -1,0 +1,83 @@
+{{- $count := int (.Values.userCount | default 50) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-users
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    developer-hub.redhat.com/user-count: {{ $count | quote }}
+data:
+  users.yaml: |
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Group
+    metadata:
+      name: platform-engineering
+      description: Platform engineering team
+    spec:
+      type: team
+      profile:
+        displayName: Platform Engineering
+      children: []
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Group
+    metadata:
+      name: developers
+      description: Workshop developers
+    spec:
+      type: team
+      profile:
+        displayName: Developers
+      children: []
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: User
+    metadata:
+      name: platformadmin
+    spec:
+      profile:
+        displayName: Platform Admin
+        email: platformadmin@redhat.local
+      memberOf:
+        - platform-engineering
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: User
+    metadata:
+      name: admin
+    spec:
+      profile:
+        displayName: Workshop Admin
+        email: admin@developer-hub.local
+      memberOf:
+        - developers
+{{- range $i := until $count }}
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: User
+    metadata:
+      name: {{ printf "user%d" (add $i 1) }}
+    spec:
+      profile:
+        displayName: {{ printf "Workshop User %d" (add $i 1) }}
+        email: {{ printf "user%d@developer-hub.local" (add $i 1) }}
+      memberOf:
+        - developers
+{{- end }}
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: User
+    metadata:
+      name: maximilianoPizarro
+      annotations:
+        github.com/user-login: maximilianoPizarro
+    spec:
+      profile:
+        displayName: Maximiliano Pizarro
+        email: maximiliano@redhat.com
+      memberOf:
+        - platform-engineering

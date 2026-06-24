@@ -1,0 +1,15 @@
+{{- $templates := list "ai-computer-vision" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-software-template-manifests
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+{{- range $name := $templates }}
+  {{ $name }}.yaml: |
+{{ $.Files.Get (printf "files/software-templates/%s.yaml" $name) | indent 4 }}
+{{- end }}

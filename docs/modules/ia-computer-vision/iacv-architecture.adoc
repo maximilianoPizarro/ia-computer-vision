@@ -1,0 +1,55 @@
+The AI Computer Vision pattern uses a three-cluster topology.
+
+== Topology
+
+image::../../../static/images/ia-computer-vision/architecture.svg[Architecture diagram,align=center,width=100%]
+
+[source,mermaid]
+----
+flowchart TB
+  subgraph hub ["Hub"]
+    ACM[ACM]
+    Vault[Vault + ESO]
+    RHDH[Developer Hub]
+    RHOAI[OpenShift AI]
+    Gateway[NeuroFace Gateway / RHCL]
+    ACS_C[ACS Central]
+  end
+
+  subgraph east ["East spoke"]
+    NF_E[NeuroFace]
+    CV_E[OVMS / YOLO]
+    SK_E[Skupper]
+    ACS_E[ACS Secured]
+  end
+
+  subgraph west ["West spoke"]
+    NF_W[NeuroFace]
+    CV_W[OVMS / YOLO]
+    SK_W[Skupper]
+    ACS_W[ACS Secured]
+  end
+
+  Git[(Git repo)] --> hub
+  Git --> east
+  Git --> west
+  ACM --> east
+  ACM --> west
+  Gateway --> NF_E
+  Gateway --> NF_W
+  ACS_C --> ACS_E
+  ACS_C --> ACS_W
+----
+
+== Cluster roles
+
+* *Hub*: Fleet control plane, developer platform, centralized security and secrets.
+* *East / West*: Symmetric edge inference clusters; differ only by `clusterName` overrides in Helm values.
+
+== Key integrations
+
+* *ACM* imports spokes using `managedClusterGroups` labels.
+* *Skupper* connects application services across cluster boundaries.
+* *RHCL / Kuadrant* provides Gateway API ingress with rate limiting and auth policies.
+* *OpenShift Service Mesh ambient mode* secures pod-to-pod traffic without sidecars.
+* *Thanos + Grafana* federates metrics from hub and spokes.

@@ -1,0 +1,128 @@
+{{- if .Values.acmArgocdOpenapiFix.enabled | default true }}
+# ACM/MCE ocm-proxyserver publishes clusterview OpenAPI with a broken UserPermission.status
+# reference; Argo CD then shows Sync=Unknown (ComparisonError) for all hub apps.
+# Scale ocm-proxyserver to 0 and drop its APIServices so the hub OpenAPI cache loads.
+# Trade-off: clusterview UserPermission / ManagedClusterSet via proxy are unavailable;
+# direct spoke APIs and ACM fleet inventory still work.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acm-argocd-openapi-fix
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: acm-argocd-openapi-fix
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+rules:
+  - apiGroups: ["apiregistration.k8s.io"]
+    resources: ["apiservices"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: acm-argocd-openapi-fix
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: acm-argocd-openapi-fix
+subjects:
+  - kind: ServiceAccount
+    name: acm-argocd-openapi-fix
+    namespace: openshift-gitops
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acm-argocd-openapi-fix-hook
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: acm-argocd-openapi-fix
+      containers:
+        - name: fix
+          image: {{ .Values.acmArgocdOpenapiFix.image | default "registry.redhat.io/openshift4/ose-cli:latest" | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              echo "Scaling ocm-proxyserver to 0 (broken clusterview OpenAPI for Argo CD)..."
+              oc scale deployment/ocm-proxyserver -n multicluster-engine --replicas=0 2>/dev/null || true
+              for name in \
+                v1.clusterview.open-cluster-management.io \
+                v1alpha1.clusterview.open-cluster-management.io \
+                v1beta1.proxy.open-cluster-management.io; do
+                if oc get apiservice "$name" -o jsonpath='{.spec.service.name}' 2>/dev/null | grep -qx ocm-proxyserver; then
+                  echo "Deleting APIService $name (ocm-proxyserver backend)"
+                  oc delete apiservice "$name" --ignore-not-found
+                fi
+              done
+              echo "Restarting Argo CD application controller..."
+              oc rollout restart statefulset/openshift-gitops-application-controller -n openshift-gitops
+              oc rollout status statefulset/openshift-gitops-application-controller -n openshift-gitops --timeout=180s
+              echo "Done. Hub apps should report OutOfSync/Synced instead of Unknown."
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: acm-argocd-openapi-fix
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  schedule: {{ .Values.acmArgocdOpenapiFix.schedule | default "*/2 * * * *" | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: acm-argocd-openapi-fix
+          containers:
+            - name: fix
+              image: {{ .Values.acmArgocdOpenapiFix.image | default "registry.redhat.io/openshift4/ose-cli:latest" | quote }}
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  set -euo pipefail
+                  ready="$(oc get deployment ocm-proxyserver -n multicluster-engine -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)"
+                  if [[ "${ready:-0}" != "0" ]]; then
+                    echo "ocm-proxyserver ready=${ready}; scaling to 0"
+                    oc scale deployment/ocm-proxyserver -n multicluster-engine --replicas=0
+                  fi
+                  for name in \
+                    v1.clusterview.open-cluster-management.io \
+                    v1alpha1.clusterview.open-cluster-management.io \
+                    v1beta1.proxy.open-cluster-management.io; do
+                    if oc get apiservice "$name" -o jsonpath='{.spec.service.name}' 2>/dev/null | grep -qx ocm-proxyserver; then
+                      echo "Deleting recreated APIService $name"
+                      oc delete apiservice "$name" --ignore-not-found
+                    fi
+                  done
+{{- end }}

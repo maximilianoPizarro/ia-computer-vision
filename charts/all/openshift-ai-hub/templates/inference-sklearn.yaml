@@ -1,0 +1,25 @@
+{{- $is := .Values.userProjects.inferenceService | default dict -}}
+{{- if and .Values.userProjects.enabled ($is.enabled | default true) }}
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ $is.name | default "workshop-sklearn" }}
+  namespace: maas-workshop
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/skip-health-check: "true"
+    serving.kserve.io/deploymentMode: RawDeployment
+    openshift.io/display-name: {{ $is.displayName | default "Workshop sklearn (CPU)" }}
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: {{ $is.modelFormat | default "sklearn" }}
+      runtime: {{ $is.runtime | default "mlserver-1.x" }}
+      storage:
+        key: {{ $is.storageSecretName | default "aws-connection-models" }}
+        path: {{ $is.storagePath | default "anomaly-detection/model" }}
+{{- end }}

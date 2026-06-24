@@ -1,0 +1,233 @@
+{{- $count := int (.Values.userCount | default 30) -}}
+{{- $api := include "gitlab-operator.apiUrl" . -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-workshop-bootstrap
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-workshop-bootstrap
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["gitlab-toolbox"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-workshop-bootstrap
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-workshop-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-workshop-bootstrap
+    namespace: {{ .Values.namespace }}
+{{- if .Values.runnerEnabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-workshop-bootstrap-runner
+  namespace: {{ .Values.runnerNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-workshop-bootstrap-runner
+  namespace: {{ .Values.runnerNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-workshop-bootstrap-runner
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-workshop-bootstrap
+{{- end }}
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-workshop-bootstrap
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: gitlab-workshop-bootstrap
+      containers:
+        - name: bootstrap
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          env:
+            - name: GITLAB_NS
+              value: {{ .Values.namespace | quote }}
+            - name: GITLAB_API
+              value: {{ $api | quote }}
+            - name: RUNNER_SECRET
+              value: gitlab-runner-token
+            - name: RUNNER_NS
+              value: {{ .Values.runnerNamespace | quote }}
+            - name: USER_COUNT
+              value: {{ $count | quote }}
+            - name: DEFAULT_PASS
+              value: "Welcome123!"
+            - name: WORKSHOP_DEMOS_GROUP
+              value: {{ .Values.bootstrap.workshopDemosGroup | quote }}
+            - name: DEVELOPER_HUB_GROUP
+              value: {{ .Values.bootstrap.developerHubGroup | quote }}
+            - name: APP_OF_APPS_GROUP
+              value: {{ .Values.bootstrap.appOfAppsGroup | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "Waiting for gitlab-toolbox..."
+              for attempt in $(seq 1 90); do
+                if oc get deploy gitlab-toolbox -n "${GITLAB_NS}" -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q '^1$'; then
+                  break
+                fi
+                echo "  attempt ${attempt}/90 ..."
+                sleep 10
+              done
+              oc get deploy gitlab-toolbox -n "${GITLAB_NS}" -o jsonpath='{.status.readyReplicas}' | grep -q '^1$' \
+                || { echo "gitlab-toolbox not ready" >&2; exit 1; }
+              echo "gitlab-toolbox ready."
+
+              rails_runner() {
+                oc exec -n "${GITLAB_NS}" deploy/gitlab-toolbox -c toolbox -- \
+                  gitlab-rails runner "$1"
+              }
+
+              echo "Provisioning workshop users and ws-* groups via gitlab-rails..."
+              RAILS_OUT=$(rails_runner "
+                user_count = ${USER_COUNT}
+                default_pass = '${DEFAULT_PASS}'
+                org = Organizations::Organization.first
+                admin = User.find_by(username: 'root') || User.admins.first
+                owner = Gitlab::Access::OWNER
+
+                def ensure_group(path, name, desc, org)
+                  g = Group.find_by_full_path(path)
+                  return g if g
+                  Group.create!(name: name, path: path, visibility_level: Gitlab::VisibilityLevel::PUBLIC, description: desc, organization: org)
+                end
+
+                def ensure_user(username, email, password, admin, org)
+                  u = User.find_by_username(username)
+                  return u if u
+                  result = Users::CreateService.new(admin, {
+                    name: username,
+                    username: username,
+                    email: email,
+                    password: password,
+                    password_confirmation: password,
+                    skip_confirmation: true,
+                    organization_id: org.id
+                  }).execute
+                  raise(result.message || 'user create failed') unless result.success?
+                  result.payload[:user]
+                end
+
+                def ensure_owner(group, user)
+                  return if group.members.where(user_id: user.id).exists?
+                  group.add_member(user, Gitlab::Access::OWNER)
+                end
+
+                [
+                  ['{{ .Values.bootstrap.workshopDemosGroup }}', '{{ .Values.bootstrap.workshopDemosGroup }}', 'Hybrid Mesh AI shared Plan B repos'],
+                  ['{{ .Values.bootstrap.developerHubGroup }}', 'Developer Hub', 'Developer Hub scaffolder repos'],
+                  ['{{ .Values.bootstrap.appOfAppsGroup }}', 'App of Apps', 'ApplicationSet GitOps repos'],
+                  ['ws-admin', 'ws-admin', 'DevSpaces Camel Kaoto repos for admin'],
+                  ['ws-platformadmin', 'ws-platformadmin', 'Workshop repos for platformadmin'],
+                ].each do |path, name, desc|
+                  ensure_group(path, name, desc, org)
+                  puts \"group #{path}\"
+                end
+
+                (1..user_count).each do |i|
+                  u = \"user#{i}\"
+                  gpath = \"ws-#{u}\"
+                  group = ensure_group(gpath, gpath, \"Workshop repos for #{u}\", org)
+                  user = ensure_user(u, \"#{u}@developer-hub.local\", default_pass, admin, org)
+                  ensure_owner(group, user)
+                  puts \"user #{u} -> #{gpath}\"
+                end
+
+                platformadmin_user = ensure_user('platformadmin', 'platformadmin@developer-hub.local', default_pass, admin, org)
+                ensure_owner(Group.find_by_full_path('ws-platformadmin'), platformadmin_user)
+                # GitLab 18+ reserves username 'admin'; scaffolder uses root PAT into ws-admin.
+                puts 'skip GitLab user admin (reserved username); ws-admin group ready for scaffolder'
+                puts \"users #{User.where('username LIKE ?', 'user%').count} workshop users\"
+
+                root = User.find_by(username: 'root') || User.admins.first
+                pat_name = 'workshop-bootstrap'
+                root.personal_access_tokens.where(name: pat_name).find_each(&:revoke!)
+                pat = root.personal_access_tokens.create!(
+                  name: pat_name,
+                  scopes: [:api, :read_user, :write_repository],
+                  expires_at: 1.year.from_now
+                )
+                puts \"PAT:#{pat.token}\"
+              ")
+              echo "${RAILS_OUT}"
+
+              GITLAB_PAT=$(echo "${RAILS_OUT}" | sed -n 's/^PAT://p' | tail -1)
+              if [ -z "${GITLAB_PAT}" ]; then
+                echo "ERROR: could not obtain GitLab PAT from rails runner" >&2
+                exit 1
+              fi
+
+              echo "Ensuring GitLab Runner token secret..."
+              if ! oc get ns "${RUNNER_NS}" &>/dev/null; then
+                echo "Runner namespace ${RUNNER_NS} does not exist — skipping runner token (runnerEnabled=false)."
+              elif ! oc get secret "${RUNNER_SECRET}" -n "${RUNNER_NS}" &>/dev/null; then
+                RESP=$(curl -skS -X POST "${GITLAB_API}/user/runners" \
+                  -H "PRIVATE-TOKEN: ${GITLAB_PAT}" \
+                  -H "Content-Type: application/json" \
+                  -d '{"runner_type":"instance_type","description":"workshop-openshift","tag_list":["openshift","kubernetes"]}')
+                RUNNER_TOKEN=$(echo "${RESP}" | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+                if [ -z "${RUNNER_TOKEN}" ]; then
+                  echo "Runner token response: ${RESP}" >&2
+                  echo "WARN: could not create instance runner — create manually and secret ${RUNNER_SECRET}" >&2
+                else
+                  oc create secret generic "${RUNNER_SECRET}" -n "${RUNNER_NS}" \
+                    --from-literal=runner-token="${RUNNER_TOKEN}" --dry-run=client -o yaml | oc apply -f -
+                  echo "Created ${RUNNER_SECRET} in ${RUNNER_NS}."
+                fi
+              else
+                echo "Runner secret already exists — skipping."
+              fi
+              echo "gitlab-workshop-bootstrap complete."

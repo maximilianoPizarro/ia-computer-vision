@@ -1,0 +1,129 @@
+    openapi: 3.0.3
+    info:
+      title: REST Countries API
+      version: 3.1.0
+      description: Get country data by name, code, or region — open CORS
+    servers:
+      - url: https://restcountries.com/v3.1
+    components:
+      schemas:
+        CountryName:
+          type: object
+          properties:
+            common:
+              type: string
+            official:
+              type: string
+        Country:
+          type: object
+          properties:
+            name:
+              $ref: "#/components/schemas/CountryName"
+            cca2:
+              type: string
+            cca3:
+              type: string
+            capital:
+              type: array
+              items:
+                type: string
+            region:
+              type: string
+            subregion:
+              type: string
+            population:
+              type: integer
+            flags:
+              type: object
+              properties:
+                png:
+                  type: string
+                  format: uri
+                svg:
+                  type: string
+                  format: uri
+    paths:
+      /all:
+        get:
+          summary: Get all countries
+          operationId: getAllCountries
+          parameters:
+            - name: fields
+              in: query
+              schema:
+                type: string
+              example: name,cca2,region
+          responses:
+            "200":
+              description: List of countries
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Country"
+      /name/{name}:
+        get:
+          summary: Search countries by name
+          operationId: getCountryByName
+          parameters:
+            - name: name
+              in: path
+              required: true
+              schema:
+                type: string
+              example: germany
+          responses:
+            "200":
+              description: Matching countries
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Country"
+              "404":
+                description: Not found
+      /alpha/{code}:
+        get:
+          summary: Get country by ISO alpha code
+          operationId: getCountryByCode
+          parameters:
+            - name: code
+              in: path
+              required: true
+              schema:
+                type: string
+                minLength: 2
+                maxLength: 3
+              example: DE
+          responses:
+            "200":
+              description: Country details
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Country"
+      /region/{region}:
+        get:
+          summary: Get countries by region
+          operationId: getCountriesByRegion
+          parameters:
+            - name: region
+              in: path
+              required: true
+              schema:
+                type: string
+                enum: [Africa, Americas, Asia, Europe, Oceania, Antarctic]
+              example: Europe
+          responses:
+            "200":
+              description: Countries in region
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Country"

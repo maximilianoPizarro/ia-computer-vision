@@ -1,0 +1,25 @@
+{{- $ms := .Values.yoloPpeServing.modelStorage | default dict -}}
+{{- $endpoint := include "spoke-neuroface-cv.minioEndpoint" . -}}
+{{- $bucket := $ms.bucket | default "models" -}}
+{{- $accessKey := $ms.accessKeyId | default "minio" -}}
+{{- $secretKey := $ms.secretAccessKey | default "minio123" -}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-connection-ppe-models
+  namespace: neuroface-cv
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    opendatahub.io/connection-type: s3
+    openshift.io/display-name: PPE models (MinIO)
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: {{ $accessKey | quote }}
+  AWS_SECRET_ACCESS_KEY: {{ $secretKey | quote }}
+  AWS_DEFAULT_REGION: {{ $ms.region | default "us-east-1" | quote }}
+  AWS_S3_BUCKET: {{ $bucket | quote }}
+  AWS_S3_ENDPOINT: {{ $endpoint | quote }}

@@ -1,0 +1,158 @@
+{{- if .Values.continueAi.enabled | default false }}
+{{- $credNs := .Values.continueAi.credentialsSecretNamespace | default "kairos-system" -}}
+{{- $credName := .Values.continueAi.credentialsSecretName | default "kairos-ai-credentials" -}}
+{{- $credKey := .Values.continueAi.credentialsSecretKey | default "api-key" -}}
+{{- $apiBase := .Values.continueAi.apiBase | default "" -}}
+{{- if not $apiBase -}}
+{{- $lm := .Values.litemaas | default dict -}}
+{{- $apiBase = $lm.apiUrl | default "" -}}
+{{- end -}}
+{{- if not $apiBase -}}
+{{- $apiBase = "https://litellm-prod.apps.maas.redhatworkshops.io/v1" -}}
+{{- else if not (hasSuffix "/v1" $apiBase) -}}
+{{- $apiBase = printf "%s/v1" (trimSuffix "/" $apiBase) -}}
+{{- end -}}
+{{- $model := .Values.continueAi.model | default "" -}}
+{{- if not $model -}}
+{{- $lm := .Values.litemaas | default dict -}}
+{{- $model = $lm.model | default "deepseek-r1-distill-qwen-14b" -}}
+{{- end -}}
+{{- $count := int (.Values.userCount | default 50) -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: devspaces-continue-ai-sync
+  namespace: devspaces
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: devspaces-continue-ai-sync-kairos-read
+  namespace: {{ $credNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["{{ $credName }}"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: devspaces-continue-ai-sync-kairos-read
+  namespace: {{ $credNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: devspaces-continue-ai-sync-kairos-read
+subjects:
+  - kind: ServiceAccount
+    name: devspaces-continue-ai-sync
+    namespace: devspaces
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devspaces-continue-ai-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devspaces-continue-ai-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devspaces-continue-ai-sync
+subjects:
+  - kind: ServiceAccount
+    name: devspaces-continue-ai-sync
+    namespace: devspaces
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: devspaces-continue-ai-sync
+  namespace: devspaces
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: devspaces-continue-ai-sync
+      restartPolicy: OnFailure
+      containers:
+        - name: sync
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          env:
+            - name: USER_COUNT
+              value: {{ $count | quote }}
+            - name: CRED_NS
+              value: {{ $credNs | quote }}
+            - name: CRED_NAME
+              value: {{ $credName | quote }}
+            - name: CRED_KEY
+              value: {{ $credKey | quote }}
+            - name: CONTINUE_API_BASE
+              value: {{ $apiBase | quote }}
+            - name: CONTINUE_MODEL
+              value: {{ $model | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              API_KEY=$(oc get secret "$CRED_NAME" -n "$CRED_NS" -o jsonpath="{.data.${CRED_KEY}}" | base64 -d)
+              if [ -z "$API_KEY" ]; then
+                echo "Warning: empty API key from ${CRED_NS}/${CRED_NAME}; skip Continue AI sync"
+                exit 0
+              fi
+              provision() {
+                U="$1"
+                NS="${U}-devspaces"
+                if ! oc get namespace "$NS" &>/dev/null; then
+                  return
+                fi
+                cat <<EOSECRET | oc apply -f -
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: continue-ai-config
+                namespace: ${NS}
+                labels:
+                  controller.devfile.io/mount-to-devworkspace: "true"
+                  controller.devfile.io/watch-secret: "true"
+                annotations:
+                  controller.devfile.io/mount-as: env
+              type: Opaque
+              stringData:
+                CONTINUE_API_KEY: "${API_KEY}"
+                CONTINUE_API_BASE: "${CONTINUE_API_BASE}"
+                CONTINUE_MODEL: "${CONTINUE_MODEL}"
+              EOSECRET
+                echo "continue-ai-config synced in ${NS}"
+              }
+              provision admin
+              for i in $(seq 1 "$USER_COUNT"); do
+                provision "user${i}"
+              done
+              echo "Continue AI secrets synced for DevSpaces users."
+{{- end }}

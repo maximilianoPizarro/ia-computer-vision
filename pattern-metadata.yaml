@@ -1,0 +1,47 @@
+metadata_version: "1.0"
+name: ia-computer-vision
+pattern_version: "1.0.0"
+description: >
+  Multi-cluster AI Computer Vision at the Edge pattern with hub-spoke
+  GitOps, NeuroFace inference, Skupper mesh, and centralized observability.
+display_name: AI Computer Vision
+repo_url: https://github.com/maximilianoPizarro/ia-computer-vision
+docs_url: https://maximilianopizarro.github.io/ia-computer-vision/
+issues_url: https://github.com/maximilianoPizarro/ia-computer-vision/issues
+tier: sandbox
+owners: maximilianoPizarro
+maintainers:
+  - name: Maximiliano Pizarro
+    email: mapizarr@redhat.com
+    role: Specialist Solution Architect
+requirements:
+  hub:
+    controlPlane:
+      platform:
+        aws:
+          replicas: 3
+          type: m6a.2xlarge
+    compute:
+      platform:
+        aws:
+          replicas: 3
+          type: m6a.2xlarge
+  spoke:
+    controlPlane:
+      platform:
+        aws:
+          replicas: 3
+          type: m6a.2xlarge
+    compute:
+      platform:
+        aws:
+          replicas: 3
+          type: m6a.2xlarge
+extra_features:
+  spoke_support: true
+  hypershift_support: false
+external_requirements:
+  cluster_sizing_note: >
+    This pattern requires 3 clusters (hub + east spoke + west spoke).
+    CPU-only inference is the default. For GPU-accelerated inference,
+    use g4dn.xlarge (T4) or g5.2xlarge (A10G) worker nodes on spokes.

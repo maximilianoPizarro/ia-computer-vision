@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-auth-proxy
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-auth-proxy
+  template:
+    metadata:
+      labels:
+        app: prometheus-auth-proxy
+    spec:
+      serviceAccountName: prometheus-auth-proxy
+      initContainers:
+        - name: inject-token
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              sed "s|PROXY_TOKEN|${TOKEN}|g" /config-template/nginx.conf > /config/nginx.conf
+          volumeMounts:
+            - name: config-template
+              mountPath: /config-template
+            - name: config
+              mountPath: /config
+      containers:
+        - name: nginx
+          image: {{ ((.Values.prometheusProxy).image) | default "quay.io/rhpds/nginx:1.25" | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              mkdir -p /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp
+              exec nginx -g 'daemon off;' -c /etc/nginx/nginx.conf
+          ports:
+            - containerPort: 9091
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: config-template
+          configMap:
+            name: prometheus-proxy-config
+        - name: config
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

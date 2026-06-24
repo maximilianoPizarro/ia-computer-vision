@@ -1,0 +1,7 @@
+site_name: Industrial Edge Architecture
+site_description: Hub-spoke IoT manufacturing platform — operational architecture
+nav:
+  - Home: index.md
+  - Data Flow: data-flow.md
+plugins:
+  - techdocs-core

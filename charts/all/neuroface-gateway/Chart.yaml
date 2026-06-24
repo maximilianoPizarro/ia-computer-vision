@@ -1,0 +1,5 @@
+apiVersion: v2
+name: neuroface-gateway
+description: Dedicated Istio Gateway API front door for NeuroFace CV inference (50/50 east/west, sidecar mode)
+type: application
+version: 0.1.0

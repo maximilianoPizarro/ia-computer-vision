@@ -1,0 +1,27 @@
+# Auth stays in its own ConfigMap so YAML merge never flattens signIn.resolvers options.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-auth-rhdh
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  app-config-auth.yaml: |
+    auth:
+      environment: production
+      session:
+        secret: ${SESSION_SECRET}
+      providers:
+        oidc:
+          production:
+            clientId: developer-hub
+            clientSecret: ${OIDC_CLIENT_SECRET}
+            metadataUrl: https://sso.{{ include "developer-hub.clusterDomain" . }}/realms/backstage/.well-known/openid-configuration
+            prompt: auto
+            signIn:
+              resolvers:
+                - resolver: preferredUsernameMatchingUserEntityName
+                  dangerouslyAllowSignInWithoutUserInCatalog: true

@@ -1,0 +1,53 @@
+      openapi: 3.0.3
+      info:
+        title: Countries API (via workshop-apis)
+        description: |
+          Kuadrant-protected proxy to countriesnow.space. Use `Authorization: APIKEY <key>`.
+          Example: `/countries/population/q?country=argentina`
+        version: v1
+      servers:
+        - url: https://workshop-apis.__HUB_APPS_DOMAIN__/countries
+          description: Workshop APIs Gateway
+      security:
+        - ApiKeyAuth: []
+      components:
+        securitySchemes:
+          ApiKeyAuth:
+            type: apiKey
+            in: header
+            name: Authorization
+            description: "Kuadrant API key — format: `APIKEY <your-key>`"
+      paths:
+        /codes:
+          get:
+            summary: List country names and dial codes
+            operationId: getCountryCodes
+            responses:
+              "200":
+                description: Country codes JSON
+              "401":
+                description: Missing or invalid APIKEY
+        /population/q:
+          get:
+            summary: Population time series for a country
+            operationId: getCountryPopulation
+            parameters:
+              - name: country
+                in: query
+                required: true
+                schema:
+                  type: string
+                example: argentina
+            responses:
+              "200":
+                description: Population data for the country
+                content:
+                  application/json:
+                    example:
+                      error: false
+                      msg: Argentina with population
+                      data:
+                        country: Argentina
+                        code: ARG
+              "401":
+                description: Missing or invalid APIKEY

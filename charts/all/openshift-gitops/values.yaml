@@ -1,0 +1,9 @@
+clusterDomain: ""
+clusterRole: hub
+
+# Hub-only: prevent Argo CD Sync=Unknown from MCE ocm-proxyserver OpenAPI (ACM 2.16+).
+# See docs/validatedpatterns-docs/troubleshooting.md#argocd-unknown-sync-status-acm-216
+acmArgocdOpenapiFix:
+  enabled: true
+  schedule: "*/15 * * * *"
+  image: registry.redhat.io/openshift4/ose-cli:latest

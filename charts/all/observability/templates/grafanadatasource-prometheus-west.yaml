@@ -1,0 +1,19 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: prometheus-west
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  datasource:
+    name: Prometheus-West
+    type: prometheus
+    access: proxy
+    url: http://prometheus-west.service-interconnect.svc.cluster.local:9091
+    isDefault: false
+    jsonData:
+      timeInterval: 5s

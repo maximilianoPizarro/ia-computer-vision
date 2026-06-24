@@ -1,0 +1,278 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-rhdh
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  app-config.yaml: |
+    app:
+      title: Developer Hub
+      baseUrl: https://developer-hub.{{ include "developer-hub.clusterDomain" . }}
+    backend:
+      baseUrl: https://developer-hub.{{ include "developer-hub.clusterDomain" . }}
+      # Limit per-plugin DB pools — many dynamic plugins exhaust default PostgreSQL max_connections.
+      database:
+        knexConfig:
+          pool:
+            min: 0
+            max: 4
+            idleTimeoutMillis: 10000
+            acquireTimeoutMillis: 30000
+      auth:
+        dangerouslyDisableDefaultAuthPolicy: true
+      cors:
+        origin: https://developer-hub.{{ include "developer-hub.clusterDomain" . }}
+      reading:
+        allow:
+          - host: "*.redhatworkshops.io"
+          - host: "*.github.io"
+          - host: raw.githubusercontent.com
+          - host: github.com
+          - host: {{ include "developer-hub.gitlabHost" . | quote }}
+          - host: petstore3.swagger.io
+          - host: httpbin.org
+          - host: catfact.ninja
+          - host: restcountries.com
+          - host: jsonplaceholder.typicode.com
+{{- if .Values.plugins.mcp.enabled | default true }}
+      actions:
+        pluginSources:
+          - software-catalog-mcp-tool
+          - techdocs-mcp-tool
+{{- end }}
+    enabled:
+      kubernetes: true
+      argocd: true
+      ocm: true
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: hub
+              url: https://kubernetes.default.svc.cluster.local:443
+              authProvider: serviceAccount
+              serviceAccountToken: ${K8S_SA_TOKEN}
+              skipTLSVerify: true
+              caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+{{- if and .Values.kubernetesSpokes.enabled (.Values.kubernetesSpokes.east.apiUrl | default "") }}
+            - name: east
+              url: {{ .Values.kubernetesSpokes.east.apiUrl | quote }}
+              authProvider: serviceAccount
+              serviceAccountToken: ${EAST_SA_TOKEN}
+              skipTLSVerify: true
+{{- end }}
+{{- if and .Values.kubernetesSpokes.enabled (.Values.kubernetesSpokes.west.apiUrl | default "") }}
+            - name: west
+              url: {{ .Values.kubernetesSpokes.west.apiUrl | quote }}
+              authProvider: serviceAccount
+              serviceAccountToken: ${WEST_SA_TOKEN}
+              skipTLSVerify: true
+{{- end }}
+      customResources:
+        - group: route.openshift.io
+          apiVersion: v1
+          plural: routes
+        - group: gateway.networking.k8s.io
+          apiVersion: v1
+          plural: gateways
+        - group: gateway.networking.k8s.io
+          apiVersion: v1
+          plural: httproutes
+        - group: gateway.networking.k8s.io
+          apiVersion: v1
+          plural: grpcroutes
+        - group: kafka.strimzi.io
+          apiVersion: v1beta2
+          plural: kafkas
+        - group: kafka.strimzi.io
+          apiVersion: v1beta2
+          plural: kafkatopics
+        - group: kafka.strimzi.io
+          apiVersion: v1beta2
+          plural: kafkausers
+        - group: kafka.strimzi.io
+          apiVersion: v1beta2
+          plural: kafkaconnects
+        - group: operators.coreos.com
+          apiVersion: v1alpha1
+          plural: subscriptions
+        - group: argoproj.io
+          apiVersion: v1alpha1
+          plural: applications
+        - group: kuadrant.io
+          apiVersion: v1
+          plural: authpolicies
+        - group: kuadrant.io
+          apiVersion: v1
+          plural: ratelimitpolicies
+        - group: kuadrant.io
+          apiVersion: v1
+          plural: tokenratelimitpolicies
+        - group: devportal.kuadrant.io
+          apiVersion: v1alpha1
+          plural: apiproducts
+        - group: devportal.kuadrant.io
+          apiVersion: v1alpha1
+          plural: apikeys
+        - group: camel.apache.org
+          apiVersion: v1
+          plural: integrations
+        - group: camel.apache.org
+          apiVersion: v1
+          plural: kamelets
+        - group: camel.apache.org
+          apiVersion: v1
+          plural: pipes
+    catalog:
+      import:
+        entityFilename: catalog-info.yaml
+      rules:
+        - allow: [Component, System, API, Resource, Location, Template, User, Group, Domain]
+      locations:
+        - type: file
+          target: /opt/app-root/src/catalog-data/users.yaml
+          rules:
+            - allow: [User, Group]
+        - type: file
+          target: /opt/app-root/src/catalog-data/software-templates/software-templates.yaml
+          rules:
+            - allow: [Template, Location]
+        - type: file
+          target: /opt/app-root/src/catalog-data/neuroface-cv/neuroface-cv-system.yaml
+          rules:
+            - allow: [System, Component, API]
+        - type: file
+          target: /opt/app-root/src/catalog-data/neuroface/neuroface-system.yaml
+          rules:
+            - allow: [System, Component, API, Resource]
+      providers:
+        ocm:
+          default:
+            name: hub
+            kubernetesPluginRef: hub
+            url: https://kubernetes.default.svc.cluster.local:443
+            skipTLSVerify: true
+            owner: group:platform-engineering
+            schedule:
+              frequency: { minutes: 15 }
+              timeout: { minutes: 10 }
+        keycloakOrg:
+          default:
+            baseUrl: https://sso.{{ include "developer-hub.clusterDomain" . }}
+            loginRealm: backstage
+            clientId: developer-hub-catalog
+            clientSecret: ${OIDC_CLIENT_SECRET}
+            schedule:
+              frequency: { minutes: 30 }
+              timeout: { minutes: 3 }
+    argocd:
+      appLocatorMethods:
+        - type: config
+          instances:
+            - name: default
+              url: https://openshift-gitops-server-openshift-gitops.{{ include "developer-hub.clusterDomain" . }}
+              token: ${K8S_SA_TOKEN}
+    quay:
+      baseUrl: https://quay-registry.{{ include "developer-hub.clusterDomain" . }}
+      dangerouslyAllowInsecureConnections: true
+      skipTLSVerify: true
+      uiUrl: https://quay-registry.{{ include "developer-hub.clusterDomain" . }}
+      apiUrl: https://quay-registry.{{ include "developer-hub.clusterDomain" . }}
+      readOnly: false
+      defaultVisibility: public
+      allowedRegistries: ['quay-registry.{{ include "developer-hub.clusterDomain" . }}']
+      allowedRepositories: ['workshop/*']
+      allowedTags: ['latest', 'stable']
+    techdocs:
+      builder: local
+      publisher:
+        type: local
+{{- if .Values.plugins.techRadar.enabled | default true }}
+    techRadar:
+      url: https://raw.githubusercontent.com/backstage/community/master/plugins/tech-radar-common/src/sampleTechRadarResponse.json
+{{- end }}
+{{- if .Values.plugins.mcp.enabled | default true }}
+    mcpActions:
+      servers:
+        catalog:
+          pluginSources:
+            - software-catalog-mcp-tool
+        techdocs:
+          pluginSources:
+            - techdocs-mcp-tool
+{{- end }}
+    permission:
+      enabled: {{ .Values.plugins.rbac.enabled | default false }}
+      rbac:
+        admin:
+          users:
+            - name: user:default/{{ .Values.plugins.rbac.policyAdminUser | default "platformadmin" }}
+        pluginsWithPermission:
+          - catalog
+          - scaffolder
+          - permission
+          - kubernetes
+          - ocm
+          - techdocs
+          - notifications
+          - argocd
+          - kuadrant
+          - adoption-insights
+{{- if include "developer-hub.lightspeedEnabled" . }}
+          - lightspeed
+{{- end }}
+{{- if .Values.plugins.rbac.enabled | default false }}
+        policies-csv-file: /opt/app-root/src/rbac-policy.csv
+        policyFileReload: true
+{{- end }}
+    signInPage: oidc
+    proxy:
+      endpoints:
+        '/rhacs':
+          target: https://central.stackrox.svc:443
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE']
+          headers:
+            Authorization: Bearer ${RHACS_API_TOKEN}
+        '/gitlab':
+          target: https://{{ include "developer-hub.gitlabHost" . }}/api/v4
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE']
+          headers:
+            PRIVATE-TOKEN: ${GITLAB_TOKEN}
+        '/quay':
+          target: https://quay-registry.{{ include "developer-hub.clusterDomain" . }}/api/v1
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+          changeOrigin: true
+        '/k8s-api':
+          target: https://kubernetes.default.svc
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+          headers:
+            Authorization: Bearer ${K8S_SA_TOKEN}
+          changeOrigin: true
+    integrations:
+      gitlab:
+        - host: {{ include "developer-hub.gitlabHost" . }}
+          apiBaseUrl: https://{{ include "developer-hub.gitlabHost" . }}/api/v4
+          token: ${GITLAB_TOKEN}
+      github:
+        - host: github.com
+          apiBaseUrl: https://api.github.com
+          rawBaseUrl: https://raw.githubusercontent.com
+    gitlab:
+      default:
+        baseUrl: https://{{ include "developer-hub.gitlabHost" . }}
+        token: ${GITLAB_TOKEN}
+    # -- Azure DevOps integration (uncomment when AZURE_TOKEN and AZURE_ORG are set) --
+    # integrations:
+    #   azure:
+    #     - host: dev.azure.com
+    #       credentials:
+    #         - personalAccessToken: ${AZURE_TOKEN}
+    # azureDevOps:
+    #   host: dev.azure.com
+    #   organization: ${AZURE_ORG}

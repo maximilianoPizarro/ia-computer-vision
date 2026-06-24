@@ -1,0 +1,97 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: industrial-edge-api-product
+  title: "Industrial Edge: Kuadrant API Product"
+  description: >
+    Publish an Industrial Edge HTTP API via Kuadrant APIProduct and register an OpenAPI catalog entity.
+  tags:
+    - kuadrant
+    - api
+    - industrial-edge
+spec:
+  owner: platform-engineering
+  type: service
+  parameters:
+    - title: API Product
+      required:
+        - name
+        - owner
+        - clusterDomain
+        - gatewayHost
+      properties:
+        name:
+          title: API name
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          default: ie-api-demo
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - User
+        clusterDomain:
+          title: Hub apps domain
+          type: string
+          default: apps.cluster.example.com
+        gatewayHost:
+          title: Gateway hostname (Connectivity Link)
+          type: string
+          default: ie-gateway-east.service-interconnect.svc
+        openApiUrl:
+          title: OpenAPI spec URL
+          type: string
+          default: https://petstore3.swagger.io/api/v3/openapi.json
+  steps:
+    - id: fetch-skeleton
+      name: Generate manifests
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          uniqueName: "${{ parameters.owner }}-${{ parameters.name }}"
+          clusterDomain: ${{ parameters.clusterDomain }}
+          gatewayHost: ${{ parameters.gatewayHost }}
+          openApiUrl: ${{ parameters.openApiUrl }}
+    - id: publish
+      name: Publish to GitLab
+      action: publish:github
+      input:
+        repoUrl: "gitlab.apps.${{ parameters.clusterDomain }}?owner=ws-${{ parameters.owner }}&repo=${{ parameters.name }}-api"
+        description: "Kuadrant API Product ${{ parameters.name }}"
+        defaultBranch: main
+        repoVisibility: public
+    - id: register
+      name: Register API in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+    - id: notify
+      name: Notify Owner
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/notifications
+        headers:
+          Content-Type: application/json
+        body:
+          recipients:
+            type: entity
+            entityRef: "user:default/${{ parameters.owner }}"
+          payload:
+            title: "API Product '${{ parameters.name }}' registered"
+            description: "Kuadrant manifests published to GitLab; apply via ArgoCD or oc."
+            link: ${{ steps['register'].output.entityRef }}
+            severity: normal
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Catalog entity
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

@@ -1,0 +1,116 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: neuroface-cv-journey
+  title: NeuroFace Computer Vision Journey
+  description: Hub Gateway API load-balances PPE inference across east and west spokes via Skupper
+  tags: [neuroface, computer-vision, ppe, hub-spoke, gateway-api]
+spec:
+  owner: platform-engineering
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: neuroface-gateway
+  title: NeuroFace CV Gateway (hub)
+  description: Dedicated Istio Gateway API HTTPRoute with 50/50 east/west split to spoke YOLO PPE serving (sidecar mode, no ambient)
+  tags: [neuroface, gateway-api, istio, hub]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface-gateway-system
+    backstage.io/kubernetes-cluster: hub
+  links:
+    - url: https://neuroface-cv.__HUB_APPS_DOMAIN__/api/ppe/status
+      title: PPE status (load-balanced)
+      icon: api
+    - url: https://neuroface-cv.__HUB_APPS_DOMAIN__/health
+      title: YOLO health endpoint
+      icon: web
+    - url: https://grafana.__HUB_APPS_DOMAIN__/d/neuroface-cv
+      title: Grafana — NeuroFace CV Participants
+      icon: dashboard
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface-cv-journey
+  consumesApis:
+    - kserve-ppe-v2
+  dependsOn:
+    - component:edge-ppe-east
+    - component:edge-ppe-west
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: edge-ppe-east
+  title: PPE Inference — East spoke
+  description: yolo-ppe-serving in neuroface-cv namespace with HPA; Skupper connector neuroface-cv-east
+  tags: [neuroface, yolo, ppe, east, edge]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface-cv
+    backstage.io/kubernetes-cluster: east
+  links:
+    - url: https://console-openshift-console.__HUB_APPS_DOMAIN__/multicloud/infrastructure/clusters/east/openshift/overview
+      title: ACM — east cluster
+      icon: catalog
+spec:
+  type: ml-model
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface-cv-journey
+  providesApis:
+    - kserve-ppe-v2
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: edge-ppe-west
+  title: PPE Inference — West spoke
+  description: yolo-ppe-serving in neuroface-cv namespace with HPA; Skupper connector neuroface-cv-west
+  tags: [neuroface, yolo, ppe, west, edge]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface-cv
+    backstage.io/kubernetes-cluster: west
+  links:
+    - url: https://console-openshift-console.__HUB_APPS_DOMAIN__/multicloud/infrastructure/clusters/west/openshift/overview
+      title: ACM — west cluster
+      icon: catalog
+spec:
+  type: ml-model
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface-cv-journey
+  providesApis:
+    - kserve-ppe-v2
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: neuroface-cv-journey-root
+  title: NeuroFace CV Journey
+  description: Federated computer-vision inference path; complements NeuroFace UI on hub
+  tags: [neuroface, workshop, journey]
+  annotations:
+    devspaces.io/factory: https://github.com/maximilianoPizarro/neuroface
+  links:
+    - url: https://neuroface.__HUB_APPS_DOMAIN__/
+      title: NeuroFace UI (hub)
+      icon: dashboard
+    - url: https://neuroface-cv.__HUB_APPS_DOMAIN__/
+      title: NeuroFace CV gateway
+      icon: web
+    - url: https://devspaces.__HUB_APPS_DOMAIN__/#https://github.com/maximilianoPizarro/neuroface
+      title: Open in DevSpaces
+      icon: catalog
+    - url: https://github.com/maximilianoPizarro/neuroface
+      title: GitHub repository
+      icon: github
+spec:
+  type: website
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface-cv-journey
+  dependsOn:
+    - component:neuroface-frontend
+    - component:neuroface-gateway

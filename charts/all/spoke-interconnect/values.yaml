@@ -1,0 +1,5 @@
+clusterDomain: ""
+clusterName: ""
+hubClusterDomain: ""
+industrialEdge:
+  enabled: false

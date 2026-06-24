@@ -1,0 +1,5 @@
+apiVersion: v2
+name: openshift-ai-hub
+description: OpenShift AI hub — DSC, MaaS models, playground, workbench preload
+type: application
+version: 0.1.0

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: developer-hub
+description: Red Hat Developer Hub with OCM and ACS plugins
+type: application
+version: 0.1.0

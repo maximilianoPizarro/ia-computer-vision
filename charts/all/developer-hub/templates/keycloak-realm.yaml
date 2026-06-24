@@ -1,0 +1,139 @@
+{{- /*
+  Backstage realm on the cluster Keycloak instance (namespace keycloak).
+  Client secret must match Secret developer-hub-oidc-auth key OIDC_CLIENT_SECRET.
+  Set via: helm --set keycloakOidcClientSecret='<value>' (do not commit real secrets).
+  Workshop users user1..userN share password with htpasswd/GitLab (default Welcome123!).
+*/ -}}
+{{- $count := int (.Values.userCount | default 50) }}
+{{- $password := .Values.defaultPassword | default "Welcome123!" }}
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: backstage-realm
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm:
+    realm: backstage
+    enabled: true
+    displayName: Developer Hub
+    loginWithEmailAllowed: true
+    registrationAllowed: false
+    sslRequired: external
+    roles:
+      realm:
+        - name: platform-engineer
+          description: Platform engineering — full catalog, scaffolder, RBAC
+        - name: developer
+          description: Developer — create from templates, view topology
+    groups:
+      - name: platform-engineering
+        path: /platform-engineering
+      - name: developers
+        path: /developers
+    clients:
+      - clientId: developer-hub
+        name: Developer Hub
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: {{ .Values.keycloakOidcClientSecret | default "CHANGEME-set-via-helm-or-sync-secret" | quote }}
+        redirectUris:
+          - "https://developer-hub.{{ include "developer-hub.clusterDomain" . }}/api/auth/oidc/handler/frame"
+        webOrigins:
+          - "https://developer-hub.{{ include "developer-hub.clusterDomain" . }}"
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: true
+        publicClient: false
+        protocol: openid-connect
+        fullScopeAllowed: true
+        defaultClientScopes:
+          - profile
+          - email
+          - roles
+          - basic
+      - clientId: developer-hub-catalog
+        name: Developer Hub Catalog Sync
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: {{ .Values.keycloakOidcClientSecret | default "CHANGEME-set-via-helm-or-sync-secret" | quote }}
+        serviceAccountsEnabled: true
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: true
+        publicClient: false
+        protocol: openid-connect
+        fullScopeAllowed: true
+      - clientId: devspaces
+        name: DevSpaces
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: {{ .Values.devspacesOidcClientSecret | default .Values.keycloakOidcClientSecret | default "CHANGEME-set-via-helm-or-sync-secret" | quote }}
+        redirectUris:
+          - "https://devspaces.{{ include "developer-hub.clusterDomain" . }}/api/oauth/callback"
+          - "https://devspaces.{{ include "developer-hub.clusterDomain" . }}/api/oauth/che/callback"
+        webOrigins:
+          - "https://devspaces.{{ include "developer-hub.clusterDomain" . }}"
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: true
+        publicClient: false
+        protocol: openid-connect
+        fullScopeAllowed: true
+        defaultClientScopes:
+          - profile
+          - email
+          - roles
+          - basic
+    users:
+      # Service account for KeycloakOrgEntityProvider — needs realm-management roles to list users/groups
+      - username: service-account-developer-hub-catalog
+        enabled: true
+        serviceAccountClientId: developer-hub-catalog
+        clientRoles:
+          realm-management:
+            - view-users
+            - view-realm
+      - username: platformadmin
+        enabled: true
+        emailVerified: true
+        firstName: Platform
+        lastName: Admin
+        email: platformadmin@redhat.local
+        credentials:
+          - type: password
+            value: {{ $password | quote }}
+            temporary: false
+        realmRoles:
+          - platform-engineer
+        groups:
+          - platform-engineering
+      - username: admin
+        enabled: true
+        emailVerified: true
+        firstName: Workshop
+        lastName: Admin
+        email: admin@developer-hub.local
+        credentials:
+          - type: password
+            value: {{ $password | quote }}
+            temporary: false
+        realmRoles:
+          - developer
+        groups:
+          - developers
+{{- range $i := until $count }}
+      - username: {{ printf "user%d" (add $i 1) | quote }}
+        enabled: true
+        emailVerified: true
+        firstName: Workshop
+        lastName: {{ printf "User %d" (add $i 1) | quote }}
+        email: {{ printf "user%d@developer-hub.local" (add $i 1) | quote }}
+        credentials:
+          - type: password
+            value: {{ $password | quote }}
+            temporary: false
+        realmRoles:
+          - developer
+        groups:
+          - developers
+{{- end }}

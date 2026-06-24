@@ -1,0 +1,146 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: cnv-vm-workshop
+  title: "OpenShift Virtualization: Workshop VM"
+  description: >
+    Provision a sample KubeVirt VM (cirros) in a dedicated namespace on the hub.
+    Requires OpenShift Virtualization (kubevirt-hyperconverged) installed via operators-platform.
+  tags:
+    - virtualization
+    - kubevirt
+    - cnv
+spec:
+  owner: platform-engineering
+  type: service
+  parameters:
+    - title: VM Configuration
+      required:
+        - name
+        - owner
+        - clusterDomain
+      properties:
+        name:
+          title: VM / namespace name
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          default: my-vm-lab
+          ui:autofocus: true
+          description: "Lowercase DNS label — used for Namespace, VirtualMachine, and GitLab repo suffix."
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - User
+        clusterDomain:
+          title: Hub apps domain
+          type: string
+          description: "Hub RHDP apps domain including apps. prefix (e.g. apps.cluster-xqg4c.dynamic2.redhatworkshops.io)"
+          default: apps.cluster.example.com
+        memory:
+          title: VM memory
+          type: string
+          enum: ["512Mi", "1Gi", "2Gi"]
+          enumNames: ["512 MiB", "1 GiB", "2 GiB"]
+          default: 512Mi
+        cpu:
+          title: vCPU count
+          type: integer
+          minimum: 1
+          maximum: 4
+          default: 1
+        vmUsername:
+          title: Guest OS username (cloud-init)
+          type: string
+          default: cirros
+        vmPassword:
+          title: Guest OS password (cloud-init)
+          type: string
+          default: Welcome123!
+          ui:widget: password
+  steps:
+    - id: fetch
+      name: Fetch skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          clusterDomain: ${{ parameters.clusterDomain }}
+          memory: ${{ parameters.memory }}
+          cpu: ${{ parameters.cpu }}
+          vmUsername: ${{ parameters.vmUsername }}
+          vmPassword: ${{ parameters.vmPassword }}
+    - id: publish
+      name: Publish to GitLab
+      action: publish:github
+      input:
+        repoUrl: gitlab.apps.${{ parameters.clusterDomain }}?owner=ws-${{ parameters.owner }}&repo=${{ parameters.name }}-cnv
+        description: KubeVirt VM ${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: public
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+    - id: create-argocd-app
+      name: Create ArgoCD Application (hub)
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/proxy/k8s-api/apis/argoproj.io/v1alpha1/namespaces/openshift-gitops/applications
+        headers:
+          Content-Type: application/json
+        body:
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: "gen-${{ parameters.owner }}-${{ parameters.name }}-cnv"
+            namespace: openshift-gitops
+          spec:
+            project: ai
+            source:
+              repoURL: "https://gitlab.apps.${{ parameters.clusterDomain }}/ws-${{ parameters.owner }}/${{ parameters.name }}-cnv"
+              targetRevision: main
+              path: manifests
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: ${{ parameters.name }}
+            syncPolicy:
+              automated:
+                selfHeal: true
+                prune: true
+              syncOptions:
+                - CreateNamespace=true
+      continueOnError: true
+    - id: notify
+      name: Notify Owner
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/notifications
+        headers:
+          Content-Type: application/json
+        body:
+          recipients:
+            type: entity
+            entityRef: "user:default/${{ parameters.owner }}"
+          payload:
+            title: "CNV VM '${{ parameters.name }}' on hub"
+            description: "VirtualMachine manifests published to GitLab. Apply via Argo CD or oc apply from the repo."
+            link: ${{ steps['register'].output.entityRef }}
+            severity: normal
+  output:
+    links:
+      - title: OpenShift Console Virtualization
+        url: https://console-openshift-console.${{ parameters.clusterDomain }}/k8s/ns/${{ parameters.name }}/kubevirt.io~v1~VirtualMachine
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: View in Catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

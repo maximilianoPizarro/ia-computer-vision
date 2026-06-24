@@ -1,0 +1,509 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: neuroface
+  title: NeuroFace — Multimodal AI Vision Platform
+  description: |
+    Hub-deployed vision platform with OVMS face/object detection, KServe YOLO PPE serving,
+    MaaS chat integration, Kafka violation alerts, and OpenShift AI workbenches.
+  tags: [neuroface, kserve, ppe, kafka, maas]
+spec:
+  owner: platform-engineering
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: neuroface-frontend
+  title: NeuroFace Frontend
+  description: Angular UI for face recognition, object detection, PPE safety, and MaaS chat
+  tags: [neuroface, angular, vision, ui]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface
+    backstage.io/kubernetes-cluster: hub
+    devspaces.io/factory: https://github.com/maximilianoPizarro/neuroface
+  links:
+    - url: https://neuroface.__HUB_APPS_DOMAIN__/
+      title: NeuroFace UI
+      icon: dashboard
+    - url: https://devspaces.__HUB_APPS_DOMAIN__/#https://github.com/maximilianoPizarro/neuroface
+      title: Open in DevSpaces
+      icon: catalog
+    - url: https://github.com/maximilianoPizarro/neuroface
+      title: GitHub repository
+      icon: github
+spec:
+  type: website
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: neuroface-backend
+  title: NeuroFace Backend API
+  description: FastAPI service — face/object detection, PPE proxy to KServe, MaaS chat, Kafka event producer
+  tags: [neuroface, fastapi, vision, kafka]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface
+    backstage.io/kubernetes-cluster: hub
+    openshift.ai/project: neuroface
+    devspaces.io/factory: https://github.com/maximilianoPizarro/neuroface
+  links:
+    - url: https://neuroface.__HUB_APPS_DOMAIN__/api/ready
+      title: Readiness (PPE + KServe status)
+      icon: api
+    - url: https://devspaces.__HUB_APPS_DOMAIN__/#https://github.com/maximilianoPizarro/neuroface
+      title: Open in DevSpaces
+      icon: catalog
+    - url: https://ai-gateway.__HUB_APPS_DOMAIN__/v1/chat/completions
+      title: AI Gateway — MaaS (Kuadrant alternative)
+      icon: api
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens
+      title: Request API key (MaaS LLM)
+      icon: catalog
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  providesApis:
+    - ppe-detect-api
+    - neuroface-chat-api
+    - ppe-kafka-events
+  consumesApis:
+    - kserve-ppe-v2
+    - workshop-maas-openapi
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: yolo-ppe-serving
+  title: YOLO PPE Serving (KServe)
+  description: KServe InferenceService (RawDeployment) — Ultralytics YOLO PPE model with v1/v2 predict APIs
+  tags: [neuroface, kserve, yolo, ppe, ml-model]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface
+    backstage.io/kubernetes-cluster: hub
+    openshift.ai/project: neuroface
+  links:
+    - url: https://rh-ai.__HUB_APPS_DOMAIN__/projects/neuroface
+      title: OpenShift AI — neuroface project
+      icon: dashboard
+    - url: https://neuroface.__HUB_APPS_DOMAIN__/api/ready
+      title: KServe readiness (via backend)
+      icon: api
+spec:
+  type: ml-model
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  providesApis:
+    - kserve-ppe-v2
+  dependsOn:
+    - resource:ppe-model-storage
+    - resource:yolo-ppe-inferenceservice
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ppe-workbench
+  title: PPE Jupyter Workbench
+  description: OpenShift AI notebook for PPE model exploration and inference testing
+  tags: [neuroface, openshift-ai, jupyter, ppe]
+  annotations:
+    openshift.ai/project: neuroface
+    backstage.io/kubernetes-namespace: neuroface
+    backstage.io/kubernetes-cluster: hub
+  links:
+    - url: https://ppe-workbench.__HUB_APPS_DOMAIN__
+      title: PPE Workbench
+      icon: dashboard
+    - url: https://rh-ai.__HUB_APPS_DOMAIN__/projects/neuroface
+      title: OpenShift AI Dashboard
+      icon: catalog
+spec:
+  type: ml-workspace
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ppe-retrain-workbench
+  title: PPE Retrain Workbench
+  description: Jupyter notebook workbench for fine-tuning YOLO PPE models with MinIO model storage
+  tags: [neuroface, openshift-ai, jupyter, retrain]
+  annotations:
+    openshift.ai/project: neuroface
+    backstage.io/kubernetes-namespace: neuroface
+    backstage.io/kubernetes-cluster: hub
+  links:
+    - url: https://ppe-retrain-workbench.__HUB_APPS_DOMAIN__
+      title: PPE Retrain Workbench
+      icon: dashboard
+    - url: https://rh-ai.__HUB_APPS_DOMAIN__/projects/neuroface
+      title: OpenShift AI Dashboard
+      icon: catalog
+spec:
+  type: ml-workspace
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  dependsOn:
+    - resource:ppe-model-storage
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ppe-kafka-mailpit
+  title: PPE Kafka → Mailpit Consumer
+  description: Consumes cv.ppe.detections Kafka topic and sends SMTP email alerts to Mailpit
+  tags: [neuroface, kafka, mailpit, alerts]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface
+    backstage.io/kubernetes-cluster: hub
+  links:
+    - url: https://mailpit.__HUB_APPS_DOMAIN__
+      title: Mailpit UI
+      icon: email
+    - url: https://kafka-console.__HUB_APPS_DOMAIN__
+      title: Kafka Console
+      icon: dashboard
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  consumesApis:
+    - ppe-kafka-events
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ppe-detect-api
+  title: NeuroFace PPE Detection API
+  description: Backend REST API for PPE safety detection — proxies frames to KServe YOLO serving
+  tags: [neuroface, ppe, openapi]
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: NeuroFace PPE Detection API
+      version: 1.5.0
+      description: PPE safety detection via webcam frames (base64 JPEG)
+    servers:
+      - url: https://neuroface.__HUB_APPS_DOMAIN__
+        description: NeuroFace hub route
+    paths:
+      /api/ppe/status:
+        get:
+          summary: PPE serving status
+          operationId: getPpeStatus
+          responses:
+            "200":
+              description: PPE endpoint reachability and configuration
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      endpoint:
+                        type: string
+                      reachable:
+                        type: boolean
+                      kafka_enabled:
+                        type: boolean
+      /api/ppe/detect:
+        post:
+          summary: Detect PPE in image frame
+          operationId: detectPpe
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [image]
+                  properties:
+                    image:
+                      type: string
+                      description: Base64-encoded JPEG frame
+          responses:
+            "200":
+              description: PPE detection result
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      person_count:
+                        type: integer
+                      ppe_status:
+                        type: string
+                        enum: [compliant, violation, unknown]
+                      missing_ppe:
+                        type: array
+                        items:
+                          type: string
+                      present_ppe:
+                        type: array
+                        items:
+                          type: string
+                      detections:
+                        type: array
+                        items:
+                          type: object
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: kserve-ppe-v2
+  title: KServe YOLO PPE Inference API
+  description: KServe v1/v2 predict endpoints for yolo-ppe InferenceService
+  tags: [neuroface, kserve, yolo, openapi]
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: KServe YOLO PPE Inference API
+      version: 1.5.0
+      description: YOLO PPE model serving via KServe RawDeployment
+    servers:
+      - url: http://yolo-ppe-serving.neuroface.svc:8080
+        description: In-cluster InferenceService
+    paths:
+      /v2/models/yolo-ppe/ready:
+        get:
+          summary: KServe v2 model readiness
+          operationId: kserveReady
+          responses:
+            "200":
+              description: Model is ready
+      /v2/models/yolo-ppe/infer:
+        post:
+          summary: KServe v2 inference
+          operationId: kserveInfer
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+          responses:
+            "200":
+              description: Inference output tensors
+      /v1/predict:
+        post:
+          summary: Legacy v1 predict (base64 image)
+          operationId: v1Predict
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    image:
+                      type: string
+                      description: Base64-encoded image
+          responses:
+            "200":
+              description: YOLO detection results
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: neuroface-chat-api
+  title: NeuroFace MaaS Chat API
+  description: Multimodal chat proxy to AI Gateway MaaS LLM with optional image context
+  tags: [neuroface, maas, chat, openapi]
+  links:
+    - url: https://ai-gateway.__HUB_APPS_DOMAIN__/v1/chat/completions
+      title: AI Gateway MaaS endpoint
+      icon: api
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: NeuroFace MaaS Chat API
+      version: 1.5.0
+      description: Chat with Granite LLM via AI Gateway; optional vision context from frame
+    servers:
+      - url: https://neuroface.__HUB_APPS_DOMAIN__
+        description: NeuroFace hub route
+    paths:
+      /api/chat/status:
+        get:
+          summary: Chat feature status
+          operationId: getChatStatus
+          responses:
+            "200":
+              description: Chat configuration
+      /api/chat:
+        post:
+          summary: Send chat message (optional image)
+          operationId: chat
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [message]
+                  properties:
+                    message:
+                      type: string
+                    image:
+                      type: string
+                      description: Optional base64 image for multimodal context
+          responses:
+            "200":
+              description: LLM response
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      response:
+                        type: string
+                      analysis:
+                        type: object
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ppe-kafka-events
+  title: PPE Kafka Events
+  description: Async PPE violation and compliance events published by NeuroFace backend
+  tags: [neuroface, kafka, asyncapi, ppe]
+  links:
+    - url: https://kafka-console.__HUB_APPS_DOMAIN__
+      title: Kafka Console
+      icon: dashboard
+spec:
+  type: asyncapi
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+  definition: |
+    asyncapi: 2.6.0
+    info:
+      title: PPE Kafka Events
+      version: 1.5.0
+      description: PPE detection events from NeuroFace backend to east Kafka via Skupper
+    defaultContentType: application/json
+    servers:
+      kafka-east:
+        url: kafka-east-tst.service-interconnect.svc:9092
+        protocol: kafka
+        description: East spoke Kafka (Skupper federated)
+    channels:
+      cv.ppe.detections:
+        description: PPE violation and compliance events
+        publish:
+          summary: NeuroFace backend producer
+          message:
+            name: PpeDetectionEvent
+            payload:
+              type: object
+              required: [ppe_status, timestamp]
+              properties:
+                ppe_status:
+                  type: string
+                  enum: [compliant, violation, unknown]
+                person_count:
+                  type: integer
+                missing_ppe:
+                  type: array
+                  items:
+                    type: string
+                present_ppe:
+                  type: array
+                  items:
+                    type: string
+                timestamp:
+                  type: string
+                  format: date-time
+        subscribe:
+          summary: ppe-kafka-mailpit consumer
+          message:
+            payload:
+              $ref: "#/components/schemas/PpeDetectionEvent"
+    components:
+      schemas:
+        PpeDetectionEvent:
+          type: object
+          properties:
+            ppe_status:
+              type: string
+            person_count:
+              type: integer
+            missing_ppe:
+              type: array
+              items:
+                type: string
+            present_ppe:
+              type: array
+              items:
+                type: string
+            timestamp:
+              type: string
+              format: date-time
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ppe-model-storage
+  title: PPE Model Storage (MinIO)
+  description: S3 bucket for YOLO PPE model artifacts at s3://models/ppe-detection/model/
+  tags: [neuroface, minio, s3, ml-model]
+  annotations:
+    backstage.io/kubernetes-namespace: industrial-edge-ml-workspace
+    backstage.io/kubernetes-cluster: hub
+  links:
+    - url: https://minio-console-industrial-edge-ml-workspace.__HUB_APPS_DOMAIN__
+      title: MinIO Console
+      icon: storage
+spec:
+  type: s3-bucket
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: yolo-ppe-inferenceservice
+  title: YOLO PPE InferenceService
+  description: KServe InferenceService CR for hub yolo-ppe-serving (RawDeployment mode)
+  tags: [neuroface, kserve, openshift-ai]
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface
+    backstage.io/kubernetes-cluster: hub
+    openshift.ai/project: neuroface
+  links:
+    - url: https://rh-ai.__HUB_APPS_DOMAIN__/projects/neuroface
+      title: OpenShift AI — Model Serving
+      icon: dashboard
+spec:
+  type: ml-model
+  lifecycle: production
+  owner: platform-engineering
+  system: neuroface

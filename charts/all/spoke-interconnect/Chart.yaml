@@ -1,0 +1,5 @@
+apiVersion: v2
+name: spoke-interconnect
+description: Skupper spoke site with connectors for Industrial Edge services
+type: application
+version: 0.1.0

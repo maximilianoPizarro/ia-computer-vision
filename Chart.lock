@@ -1,0 +1,6 @@
+dependencies:
+- name: clustergroup
+  repository: https://charts.validatedpatterns.io
+  version: 0.9.55
+digest: sha256:ff3a5b327cb4a0d13dcfebf324cfe910f6e121e293990227bf9f57b40a814cbd
+generated: "2026-06-24T19:04:25.6066905-03:00"

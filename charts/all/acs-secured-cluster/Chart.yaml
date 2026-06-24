@@ -1,0 +1,5 @@
+apiVersion: v2
+name: acs-secured-cluster
+description: Red Hat Advanced Cluster Security - SecuredCluster for spoke clusters
+type: application
+version: 0.1.0

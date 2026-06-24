@@ -1,0 +1,191 @@
+apiVersion: rhdh.redhat.com/v1alpha5
+kind: Backstage
+metadata:
+  name: developer-hub
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  application:
+    appConfig:
+      configMaps:
+        - name: app-config-rhdh
+        - name: app-config-auth-rhdh
+{{- if include "developer-hub.lightspeedEnabled" . }}
+        - name: lightspeed-app-config
+{{- end }}
+    dynamicPluginsConfigMapName: dynamic-plugins-rhdh
+    extraFiles:
+      configMaps:
+        - name: developer-hub-catalog-users
+          key: users.yaml
+          mountPath: /opt/app-root/src/catalog-data
+          containers:
+            - "*"
+        - name: developer-hub-catalog-neuroface-cv
+          key: neuroface-cv-system.yaml
+          mountPath: /opt/app-root/src/catalog-data/neuroface-cv
+          containers:
+            - "*"
+        - name: developer-hub-catalog-neuroface
+          key: neuroface-system.yaml
+          mountPath: /opt/app-root/src/catalog-data/neuroface
+          containers:
+            - "*"
+        - name: developer-hub-catalog-software-templates
+          key: software-templates.yaml
+          mountPath: /opt/app-root/src/catalog-data/software-templates
+          containers:
+            - "*"
+        - name: developer-hub-catalog-software-template-manifests
+          mountPath: /opt/app-root/src/catalog-data/software-templates/manifests
+          containers:
+            - "*"
+    route:
+      enabled: true
+      host: developer-hub.{{ include "developer-hub.clusterDomain" . }}
+{{- if include "developer-hub.lightspeedEnabled" . }}
+    extraEnvs:
+      secrets:
+        - name: llama-stack-secrets
+        - name: lightspeed-secrets
+{{- end }}
+  deployment:
+    patch:
+      spec:
+        replicas: 1
+        template:
+          metadata:
+            annotations:
+              developer-hub.redhat.com/catalog-users: {{ .Values.userCount | default 50 | quote }}
+              developer-hub.redhat.com/kuadrant-plugin-version: "0.2.1"
+          spec:
+            automountServiceAccountToken: true
+            serviceAccountName: developer-hub
+            volumes:
+              - $patch: replace
+                name: dynamic-plugins-root
+                ephemeral:
+                  volumeClaimTemplate:
+                    spec:
+                      accessModes:
+                        - ReadWriteOnce
+                      resources:
+                        requests:
+                          storage: {{ .Values.dynamicPluginsStorage | default "10Gi" | quote }}
+{{- if or (include "developer-hub.lightspeedEnabled" .) (.Values.plugins.rbac.enabled | default false) }}
+{{- if include "developer-hub.lightspeedEnabled" . }}
+              - name: lightspeed-stack
+                configMap:
+                  name: lightspeed-stack
+              - name: llama-stack-config
+                configMap:
+                  name: llama-stack-config
+              - name: shared-storage
+                emptyDir: {}
+              - name: rag-data-volume
+                emptyDir: {}
+{{- end }}
+{{- if .Values.plugins.rbac.enabled | default false }}
+              - name: rhdh-rbac-policy
+                configMap:
+                  name: rhdh-rbac-policy
+                  optional: true
+{{- end }}
+{{- end }}
+            initContainers:
+              - name: install-dynamic-plugins
+                resources:
+                  requests:
+                    ephemeral-storage: 2Gi
+                  limits:
+                    ephemeral-storage: 5Gi
+              - name: wait-for-postgres
+                image: registry.redhat.io/openshift4/ose-cli:latest
+                command: ["/bin/bash", "-c"]
+                args:
+                  - |
+                    for i in $(seq 1 30); do
+                      timeout 3 bash -c \
+                        "</dev/tcp/backstage-psql-developer-hub/5432" \
+                        2>/dev/null && { sleep 2; exit 0; }
+                      echo "PostgreSQL not ready, attempt $i/30..."
+                      sleep 5
+                    done
+                    echo "PostgreSQL timed out — proceeding anyway."
+{{- if include "developer-hub.lightspeedEnabled" . }}
+              - name: init-rag-data
+                image: {{ .Values.plugins.lightspeed.ragContentImage | default "quay.io/redhat-ai-dev/rag-content:release-1.9-lcs" | quote }}
+                command:
+                  - sh
+                  - -c
+                  - |
+                    echo 'Copying RAG data...'
+                    cp -r /rag/vector_db/rhdh_product_docs /data/ && \
+                    cp -r /rag/embeddings_model /data/ && \
+                    echo 'Copy complete.'
+                volumeMounts:
+                  - name: rag-data-volume
+                    mountPath: /data
+{{- end }}
+            containers:
+              - name: backstage-backend
+                resources:
+                  requests:
+                    ephemeral-storage: 2Gi
+                  limits:
+                    ephemeral-storage: 5Gi
+                env:
+                  - name: NODE_TLS_REJECT_UNAUTHORIZED
+                    value: "0"
+                  - name: K8S_SA_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: developer-hub-sa-token
+                        key: token
+                        optional: true
+                envFrom:
+                  - secretRef:
+                      name: developer-hub-oidc-auth
+                      optional: true
+                  - secretRef:
+                      name: developer-hub-spoke-tokens
+                      optional: true
+{{- if .Values.plugins.rbac.enabled | default false }}
+                volumeMounts:
+                  - name: rhdh-rbac-policy
+                    mountPath: /opt/app-root/src/rbac-policy.csv
+                    subPath: rbac-policy.csv
+                    readOnly: true
+{{- end }}
+{{- if include "developer-hub.lightspeedEnabled" . }}
+              - name: llama-stack
+                image: {{ .Values.plugins.lightspeed.llamaStackImage | default "quay.io/redhat-ai-dev/llama-stack:0.1.4" | quote }}
+                envFrom:
+                  - secretRef:
+                      name: llama-stack-secrets
+                volumeMounts:
+                  - name: shared-storage
+                    mountPath: /app-root/.llama
+                  - name: rag-data-volume
+                    mountPath: /rag-content/embeddings_model
+                    subPath: embeddings_model
+                  - name: rag-data-volume
+                    mountPath: /rag-content/vector_db/rhdh_product_docs
+                    subPath: rhdh_product_docs
+                  - name: llama-stack-config
+                    mountPath: /app-root/config/run.yaml
+                    subPath: run.yaml
+              - name: lightspeed-core
+                image: {{ .Values.plugins.lightspeed.lightspeedCoreImage | default "quay.io/lightspeed-core/lightspeed-stack:0.4.0" | quote }}
+                volumeMounts:
+                  - name: lightspeed-stack
+                    mountPath: /app-root/lightspeed-stack.yaml
+                    subPath: lightspeed-stack.yaml
+                  - name: shared-storage
+                    mountPath: /tmp/data/feedback
+                  - name: shared-storage
+                    mountPath: /tmp/data/transcripts
+                  - name: shared-storage
+                    mountPath: /tmp/data/conversations
+{{- end }}

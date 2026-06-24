@@ -1,0 +1,25 @@
+{{- if .Values.industrialEdge.enabled }}
+apiVersion: skupper.io/v2alpha1
+kind: Connector
+metadata:
+  name: kafka-{{ include "spoke-interconnect.clusterName" . }}-tst
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  routingKey: kafka-{{ include "spoke-interconnect.clusterName" . }}-tst
+  host: dev-cluster-kafka-bootstrap.industrial-edge-tst-all.svc.cluster.local
+  port: 9092
+{{- else if eq (include "spoke-interconnect.clusterName" .) "east" }}
+apiVersion: skupper.io/v2alpha1
+kind: Connector
+metadata:
+  name: kafka-{{ include "spoke-interconnect.clusterName" . }}-tst
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  routingKey: kafka-{{ include "spoke-interconnect.clusterName" . }}-tst
+  host: cv-kafka-kafka-bootstrap.neuroface-cv.svc.cluster.local
+  port: 9092
+{{- end }}

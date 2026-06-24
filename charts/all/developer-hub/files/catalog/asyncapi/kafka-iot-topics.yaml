@@ -1,0 +1,103 @@
+    asyncapi: 2.6.0
+    info:
+      title: Kafka IoT Topics
+      version: 1.0.0
+      description: |
+        Temperature and vibration streams on Strimzi dev-cluster and prod-cluster Kafka.
+        Camel K routes MQTT → Kafka; data lake archiver writes to MinIO.
+    defaultContentType: application/json
+    servers:
+      dev-cluster-east:
+        url: dev-cluster-kafka-bootstrap.industrial-edge-tst-all.svc:9092
+        protocol: kafka
+        description: East dev-cluster (ingestion)
+      prod-cluster-hub:
+        url: prod-cluster-kafka-bootstrap.industrial-edge-data-lake.svc:9092
+        protocol: kafka
+        description: Hub prod-cluster (archive pipeline)
+    components:
+      schemas:
+        TemperatureEvent:
+          type: object
+          required: [sensorId, timestamp, celsius]
+          properties:
+            sensorId:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            celsius:
+              type: number
+              format: float
+              minimum: -40
+              maximum: 200
+            site:
+              type: string
+            partitionKey:
+              type: string
+        VibrationEvent:
+          type: object
+          required: [sensorId, timestamp, mmPerSec]
+          properties:
+            sensorId:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            mmPerSec:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 50
+            axis:
+              type: string
+              enum: [x, y, z]
+        ArchiveRecord:
+          type: object
+          properties:
+            topic:
+              type: string
+            partition:
+              type: integer
+            offset:
+              type: integer
+            payload:
+              type: object
+            archivedAt:
+              type: string
+              format: date-time
+            s3Key:
+              type: string
+              description: Object key in MinIO data lake bucket
+    channels:
+      temperature:
+        description: Sensor temperature readings (dev-cluster)
+        subscribe:
+          summary: Line dashboard / ML consumers
+          message:
+            name: TemperatureEvent
+            payload:
+              $ref: "#/components/schemas/TemperatureEvent"
+        publish:
+          summary: Camel mqtt-to-kafka route
+          message:
+            payload:
+              $ref: "#/components/schemas/TemperatureEvent"
+      vibration:
+        description: Sensor vibration readings (dev-cluster)
+        subscribe:
+          message:
+            payload:
+              $ref: "#/components/schemas/VibrationEvent"
+        publish:
+          message:
+            payload:
+              $ref: "#/components/schemas/VibrationEvent"
+      industrial-edge-archive:
+        description: Archived telemetry batches in data lake pipeline
+        publish:
+          summary: Kafka-to-S3 Camel archiver
+          message:
+            name: ArchiveRecord
+            payload:
+              $ref: "#/components/schemas/ArchiveRecord"

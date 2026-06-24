@@ -1,0 +1,58 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: cluster-collector
+  namespace: openshift-opentelemetry
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  mode: deployment
+  observability:
+    metrics:
+      enableMetrics: true
+  config:
+    {{- if eq (.Values.clusterRole | default "hub") "hub" }}
+    extensions:
+      bearertokenauth:
+        filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    {{- end }}
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch:
+        timeout: 10s
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 50
+        spike_limit_percentage: 30
+    exporters:
+      {{- if eq (.Values.clusterRole | default "hub") "hub" }}
+      otlp:
+        endpoint: "tempo-simplest-gateway.distributed-tracing.svc:8090"
+        auth:
+          authenticator: bearertokenauth
+        headers:
+          x-scope-orgid: platform
+        tls:
+          ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+          insecure_skip_verify: true
+      {{- else }}
+      otlp:
+        endpoint: "otel-hub.service-interconnect.svc.cluster.local:4317"
+        tls:
+          insecure: true
+      {{- end }}
+    service:
+      {{- if eq (.Values.clusterRole | default "hub") "hub" }}
+      extensions: [bearertokenauth]
+      {{- end }}
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp]

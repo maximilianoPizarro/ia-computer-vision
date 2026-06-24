@@ -1,0 +1,81 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: industrial-edge-delete
+  title: "Industrial Edge — Delete Instance"
+  description: >
+    Remove a generated Industrial Edge instance: ArgoCD Application, GitLab project,
+    and catalog registration. Sends an in-app notification to the owner.
+  tags:
+    - industrial-edge
+    - delete
+spec:
+  owner: platform-engineering
+  type: service
+  parameters:
+    - title: Instance to Delete
+      required:
+        - name
+        - owner
+        - targetCluster
+        - clusterDomain
+      properties:
+        name:
+          title: Instance Name
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          ui:autofocus: true
+        owner:
+          title: Owner (GitLab group ws-<owner>)
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - User
+        targetCluster:
+          title: Target Cluster
+          type: string
+          enum: [east, west]
+          enumNames: [East spoke, West spoke]
+        clusterDomain:
+          title: Hub cluster apps domain
+          type: string
+          default: apps.cluster-xqg4c.dynamic2.redhatworkshops.io
+        uniqueName:
+          title: Catalog entity name (owner-name)
+          type: string
+          description: "Usually <owner>-<name>, as registered in Developer Hub"
+  steps:
+    - id: delete-argocd-app
+      name: Delete ArgoCD Application
+      action: http:backstage:request
+      input:
+        method: DELETE
+        path: "/api/proxy/k8s-api/apis/argoproj.io/v1alpha1/namespaces/openshift-gitops/applications/gen-${{ parameters.owner }}-${{ parameters.name }}-${{ parameters.targetCluster }}"
+    - id: delete-gitlab-repo
+      name: Delete GitLab Project
+      action: http:backstage:request
+      input:
+        method: DELETE
+        path: "/api/proxy/gitlab/projects/ws-${{ parameters.owner }}%2F${{ parameters.name }}-${{ parameters.targetCluster }}"
+    - id: notify
+      name: Notify Owner
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/notifications
+        headers:
+          Content-Type: application/json
+        body:
+          recipients:
+            type: entity
+            entityRef: "user:default/${{ parameters.owner }}"
+          payload:
+            title: "Industrial Edge '${{ parameters.name }}' removed from ${{ parameters.targetCluster }}"
+            description: "ArgoCD application and GitLab project were deleted. Unregister the catalog entity manually if it still appears."
+            severity: warning
+  output:
+    links:
+      - title: Developer Hub Catalog
+        icon: catalog
+        url: https://developer-hub.${{ parameters.clusterDomain }}/catalog

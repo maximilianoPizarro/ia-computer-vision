@@ -1,0 +1,76 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: openshift-ai-workspace
+  title: "OpenShift AI: Data Science Workspace"
+  description: >
+    Create a Data Science Project on the hub with MaaS model connection metadata
+    and catalog registration for OpenShift AI dashboard discovery.
+  tags:
+    - openshift-ai
+    - ml
+    - maas
+spec:
+  owner: platform-engineering
+  type: service
+  parameters:
+    - title: Workspace
+      required:
+        - name
+        - owner
+        - clusterDomain
+      properties:
+        name:
+          title: Project name
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          default: my-ds-project
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - User
+        clusterDomain:
+          title: Hub apps domain
+          type: string
+          default: apps.cluster.example.com
+        model:
+          title: Default MaaS model
+          type: string
+          enum:
+            - llama-scout-17b
+            - deepseek-r1-distill-qwen-14b
+            - codellama-7b-instruct
+          default: llama-scout-17b
+  steps:
+    - id: fetch
+      name: Fetch skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          clusterDomain: ${{ parameters.clusterDomain }}
+          model: ${{ parameters.model }}
+    - id: publish
+      name: Publish to GitLab
+      action: publish:github
+      input:
+        repoUrl: gitlab.apps.${{ parameters.clusterDomain }}?owner=ws-${{ parameters.owner }}&repo=${{ parameters.name }}-osai
+        description: OpenShift AI workspace ${{ parameters.name }}
+        defaultBranch: main
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: OpenShift AI Dashboard
+        url: https://rh-ai.apps.${{ parameters.clusterDomain }}
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}

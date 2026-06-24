@@ -1,0 +1,124 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: public-api-demos
+  title: Public API Demos
+  description: Well-known public REST APIs with OpenAPI specs — Try It Out enabled in Developer Hub
+  tags:
+    - openapi
+    - public
+    - demo
+spec:
+  owner: platform-engineering
+  domain: hub-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: petstore-api
+  title: Swagger Petstore (Public)
+  description: Classic OpenAPI 3 reference API — CORS enabled, Try It Out works in browser
+  tags:
+    - openapi
+    - public
+    - demo
+  links:
+    - url: https://petstore3.swagger.io/
+      title: Live API
+      icon: web
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: public-api-demos
+  definition:
+    $text: https://petstore3.swagger.io/api/v3/openapi.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: httpbin-api
+  title: httpbin.org (Public)
+  description: HTTP request/response testing service — full CORS, no auth for GET
+  tags:
+    - openapi
+    - public
+    - demo
+  links:
+    - url: https://httpbin.org
+      title: Live API
+      icon: web
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: public-api-demos
+  definition: |
+__PUBLIC_HTTPBIN_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: restcountries-api
+  title: REST Countries (Public)
+  description: Country metadata REST API — open CORS, simple GET endpoints
+  tags:
+    - openapi
+    - public
+    - demo
+  links:
+    - url: https://restcountries.com
+      title: Live API
+      icon: web
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: public-api-demos
+  definition: |
+__PUBLIC_RESTCOUNTRIES_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: jsonplaceholder-api
+  title: JSONPlaceholder (Public)
+  description: Fake REST API for testing CRUD — CORS enabled
+  tags:
+    - openapi
+    - public
+    - demo
+  links:
+    - url: https://jsonplaceholder.typicode.com
+      title: Live API
+      icon: web
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: public-api-demos
+  definition: |
+__PUBLIC_JSONPLACEHOLDER_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: cat-facts-api
+  title: Cat Facts (Public)
+  description: Random cat facts API — open CORS, no auth
+  tags:
+    - openapi
+    - public
+    - demo
+  links:
+    - url: https://catfact.ninja
+      title: Live API
+      icon: web
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: public-api-demos
+  definition: |
+__PUBLIC_CATFACTS_OPENAPI_SPEC__

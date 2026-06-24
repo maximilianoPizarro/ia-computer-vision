@@ -1,0 +1,37 @@
+ia-computer-vision
+NeuroFace
+OpenShift
+Validated Patterns
+GitOps
+Skupper
+Kuadrant
+RHCL
+Red Hat Connectivity Link
+OpenShift AI
+RHOAI
+DevSpaces
+Developer Hub
+RHDH
+Quay
+Keycloak
+RHBK
+ACS
+RHACS
+ACM
+Thanos
+OpenTelemetry
+Grafana
+Kiali
+Service Mesh
+ambient
+HTTPRoute
+OVMS
+KServe
+YOLO
+PPE
+m6a.2xlarge
+clusterGroupName
+Argo CD
+OpenShift GitOps
+External Secrets Operator
+Vault

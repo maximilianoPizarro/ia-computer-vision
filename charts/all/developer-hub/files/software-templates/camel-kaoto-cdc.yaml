@@ -1,0 +1,145 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: camel-kaoto-cdc
+  title: "Camel CDC Route (Kaoto + Continue AI)"
+  description: >
+    Apache Camel CDC route for Kafka event processing, editable in DevSpaces on the
+    target spoke with Kaoto visual designer and Continue AI (MaaS).
+  tags:
+    - camel
+    - kaoto
+    - cdc
+    - kafka
+    - continue-ai
+    - devspaces
+    - recommended
+spec:
+  owner: platform-engineering
+  type: service
+  parameters:
+    - title: Project Configuration
+      required:
+        - name
+        - owner
+        - targetCluster
+        - clusterDomain
+      properties:
+        name:
+          title: Application Name
+          type: string
+          description: Unique name for the Camel route project
+          ui:autofocus: true
+          default: my-camel-cdc-route
+          pattern: "^[a-z0-9-]+$"
+        owner:
+          title: Owner
+          type: string
+          description: OpenShift username (login userN / Welcome123! or admin / Welcome123!)
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - User
+        targetCluster:
+          title: Target spoke cluster
+          type: string
+          enum: [east, west]
+          enumNames: [East spoke, West spoke]
+          default: east
+        clusterDomain:
+          title: Hub apps domain
+          type: string
+          description: GitLab on hub
+          default: apps.cluster.example.com
+        description:
+          title: Description
+          type: string
+          default: CDC event processing route using Apache Camel with Kaoto and Continue AI
+      dependencies:
+        targetCluster:
+          oneOf:
+            - properties:
+                targetCluster:
+                  const: east
+                spokeAppsDomain:
+                  type: string
+                  default: apps.cluster-east.example.com
+            - properties:
+                targetCluster:
+                  const: west
+                spokeAppsDomain:
+                  type: string
+                  default: apps.cluster-west.example.com
+    - title: Kafka Configuration
+      properties:
+        kafkaBootstrap:
+          title: Kafka Bootstrap Server
+          type: string
+          default: cdc-cluster-kafka-bootstrap.kafka-cdc.svc:9092
+        kafkaTopic:
+          title: Source Kafka Topic
+          type: string
+          default: cdc.public.customers
+        mailpitApiUrl:
+          title: Mailpit API (Software Templates)
+          type: string
+          default: "http://mailpit-templates.mailpit-templates.svc:8025"
+  steps:
+    - id: fetch-skeleton
+      name: Fetch Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          uniqueName: "${{ parameters.owner }}-${{ parameters.name }}-${{ parameters.targetCluster }}"
+          owner: ${{ parameters.owner }}
+          description: ${{ parameters.description }}
+          kafkaBootstrap: ${{ parameters.kafkaBootstrap }}
+          kafkaTopic: ${{ parameters.kafkaTopic }}
+          mailpitApiUrl: ${{ parameters.mailpitApiUrl }}
+          namespace: "${{ parameters.owner }}-apps-${{ parameters.targetCluster }}"
+          targetCluster: ${{ parameters.targetCluster }}
+          clusterDomain: ${{ parameters.clusterDomain }}
+          spokeAppsDomain: ${{ parameters.spokeAppsDomain }}
+    - id: publish
+      name: Publish to GitLab
+      action: publish:github
+      input:
+        repoUrl: "gitlab.apps.${{ parameters.clusterDomain }}?owner=ws-${{ parameters.owner }}&repo=${{ parameters.name }}-${{ parameters.targetCluster }}"
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+    - id: notify
+      name: Notify Owner
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/notifications
+        headers:
+          Content-Type: application/json
+        body:
+          recipients:
+            type: entity
+            entityRef: "user:default/${{ parameters.owner }}"
+          payload:
+            title: "Camel Kaoto '${{ parameters.name }}' ready on ${{ parameters.targetCluster }}"
+            description: Open DevSpaces on the spoke to edit routes with Kaoto and Continue AI.
+            link: ${{ steps['register'].output.entityRef }}
+            severity: normal
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in DevSpaces (Kaoto + Continue AI)
+        icon: chat
+        url: "https://devspaces.${{ parameters.spokeAppsDomain }}/#https://gitlab.apps.${{ parameters.clusterDomain }}/ws-${{ parameters.owner }}/${{ parameters.name }}-${{ parameters.targetCluster }}/raw/branch/main/devfile.yaml"
+      - title: View in Catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

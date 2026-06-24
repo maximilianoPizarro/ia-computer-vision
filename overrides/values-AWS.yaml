@@ -1,0 +1,10 @@
+# Platform-specific overrides for AWS clusters.
+# Uncomment letsencrypt section for experimental TLS automation.
+# See https://github.com/validatedpatterns/common/tree/main/letsencrypt#readme
+
+# letsencrypt:
+#   enabled: true
+#   api_endpoint: true
+#   region: us-east-1
+#   server: https://acme-v02.api.letsencrypt.org/directory
+#   email: you@example.com

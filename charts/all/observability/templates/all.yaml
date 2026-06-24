@@ -1,0 +1,89 @@
+{{- $uwmNs := "openshift-user-workload-monitoring" }}
+{{- $promSa := "prometheus-user-workload" }}
+{{- $baseMeshNs := list "neuroface-gateway-system" }}
+{{- $spokeMeshNs := list "neuroface-cv" "neuroface" }}
+{{- $meshNamespaces := $baseMeshNs }}
+{{- if .Values.clusterSuffix }}
+{{- $meshNamespaces = concat $meshNamespaces $spokeMeshNs }}
+{{- end }}
+{{- $rbacNamespaces := concat (list "istio-system" "ztunnel") $meshNamespaces }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod-monitor
+  namespace: istio-system
+  labels:
+    app: istiod
+    release: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  selector:
+    matchLabels:
+      app: istiod
+  endpoints:
+    - port: http-monitoring
+      interval: 15s
+      path: /metrics
+      scheme: http
+---
+{{- range $meshNamespaces }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-mesh-metrics
+  namespace: {{ . }}
+  labels:
+    release: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  selector:
+    matchExpressions:
+      - key: gateway.istio.io/managed
+        operator: Exists
+  podMetricsEndpoints:
+    - port: http-envoy-prom
+      interval: 15s
+      path: /stats/prometheus
+      scheme: http
+---
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ztunnel-metrics
+  namespace: ztunnel
+  labels:
+    release: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  selector:
+    matchLabels:
+      app: ztunnel
+  podMetricsEndpoints:
+    - port: ztunnel-stats
+      interval: 15s
+      path: /stats/prometheus
+      scheme: http
+---
+{{- range $rbacNamespaces }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prometheus-user-workload
+  namespace: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-k8s
+subjects:
+  - kind: ServiceAccount
+    name: {{ $promSa }}
+    namespace: {{ $uwmNs }}
+---
+{{- end }}

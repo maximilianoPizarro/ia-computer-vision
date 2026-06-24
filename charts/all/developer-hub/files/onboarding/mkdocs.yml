@@ -1,0 +1,11 @@
+site_name: Hybrid Mesh Workshop
+site_description: Onboarding for hybrid-mesh-platform workshop users
+nav:
+  - Home: index.md
+  - Login: login.md
+  - Create a component: create-component.md
+  - Pipelines and Quay: pipelines.md
+  - Observability: observability.md
+  - Kuadrant API keys: kuadrant-apis.md
+plugins:
+  - techdocs-core

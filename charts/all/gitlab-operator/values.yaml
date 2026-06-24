@@ -1,0 +1,74 @@
+clusterDomain: ""
+# Workshop scale (profiles: 30, 50, 100). Hub overrides via charts/region/hub/values.yaml.
+userCount: 30
+namespace: gitlab-system
+runnerNamespace: gitlab-runner
+# Set to false when gitlab-runner namespace is removed or runner not needed.
+runnerEnabled: false
+
+operator:
+  packageName: gitlab-operator-kubernetes
+  channel: stable
+  source: community-operators
+  installPlanApproval: Automatic
+  # OLM default controller limit (300Mi) OOMs reconciling full GitLab CR on hub.
+  controllerResources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+runnerOperator:
+  packageName: gitlab-runner-operator
+  channel: stable
+  source: community-operators
+  installPlanApproval: Automatic
+
+gitlab:
+  chartVersion: "9.11.6"
+  rootPasswordSecret: gitlab-gitlab-initial-root-password
+  postgresStorage: 50Gi
+  gitalyStorage: 50Gi
+  registryEnabled: true
+  # Sizing for ~50 concurrent workshop users (HTTP + Git push + Sidekiq).
+  # Webservice: 2 Puma workers/replica × maxReplicas => handles ~50 concurrent HTTP.
+  # Sidekiq: background jobs (pipelines, notifications, webhooks).
+  webservice:
+    minReplicas: 3
+    maxReplicas: 8
+    workerProcesses: 4
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "3"
+        memory: 5Gi
+  sidekiq:
+    minReplicas: 2
+    maxReplicas: 6
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+  gitlabShell:
+    minReplicas: 2
+    maxReplicas: 5
+
+bootstrap:
+  groupPrefix: ws-
+  developerHubGroup: developer-hub
+  appOfAppsGroup: app-of-apps
+  workshopDemosGroup: workshop-demos
+  platformContent:
+    enabled: true
+    project: platform-content
+    repoUrl: ""
+    revision: ""
+    schedule: "*/30 * * * *"
+    cloneImage: quay.io/rhpds/git-cloner:v1.1.2

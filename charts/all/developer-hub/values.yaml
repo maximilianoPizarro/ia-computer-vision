@@ -1,0 +1,61 @@
+clusterDomain: ""
+dynamicPluginsStorage: 10Gi
+userCount: 1
+defaultPassword: "Welcome123!"
+keycloakOidcClientSecret: ""
+devspacesOidcClientSecret: ""
+gitlabToken: ""
+sessionSecret: ""
+quayDockerConfigJson: ""
+rhacsApiToken: ""
+pluginReadiness:
+  enabled: true
+  image: registry.redhat.io/ubi9/ubi-minimal:latest
+spokeTokenSync:
+  enabled: false
+kubernetesSpokes:
+  enabled: false
+  east:
+    apiUrl: ""
+  west:
+    apiUrl: ""
+techdocs:
+  githubPagesUrl: "https://maximilianopizarro.github.io/ia-computer-vision/"
+spokeDomains:
+  east: ""
+  west: ""
+plugins:
+  rbac:
+    enabled: true
+    policyAdminUser: platformadmin
+  techdocs:
+    enabled: true
+  techRadar:
+    enabled: false
+  mcp:
+    enabled: false
+  kiali:
+    enabled: false
+  grafana:
+    enabled: false
+  techInsights:
+    enabled: false
+  quay:
+    enabled: true
+  acsSecurityInsights:
+    enabled: false
+  argocd:
+    enabled: true
+  gitlab:
+    enabled: true
+    pluginTag: "bs_1.45.3__6.13.0"
+  tekton:
+    enabled: true
+  kuadrant:
+    enabled: false
+  kafka:
+    enabled: false
+  notificationsEmail:
+    enabled: false
+  lightspeed:
+    enabled: false

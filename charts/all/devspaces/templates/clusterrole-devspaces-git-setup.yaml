@@ -1,0 +1,10 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devspaces-git-setup
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+rules:
+- apiGroups: [""]
+  resources: ["secrets", "namespaces"]
+  verbs: ["get", "list", "create", "patch", "update"]

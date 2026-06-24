@@ -1,0 +1,321 @@
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: workshop-kuadrant-apis
+  title: Workshop Kuadrant API Products
+  description: |
+    Dedicated **workshop-apis** and **ai-gateway** Gateways with Kuadrant API keys.
+
+    1. Developer Hub → **Kuadrant** → **API Products** → click product name → **Request API key**
+    2. Or open any **API** entity below → tab **Kuadrant** → **Request API key**
+    3. Copy key from **Kuadrant → My API Keys**
+    4. Call APIs with header `Authorization: APIKEY <key>`
+  tags:
+    - workshop
+    - kuadrant
+    - gateway-api
+    - external-api
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant
+      title: Kuadrant — API Products & keys
+      icon: catalog
+spec:
+  owner: platform-engineering
+  domain: hub-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: workshop-apis-gateway
+  title: Workshop APIs Gateway
+  description: |
+    Gateway API host `workshop-apis.__HUB_APPS_DOMAIN__` — httpbin, REST Countries, MCP.
+
+    ```bash
+    export KEY="<from Kuadrant → My API Keys>"
+    curl -H "Authorization: APIKEY $KEY" https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get
+    curl -H "Authorization: APIKEY $KEY" https://workshop-apis.__HUB_APPS_DOMAIN__/countries/population/q?country=argentina
+    ```
+  annotations:
+    backstage.io/kubernetes-namespace: workshop-kuadrant-apis
+    backstage.io/kubernetes-cluster: hub
+    backstage.io/kubernetes-id: workshop-apis-gateway
+    argocd/app-name: field-content-workshop-kuadrant-apis
+  links:
+    - url: https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get
+      title: Gateway (401 without API key)
+      icon: web
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant
+      title: Request API key
+      icon: catalog
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  domain: hub-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ai-gateway-maas
+  title: AI Gateway — MaaS LLM
+  description: |
+    OpenAI-compatible MaaS at `ai-gateway.__HUB_APPS_DOMAIN__`.
+
+    ```bash
+    export KEY="<from Kuadrant → My API Keys>"
+    curl -sk -H "Authorization: APIKEY $KEY" -H "Content-Type: application/json" \
+      -X POST "https://ai-gateway.__HUB_APPS_DOMAIN__/v1/chat/completions" \
+      -d '{"model":"granite-3-2-8b-instruct","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
+    ```
+  annotations:
+    backstage.io/kubernetes-namespace: ai-gateway-system
+    backstage.io/kubernetes-cluster: hub
+    backstage.io/kubernetes-id: ai-gateway
+    argocd/app-name: field-content-workshop-kuadrant-apis
+    kuadrant.io/api-product: workshop-llm-tokens
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens
+      title: Request API key (MaaS LLM)
+      icon: catalog
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/workshop-maas-openapi
+      title: OpenAPI / Swagger
+      icon: docs
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  domain: hub-platform
+  providesApis:
+    - workshop-maas-openapi
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: workshop-httpbin-api
+  title: httpbin API Product
+  description: |
+    External httpbin.org via workshop-apis + PlanPolicy (bronze/silver/gold).
+
+    Request key: Kuadrant → **workshop-httpbin** → or API entity **workshop-httpbin-openapi** → Kuadrant tab.
+
+    ```bash
+    curl -H "Authorization: APIKEY $KEY" https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get
+    ```
+  annotations:
+    backstage.io/kubernetes-namespace: workshop-kuadrant-apis
+    backstage.io/kubernetes-id: workshop-ext-httpbin
+    kuadrant.io/api-product: workshop-httpbin
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-httpbin
+      title: Request API key
+      icon: catalog
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/workshop-httpbin-openapi
+      title: Swagger
+      icon: docs
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  providesApis:
+    - workshop-httpbin-openapi
+  dependsOn:
+    - component:workshop-apis-gateway
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: workshop-mcp-api
+  title: MCP Gateway API Product
+  description: |
+    MCP Gateway (ArgoCD + k8s tools) via workshop-apis with API key auth.
+
+    ```bash
+    curl -H "Authorization: APIKEY $KEY" https://workshop-apis.__HUB_APPS_DOMAIN__/mcp
+    ```
+  annotations:
+    backstage.io/kubernetes-namespace: workshop-kuadrant-apis
+    backstage.io/kubernetes-id: workshop-ext-mcp
+    kuadrant.io/api-product: workshop-mcp-gateway
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-mcp-gateway
+      title: Request API key
+      icon: catalog
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/workshop-mcp-openapi
+      title: Swagger
+      icon: docs
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  providesApis:
+    - workshop-mcp-openapi
+  dependsOn:
+    - component:workshop-apis-gateway
+    - component:workshop-mcp-gateway
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: workshop-restcountries-api
+  title: REST Countries API Product
+  description: |
+    External restcountries.com via workshop-apis.
+
+    ```bash
+    curl -H "Authorization: APIKEY $KEY" https://workshop-apis.__HUB_APPS_DOMAIN__/countries/population/q?country=argentina
+    ```
+  annotations:
+    kuadrant.io/api-product: workshop-restcountries
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-restcountries
+      title: Request API key
+      icon: catalog
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/workshop-restcountries-openapi
+      title: Swagger
+      icon: docs
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  providesApis:
+    - workshop-restcountries-openapi
+  dependsOn:
+    - component:workshop-apis-gateway
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: workshop-httpbin-openapi
+  title: httpbin (workshop-apis gateway)
+  description: |
+    Kuadrant-protected httpbin. Request key on this page (**Kuadrant** tab) or at `/kuadrant`.
+
+    ```bash
+    curl -H "Authorization: APIKEY $KEY" https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get
+    ```
+  tags: [kuadrant, external-api, workshop, swagger]
+  annotations:
+    kuadrant.io/api-product: workshop-httpbin
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-httpbin
+      title: Request API key
+      icon: catalog
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  definition: |
+__WORKSHOP_HTTPBIN_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: workshop-restcountries-openapi
+  title: REST Countries (workshop-apis gateway)
+  description: |
+    Kuadrant-protected REST Countries proxy.
+
+    ```bash
+    curl -H "Authorization: APIKEY $KEY" https://workshop-apis.__HUB_APPS_DOMAIN__/countries/population/q?country=argentina
+    ```
+  tags: [kuadrant, external-api, workshop, swagger]
+  annotations:
+    kuadrant.io/api-product: workshop-restcountries
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-restcountries
+      title: Request API key
+      icon: catalog
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  definition: |
+__WORKSHOP_RESTCOUNTRIES_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: workshop-maas-openapi
+  title: MaaS LLM (ai-gateway)
+  description: |
+    OpenAI-compatible chat completions via ai-gateway. Request key on **Kuadrant** tab.
+
+    ```bash
+    curl -sk -H "Authorization: APIKEY $KEY" -H "Content-Type: application/json" \
+      -X POST "https://ai-gateway.__HUB_APPS_DOMAIN__/v1/chat/completions" \
+      -d '{"model":"granite-3-2-8b-instruct","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
+    ```
+  tags: [kuadrant, llm, maas, ai-gateway, swagger]
+  annotations:
+    kuadrant.io/api-product: workshop-llm-tokens
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens
+      title: Request API key
+      icon: catalog
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  definition: |
+__WORKSHOP_MAAS_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: workshop-mcp-openapi
+  title: MCP Gateway (workshop-apis)
+  description: Streamable HTTP MCP — use MCP clients; API key via Kuadrant tab or `/kuadrant`.
+  tags: [kuadrant, mcp, workshop]
+  annotations:
+    kuadrant.io/api-product: workshop-mcp-gateway
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-mcp-gateway
+      title: Request API key
+      icon: catalog
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  definition: |
+__WORKSHOP_MCP_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: workshop-api-consumer
+  title: Workshop API consumer (userN / platformadmin)
+  description: |
+    Any authenticated user (`user1`…`userN`, `platformadmin`) can request Kuadrant API keys.
+
+    **Where to request keys:**
+    - **Kuadrant** sidebar → API Products → click product **name** → Request API key
+    - **Catalog** → API entity (below) → **Kuadrant** tab → Request API key
+    - **My API Keys** in Kuadrant sidebar to copy keys
+  tags: [kuadrant, workshop, onboarding]
+  links:
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant
+      title: Kuadrant — API Products / My API Keys
+      icon: catalog
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/system/workshop-kuadrant-apis
+      title: System — all workshop APIs
+      icon: catalog
+spec:
+  type: website
+  lifecycle: production
+  owner: user1
+  system: workshop-kuadrant-apis
+  consumesApis:
+    - workshop-httpbin-openapi
+    - workshop-maas-openapi
+    - workshop-mcp-openapi
+    - workshop-restcountries-openapi

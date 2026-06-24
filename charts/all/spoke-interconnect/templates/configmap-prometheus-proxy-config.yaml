@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-proxy-config
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+data:
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    error_log /dev/stderr warn;
+    events { worker_connections 64; }
+    http {
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+      server {
+        listen 9091;
+        location / {
+          proxy_pass https://thanos-querier.openshift-monitoring.svc.cluster.local:9091;
+          proxy_ssl_verify off;
+          proxy_set_header Authorization "Bearer PROXY_TOKEN";
+          proxy_set_header Host thanos-querier.openshift-monitoring.svc.cluster.local;
+        }
+      }
+    }

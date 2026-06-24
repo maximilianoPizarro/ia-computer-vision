@@ -1,0 +1,20 @@
+{{- $host := include "gitlab-operator.host" . -}}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gitlab-apps
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  host: {{ $host | quote }}
+  to:
+    kind: Service
+    name: gitlab-webservice-default
+    weight: 100
+  port:
+    targetPort: http-workhorse
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

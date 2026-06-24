@@ -1,0 +1,55 @@
+{{- if .Values.modelStorage.enabled | default true }}
+{{- $ms := .Values.modelStorage | default dict -}}
+{{- $endpoint := include "openshift-ai-hub.minioEndpoint" . -}}
+{{- $bucket := include "openshift-ai-hub.minioBucket" . -}}
+{{- $accessKey := $ms.accessKeyId | default "minio" -}}
+{{- $secretKey := $ms.secretAccessKey | default "minio123" -}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-connection-models
+  namespace: maas-workshop
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    opendatahub.io/connection-type: s3
+    openshift.io/display-name: Workshop models (MinIO CPU)
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: {{ $accessKey | quote }}
+  AWS_SECRET_ACCESS_KEY: {{ $secretKey | quote }}
+  AWS_DEFAULT_REGION: {{ $ms.region | default "us-east-1" | quote }}
+  AWS_S3_BUCKET: {{ $bucket | quote }}
+  AWS_S3_ENDPOINT: {{ $endpoint | quote }}
+{{- if .Values.userProjects.enabled }}
+{{- $count := int (.Values.userCount | default 50) -}}
+{{- range $i := until $count }}
+{{- $n := add $i 1 }}
+{{- $user := printf "user%d" $n }}
+{{- $project := printf "ai-%s" $user }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-connection-models
+  namespace: {{ $project }}
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    opendatahub.io/connection-type: s3
+    openshift.io/display-name: Workshop models (MinIO CPU)
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: {{ $accessKey | quote }}
+  AWS_SECRET_ACCESS_KEY: {{ $secretKey | quote }}
+  AWS_DEFAULT_REGION: {{ $ms.region | default "us-east-1" | quote }}
+  AWS_S3_BUCKET: {{ $bucket | quote }}
+  AWS_S3_ENDPOINT: {{ $endpoint | quote }}
+{{- end }}
+{{- end }}
+{{- end }}

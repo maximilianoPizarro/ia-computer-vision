@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-token-setup
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-token-setup
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["developer-hub-oidc-auth"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["backstage-developer-hub"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-token-setup
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-token-setup
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-token-setup
+    namespace: developer-hub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-token-setup-exec-toolbox
+  namespace: gitlab
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["gitlab-toolbox"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-token-setup-exec-toolbox
+  namespace: gitlab
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-token-setup-exec-toolbox
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-token-setup
+    namespace: developer-hub
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-token-setup
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: gitlab-token-setup
+      containers:
+        - name: setup
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          env:
+            - name: GITLAB_API
+              value: "https://{{ include "developer-hub.gitlabHost" . }}/api/v4"
+            - name: RHDH_NAMESPACE
+              value: developer-hub
+            - name: RHDH_DEPLOYMENT
+              value: backstage-developer-hub
+            - name: OIDC_SECRET
+              value: developer-hub-oidc-auth
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              if ! oc get deploy gitlab-toolbox -n gitlab -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q '^1$'; then
+                echo "SKIP: GitLab toolbox not ready yet"
+                exit 0
+              fi
+
+              CURRENT=$(oc get secret "${OIDC_SECRET}" -n "${RHDH_NAMESPACE}" \
+                -o jsonpath='{.data.GITLAB_TOKEN}' 2>/dev/null | base64 -d 2>/dev/null || true)
+              if [ -n "${CURRENT}" ] && [ "${CURRENT}" != "CHANGEME-create-token-in-gitlab-root" ]; then
+                HTTP=$(curl -skS -o /dev/null -w "%{http_code}" \
+                  -H "PRIVATE-TOKEN: ${CURRENT}" \
+                  "${GITLAB_API}/user" || echo "000")
+                if [ "${HTTP}" = "200" ]; then
+                  echo "GITLAB_TOKEN is valid (HTTP 200) — skipping."
+                  exit 0
+                fi
+                echo "Existing token invalid (HTTP ${HTTP}), creating new token..."
+              else
+                echo "No valid GITLAB_TOKEN — creating personal access token for root..."
+              fi
+
+              RAILS_OUT=$(oc exec -n gitlab deploy/gitlab-toolbox -c toolbox -- gitlab-rails runner "
+                root = User.find_by(username: 'root') || User.admins.first
+                pat_name = 'developer-hub'
+                root.personal_access_tokens.where(name: pat_name).find_each(&:revoke!)
+                pat = root.personal_access_tokens.create!(
+                  name: pat_name,
+                  scopes: [:api, :read_user, :write_repository],
+                  expires_at: 1.year.from_now
+                )
+                puts pat.token
+              ")
+              NEW_TOKEN=$(echo "${RAILS_OUT}" | tail -1 | tr -d '\r')
+              if [ -z "${NEW_TOKEN}" ] || [ "${#NEW_TOKEN}" -lt 20 ]; then
+                echo "Failed to create GitLab token via rails runner. Output: ${RAILS_OUT}" >&2
+                exit 1
+              fi
+              echo "Created GitLab PAT for developer-hub."
+
+              oc patch secret "${OIDC_SECRET}" -n "${RHDH_NAMESPACE}" --type merge \
+                -p "{\"stringData\":{\"GITLAB_TOKEN\":\"${NEW_TOKEN}\"}}"
+              echo "Patched ${OIDC_SECRET} with GITLAB_TOKEN."
+
+              oc rollout restart "deployment/${RHDH_DEPLOYMENT}" -n "${RHDH_NAMESPACE}"
+              echo "gitlab-token-setup complete."

@@ -1,0 +1,175 @@
+      openapi: 3.0.3
+      info:
+        title: MaaS LLM (ai-gateway)
+        description: |
+          OpenAI-compatible chat completions via Red Hat AI MaaS, protected by Kuadrant.
+          Request key on the **Kuadrant** tab or `/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens`.
+        version: v1
+      servers:
+        - url: https://ai-gateway.__HUB_APPS_DOMAIN__
+          description: AI Gateway (Kuadrant APIKEY required)
+      security:
+        - ApiKeyAuth: []
+      components:
+        securitySchemes:
+          ApiKeyAuth:
+            type: apiKey
+            in: header
+            name: Authorization
+            description: "Kuadrant API key — format: `APIKEY <your-key>`"
+        schemas:
+          ChatMessage:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant, tool]
+              content:
+                type: string
+          ChatCompletionRequest:
+            type: object
+            required: [model, messages]
+            properties:
+              model:
+                type: string
+                description: Granite or other served model ID
+                example: granite-3-2-8b-instruct
+              messages:
+                type: array
+                minItems: 1
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+              max_tokens:
+                type: integer
+                minimum: 1
+                maximum: 4096
+                example: 50
+              temperature:
+                type: number
+                minimum: 0
+                maximum: 2
+                example: 0.7
+              stream:
+                type: boolean
+                default: false
+          ChatCompletionChoice:
+            type: object
+            properties:
+              index:
+                type: integer
+              message:
+                $ref: "#/components/schemas/ChatMessage"
+              finish_reason:
+                type: string
+                enum: [stop, length, content_filter]
+          ChatCompletionUsage:
+            type: object
+            properties:
+              prompt_tokens:
+                type: integer
+              completion_tokens:
+                type: integer
+              total_tokens:
+                type: integer
+          ChatCompletionResponse:
+            type: object
+            properties:
+              id:
+                type: string
+                example: chatcmpl-workshop-001
+              object:
+                type: string
+                example: chat.completion
+              created:
+                type: integer
+              model:
+                type: string
+              choices:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatCompletionChoice"
+              usage:
+                $ref: "#/components/schemas/ChatCompletionUsage"
+          Model:
+            type: object
+            properties:
+              id:
+                type: string
+              object:
+                type: string
+                example: model
+              owned_by:
+                type: string
+          ModelList:
+            type: object
+            properties:
+              object:
+                type: string
+                example: list
+              data:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Model"
+          ErrorResponse:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  type:
+                    type: string
+      paths:
+        /v1/chat/completions:
+          post:
+            summary: Create chat completion
+            operationId: createChatCompletion
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/ChatCompletionRequest"
+                  example:
+                    model: granite-3-2-8b-instruct
+                    messages:
+                      - role: user
+                        content: Explain hybrid mesh in one sentence.
+                    max_tokens: 50
+                    temperature: 0.7
+            responses:
+              "200":
+                description: Chat completion
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/ChatCompletionResponse"
+              "401":
+                description: Missing or invalid APIKEY
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/ErrorResponse"
+              "429":
+                description: Rate limit exceeded (Kuadrant PlanPolicy)
+        /v1/models:
+          get:
+            summary: List available models
+            operationId: listModels
+            responses:
+              "200":
+                description: Model list
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/ModelList"
+                    example:
+                      object: list
+                      data:
+                        - id: granite-3-2-8b-instruct
+                          object: model
+                          owned_by: maas
+              "401":
+                description: Missing or invalid APIKEY

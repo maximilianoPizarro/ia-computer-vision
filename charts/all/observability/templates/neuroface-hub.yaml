@@ -1,0 +1,163 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: neuroface-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: |
+    {
+      "title": "NeuroFace — 50/50 Gateway & Spoke Metrics",
+      "tags": ["neuroface", "ai-cv", "ppe", "multi-cluster", "gateway-api"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 4,
+      "refresh": "30s",
+      "time": {"from": "now-1h", "to": "now"},
+      "panels": [
+        {"type": "row", "title": "Hub Gateway — neuroface 50/50", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 100},
+        {
+          "type": "timeseries",
+          "title": "Gateway total req/s",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",reporter=\"source\"}[5m])) or vector(0)", "legendFormat": "total req/s", "refId": "A"},
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",response_code=~\"5..\"}[5m])) or vector(0)", "legendFormat": "5xx/s", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "Gateway split — east vs west",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",destination_service=~\"neuroface-app-east.*\"}[5m])) or vector(0)", "legendFormat": "east app", "refId": "A"},
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",destination_service=~\"neuroface-app-west.*\"}[5m])) or vector(0)", "legendFormat": "west app", "refId": "B"},
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",destination_service=~\"neuroface-cv-east.*\"}[5m])) or vector(0)", "legendFormat": "east cv", "refId": "C"},
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",destination_service=~\"neuroface-cv-west.*\"}[5m])) or vector(0)", "legendFormat": "west cv", "refId": "D"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {"type": "row", "title": "Spoke NeuroFace — East", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9}, "id": 200},
+        {
+          "type": "stat",
+          "title": "East pods ready",
+          "gridPos": {"h": 6, "w": 4, "x": 0, "y": 10},
+          "datasource": {"type": "prometheus", "uid": "${ds_east}"},
+          "targets": [
+            {"expr": "count(kube_pod_status_ready{namespace=\"neuroface\",condition=\"true\"}) or vector(0)", "legendFormat": "Ready", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 2}]}}},
+          "options": {"colorMode": "value", "graphMode": "none"}
+        },
+        {
+          "type": "timeseries",
+          "title": "East CPU by container",
+          "gridPos": {"h": 6, "w": 10, "x": 4, "y": 10},
+          "datasource": {"type": "prometheus", "uid": "${ds_east}"},
+          "targets": [
+            {"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"neuroface\",container!=\"\",container!=\"POD\"}[5m]))", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "East Memory by container",
+          "gridPos": {"h": 6, "w": 10, "x": 14, "y": 10},
+          "datasource": {"type": "prometheus", "uid": "${ds_east}"},
+          "targets": [
+            {"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"neuroface\",container!=\"\",container!=\"POD\"})", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "East spoke gateway req/s",
+          "gridPos": {"h": 6, "w": 12, "x": 0, "y": 16},
+          "datasource": {"type": "prometheus", "uid": "${ds_east}"},
+          "targets": [
+            {"expr": "sum(rate(istio_requests_total{reporter=\"source\",destination_service_namespace=\"neuroface\"}[5m])) or vector(0)", "legendFormat": "req/s", "refId": "A"},
+            {"expr": "sum(rate(istio_requests_total{reporter=\"source\",destination_service_namespace=\"neuroface\",response_code=~\"5..\"}[5m])) or vector(0)", "legendFormat": "5xx/s", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "East ztunnel traffic (neuroface ns)",
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 16},
+          "datasource": {"type": "prometheus", "uid": "${ds_east}"},
+          "targets": [
+            {"expr": "sum(rate(istio_tcp_sent_bytes_total{job=\"ztunnel/ztunnel-metrics\",namespace=\"neuroface\"}[5m])) or vector(0)", "legendFormat": "bytes/s sent", "refId": "A"},
+            {"expr": "sum(rate(istio_tcp_connections_opened_total{job=\"ztunnel/ztunnel-metrics\",namespace=\"neuroface\"}[5m])) or vector(0)", "legendFormat": "conn/s", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {"type": "row", "title": "Spoke NeuroFace — West", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22}, "id": 300},
+        {
+          "type": "stat",
+          "title": "West pods ready",
+          "gridPos": {"h": 6, "w": 4, "x": 0, "y": 23},
+          "datasource": {"type": "prometheus", "uid": "${ds_west}"},
+          "targets": [
+            {"expr": "count(kube_pod_status_ready{namespace=\"neuroface\",condition=\"true\"}) or vector(0)", "legendFormat": "Ready", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 2}]}}},
+          "options": {"colorMode": "value", "graphMode": "none"}
+        },
+        {
+          "type": "timeseries",
+          "title": "West CPU by container",
+          "gridPos": {"h": 6, "w": 10, "x": 4, "y": 23},
+          "datasource": {"type": "prometheus", "uid": "${ds_west}"},
+          "targets": [
+            {"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"neuroface\",container!=\"\",container!=\"POD\"}[5m]))", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "West Memory by container",
+          "gridPos": {"h": 6, "w": 10, "x": 14, "y": 23},
+          "datasource": {"type": "prometheus", "uid": "${ds_west}"},
+          "targets": [
+            {"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"neuroface\",container!=\"\",container!=\"POD\"})", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "West spoke gateway req/s",
+          "gridPos": {"h": 6, "w": 12, "x": 0, "y": 29},
+          "datasource": {"type": "prometheus", "uid": "${ds_west}"},
+          "targets": [
+            {"expr": "sum(rate(istio_requests_total{reporter=\"source\",destination_service_namespace=\"neuroface\"}[5m])) or vector(0)", "legendFormat": "req/s", "refId": "A"},
+            {"expr": "sum(rate(istio_requests_total{reporter=\"source\",destination_service_namespace=\"neuroface\",response_code=~\"5..\"}[5m])) or vector(0)", "legendFormat": "5xx/s", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "West ztunnel traffic (neuroface ns)",
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 29},
+          "datasource": {"type": "prometheus", "uid": "${ds_west}"},
+          "targets": [
+            {"expr": "sum(rate(istio_tcp_sent_bytes_total{job=\"ztunnel/ztunnel-metrics\",namespace=\"neuroface\"}[5m])) or vector(0)", "legendFormat": "bytes/s sent", "refId": "A"},
+            {"expr": "sum(rate(istio_tcp_connections_opened_total{job=\"ztunnel/ztunnel-metrics\",namespace=\"neuroface\"}[5m])) or vector(0)", "legendFormat": "conn/s", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        }
+      ],
+      "templating": {
+        "list": [
+          {"current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0, "includeAll": false, "label": "Hub", "multi": false, "name": "ds_hub", "options": [], "query": "prometheus", "refresh": 1, "regex": "/^Prometheus$/", "skipUrlSync": false, "type": "datasource"},
+          {"current": {"selected": false, "text": "Prometheus-East", "value": "Prometheus-East"}, "hide": 0, "includeAll": false, "label": "East", "multi": false, "name": "ds_east", "options": [], "query": "prometheus", "refresh": 1, "regex": "/East/", "skipUrlSync": false, "type": "datasource"},
+          {"current": {"selected": false, "text": "Prometheus-West", "value": "Prometheus-West"}, "hide": 0, "includeAll": false, "label": "West", "multi": false, "name": "ds_west", "options": [], "query": "prometheus", "refresh": 1, "regex": "/West/", "skipUrlSync": false, "type": "datasource"}
+        ]
+      },
+      "uid": "neuroface-hub"
+    }

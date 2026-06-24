@@ -1,0 +1,263 @@
+{{- if include "developer-hub.lightspeedEnabled" . | trim -}}
+{{- $ls := .Values.plugins.lightspeed -}}
+{{- $rootAi := .Values.aiModel | default dict -}}
+{{- $ai := $ls.aiModel | default dict -}}
+{{- if not $ai.apiURL -}}
+{{- $ai = mergeOverwrite (dict) $rootAi $ai -}}
+{{- end -}}
+{{- if not $ai.apiURL -}}
+{{- $lm := .Values.litemaas | default dict -}}
+{{- if $lm.apiUrl -}}
+{{- $url := $lm.apiUrl -}}
+{{- if not (regexMatch "/v1" $url) -}}
+{{- $url = printf "%s/v1/chat/completions" (trimSuffix "/" $url) -}}
+{{- else if not (regexMatch "chat/completions" $url) -}}
+{{- $url = printf "%s/chat/completions" (trimSuffix "/" $url) -}}
+{{- end -}}
+{{- $ai = mergeOverwrite $ai (dict "apiURL" $url) -}}
+{{- end -}}
+{{- end -}}
+{{- if not $ai.apiURL -}}
+{{- $ai = mergeOverwrite $ai (dict "apiURL" "https://isvc-granite-31-8b-fp8-predictor.sandbox-shared-models.svc.cluster.local:8443/v1/chat/completions" "model" "granite-31-8b") -}}
+{{- end -}}
+{{- if not $ai.model -}}
+{{- $lm := .Values.litemaas | default dict -}}
+{{- if $lm.model -}}
+{{- $ai = mergeOverwrite $ai (dict "model" $lm.model) -}}
+{{- end -}}
+{{- end -}}
+{{- $vllmURL := include "developer-hub.vllmBaseUrl" (dict "apiURL" $ai.apiURL) -}}
+{{- $model := $ai.model | default "granite-3-2-8b-instruct" -}}
+{{- $tag := $ls.pluginTag | default "bs_1.45.3__1.2.3" -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lightspeed-stack
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    rhdh.redhat.com/backstage-name: developer-hub
+data:
+  lightspeed-stack.yaml: |
+    name: Lightspeed Core Service (LCS)
+    service:
+      host: 0.0.0.0
+      auth_enabled: false
+      workers: 1
+      color_log: true
+      access_log: true
+    llama_stack:
+      use_as_library_client: false
+      url: http://localhost:8321
+    user_data_collection:
+      feedback_enabled: true
+      feedback_storage: "/tmp/data/feedback"
+      transcripts_enabled: true
+      transcripts_storage: "/tmp/data/transcripts"
+    authentication:
+      module: "noop"
+    conversation_cache:
+      type: sqlite
+      sqlite:
+        db_path: "/tmp/data/conversations/lcs_cache.db"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lightspeed-app-config
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    rhdh.redhat.com/backstage-name: developer-hub
+data:
+  app-config-lightspeed.yaml: |
+    backend:
+      csp:
+        upgrade-insecure-requests: false
+        img-src:
+          - "'self'"
+          - "data:"
+          - https://avatars.githubusercontent.com
+          - https://secure.gravatar.com
+        script-src:
+          - "'self'"
+          - "'unsafe-eval'"
+          - https://cdn.jsdelivr.net
+    lightspeed:
+      servers:
+        - id: "${LLM_SERVER_ID}"
+          url: "${LLM_SERVER_URL}"
+          token: "${LLM_SERVER_TOKEN}"
+      prompts:
+        - title: Getting Started with Red Hat Developer Hub
+          message: Can you guide me through exploring the Software Catalog and onboarding in this platform?
+        - title: Hub and spoke with ACM
+          message: How does this Developer Hub instance integrate with ACM and spoke clusters?
+        - title: Kairos and platform automation
+          message: What is Kairos in this workshop and how does it relate to observability and remediation?
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llama-stack-config
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    rhdh.redhat.com/backstage-name: developer-hub
+data:
+  run.yaml: |
+{{ .Files.Get "files/lightspeed/llama-stack-run.yaml" | indent 4 }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: llama-stack-secrets
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+type: Opaque
+stringData:
+  ENABLE_VLLM: "true"
+  VLLM_URL: {{ $vllmURL | quote }}
+  VLLM_API_KEY: "sync-from-kairos-ai-credentials"
+  VLLM_MAX_TOKENS: {{ $ls.vllmMaxTokens | default "4096" | quote }}
+  VLLM_TLS_VERIFY: {{ $ls.vllmTlsVerify | default "false" | quote }}
+  VALIDATION_PROVIDER: "vllm"
+  VALIDATION_MODEL_NAME: {{ $model | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lightspeed-secrets
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+type: Opaque
+stringData:
+  LIGHTSPEED_SERVER_ID: {{ $model | quote }}
+  LIGHTSPEED_SERVICE_PORT: "8080"
+  LIGHTSPEED_QUESTION_VALIDATION: "true"
+  LLM_SERVER_ID: {{ $model | quote }}
+  LLM_SERVER_URL: "http://localhost:8080"
+  LLM_SERVER_TOKEN: ""
+---
+{{- $credName := $ai.credentialsSecretName | default "kairos-ai-credentials" -}}
+{{- if and ($ls.syncApiKeyFromKairos | default true) $credName }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: developer-hub-lightspeed-ai-sync
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer-hub-lightspeed-ai-sync
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: developer-hub-lightspeed-ai-sync
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: developer-hub-lightspeed-ai-sync
+subjects:
+  - kind: ServiceAccount
+    name: developer-hub-lightspeed-ai-sync
+    namespace: developer-hub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer-hub-lightspeed-ai-sync-kairos-read
+  namespace: {{ $ai.credentialsSecretNamespace | default "kairos-system" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["{{ $credName }}"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: developer-hub-lightspeed-ai-sync-kairos-read
+  namespace: {{ $ai.credentialsSecretNamespace | default "kairos-system" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: developer-hub-lightspeed-ai-sync-kairos-read
+subjects:
+  - kind: ServiceAccount
+    name: developer-hub-lightspeed-ai-sync
+    namespace: developer-hub
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: developer-hub-lightspeed-ai-sync
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: developer-hub-lightspeed-ai-sync
+      restartPolicy: OnFailure
+      containers:
+        - name: sync
+          image: {{ $ls.syncImage | default "registry.redhat.io/openshift4/ose-cli:latest" | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              SRC_NS="{{ $ai.credentialsSecretNamespace | default "kairos-system" }}"
+              SRC="{{ $credName }}"
+              KEY="{{ $ai.credentialsSecretKey | default "api-key" }}"
+
+              if ! oc get secret "$SRC" -n "$SRC_NS" >/dev/null 2>&1; then
+                echo "ERROR: Secret ${SRC_NS}/${SRC} not found — create maas-facilitator-seed in vault namespace"
+                exit 1
+              fi
+
+              API_KEY="$(oc get secret "$SRC" -n "$SRC_NS" -o json | python3 -c "import sys,json,base64; d=json.load(sys.stdin)['data']; print(base64.b64decode(d['${KEY}']).decode())")"
+              if [ -z "$API_KEY" ] || [ "$API_KEY" = "CHANGEME-inject-via-RHDP" ]; then
+                echo "ERROR: Empty or placeholder api key in ${SRC_NS}/${SRC}."
+                exit 1
+              fi
+              oc patch secret llama-stack-secrets -n developer-hub --type merge \
+                -p "{\"stringData\":{\"VLLM_API_KEY\":\"${API_KEY}\"}}"
+              echo "Synced VLLM_API_KEY from Kairos credentials."
+{{- end }}
+{{- end }}

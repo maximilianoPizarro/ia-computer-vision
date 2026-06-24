@@ -1,0 +1,46 @@
+apiVersion: org.eclipse.che/v2
+kind: CheCluster
+metadata:
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous=true
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/skip-health-check: "true"
+    argocd.argoproj.io/sync-wave: "7"
+  labels:
+    app.kubernetes.io/instance: devspaces
+  name: devspaces
+  namespace: devspaces
+spec:
+  components:
+    cheServer:
+      debug: false
+      logLevel: INFO
+    dashboard: {}
+    devWorkspace: {}
+    devfileRegistry:
+      externalDevfileRegistries:
+        - url: https://registry.devfile.io
+    imagePuller:
+      enable: true
+      spec:
+        images: "udi-rhel9=registry.redhat.io/devspaces/udi-rhel9:latest"
+    metrics:
+      enable: true
+    pluginRegistry: {}
+  containerRegistry: {}
+  devEnvironments:
+    startTimeoutSeconds: 600
+    defaultNamespace:
+      autoProvision: true
+      template: <username>-devspaces
+    secondsOfRunBeforeIdling: 1800
+    storage:
+      pvcStrategy: per-user
+  gitServices: {}
+  networking:
+    {{- if .Values.keycloakOidc.enabled }}
+    auth:
+      identityProviderURL: "https://sso.{{ include "devspaces.clusterDomain" . }}/realms/backstage"
+      oAuthClientName: devspaces
+      oAuthSecret: devspaces-oidc-secret
+    {{- end }}

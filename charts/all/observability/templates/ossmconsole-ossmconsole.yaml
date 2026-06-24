@@ -1,0 +1,12 @@
+apiVersion: kiali.io/v1alpha1
+kind: OSSMConsole
+metadata:
+  name: ossmconsole
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  version: default
+  kiali:
+    serviceName: kiali
+    serviceNamespace: openshift-cluster-observability-operator

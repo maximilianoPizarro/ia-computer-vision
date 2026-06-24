@@ -1,0 +1,144 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-kubernetes-plugin
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - configmaps
+      - limitranges
+      - resourcequotas
+      - serviceaccounts
+      - namespaces
+      - persistentvolumeclaims
+      - replicationcontrollers
+      - endpoints
+    verbs: [get, list, watch]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: [get, list, watch]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: [get, list, watch]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources:
+      - gateways
+      - httproutes
+      - grpcroutes
+    verbs: [get, list, watch]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources:
+      - referencegrants
+    verbs: [get, list, watch]
+  - apiGroups: ["kafka.strimzi.io"]
+    resources:
+      - kafkas
+      - kafkatopics
+      - kafkausers
+      - kafkaconnects
+      - kafkamirrormaker2s
+      - kafkabridges
+      - kafkarebalances
+    verbs: [get, list, watch]
+  - apiGroups: ["operators.coreos.com"]
+    resources:
+      - clusterserviceversions
+      - subscriptions
+      - installplans
+      - operatorgroups
+    verbs: [get, list, watch]
+  - apiGroups: ["packages.operators.coreos.com"]
+    resources:
+      - packagemanifests
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.istio.io", "security.istio.io"]
+    resources:
+      - virtualservices
+      - destinationrules
+      - gateways
+      - serviceentries
+      - authorizationpolicies
+      - peerauthentications
+    verbs: [get, list, watch]
+  - apiGroups: ["sailoperator.io"]
+    resources:
+      - istios
+    verbs: [get, list, watch]
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+    verbs: [get, list, watch]
+  - apiGroups: ["tekton.dev"]
+    resources:
+      - pipelines
+      - pipelineruns
+      - taskruns
+    verbs: [get, list, watch]
+  - apiGroups: ["route.openshift.io"]
+    resources:
+      - routes
+    verbs: [get, list, watch]
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - pods
+      - nodes
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources:
+      - events
+    verbs: [get, list, watch]
+  - apiGroups: ["argoproj.io"]
+    resources:
+      - applications
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["kuadrant.io"]
+    resources:
+      - authpolicies
+      - ratelimitpolicies
+      - tokenratelimitpolicies
+      - dnspolicies
+      - tlspolicies
+    verbs: [get, list, watch]
+  - apiGroups: ["extensions.kuadrant.io"]
+    resources:
+      - planpolicies
+    verbs: [get, list, watch]
+  - apiGroups: ["devportal.kuadrant.io"]
+    resources:
+      - apiproducts
+      - apikeys
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["devportal.kuadrant.io"]
+    resources:
+      - apikeys/status
+    verbs: [get, patch, update]
+  - apiGroups: ["camel.apache.org"]
+    resources:
+      - integrations
+      - kamelets
+      - pipes
+    verbs: [get, list, watch]
+  - apiGroups: ["machineconfiguration.openshift.io"]
+    resources:
+      - machineconfigpools
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: [get, list, watch, create, delete]

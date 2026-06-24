@@ -1,0 +1,76 @@
+{{- $appsDomain := include "gitlab-operator.appsDomain" . -}}
+{{- $ws := .Values.gitlab.webservice | default dict -}}
+{{- $sk := .Values.gitlab.sidekiq | default dict -}}
+{{- $sh := .Values.gitlab.gitlabShell | default dict -}}
+apiVersion: apps.gitlab.com/v1beta1
+kind: GitLab
+metadata:
+  name: gitlab
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  chart:
+    version: {{ .Values.gitlab.chartVersion | quote }}
+    values:
+      global:
+        hosts:
+          domain: {{ $appsDomain | quote }}
+          hostSuffix: gitlab
+          https: true
+        ingress:
+          configureCertmanager: false
+          class: openshift-default
+          tls:
+            enabled: false
+        openshift:
+          enabled: true
+          route:
+            enabled: true
+            tls:
+              termination: edge
+        minio:
+          enabled: true
+      certmanager:
+        install: false
+      installCertmanager: false
+      nginx-ingress:
+        enabled: false
+      prometheus:
+        install: false
+      registry:
+        enabled: {{ .Values.gitlab.registryEnabled }}
+      gitlab:
+        webservice:
+          minReplicas: {{ $ws.minReplicas | default 3 }}
+          maxReplicas: {{ $ws.maxReplicas | default 4 }}
+          workerProcesses: {{ $ws.workerProcesses | default 4 }}
+          resources:
+            requests:
+              cpu: {{ dig "resources" "requests" "cpu" "500m" $ws }}
+              memory: {{ dig "resources" "requests" "memory" "2Gi" $ws }}
+            limits:
+              memory: {{ dig "resources" "limits" "memory" "4Gi" $ws }}
+        sidekiq:
+          minReplicas: {{ $sk.minReplicas | default 2 }}
+          maxReplicas: {{ $sk.maxReplicas | default 3 }}
+          resources:
+            requests:
+              cpu: {{ dig "resources" "requests" "cpu" "500m" $sk }}
+              memory: {{ dig "resources" "requests" "memory" "2Gi" $sk }}
+            limits:
+              memory: {{ dig "resources" "limits" "memory" "4Gi" $sk }}
+        gitaly:
+          persistence:
+            size: {{ .Values.gitlab.gitalyStorage | quote }}
+        toolbox:
+          backups:
+            cron:
+              enabled: false
+      gitlab-shell:
+        minReplicas: {{ $sh.minReplicas | default 2 }}
+        maxReplicas: {{ $sh.maxReplicas | default 2 }}
+      postgresql:
+        persistence:
+          size: {{ .Values.gitlab.postgresStorage | quote }}

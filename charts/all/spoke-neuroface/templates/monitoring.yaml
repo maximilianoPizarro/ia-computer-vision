@@ -1,0 +1,57 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neuroface-backend
+  namespace: neuroface
+  labels:
+    release: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neuroface-backend
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /api/ready
+      scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neuroface-frontend
+  namespace: neuroface
+  labels:
+    release: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neuroface-frontend
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /
+      scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: neuroface-gateway-metrics
+  namespace: neuroface
+  labels:
+    release: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  selector:
+    matchExpressions:
+      - key: gateway.istio.io/managed
+        operator: Exists
+  podMetricsEndpoints:
+    - port: http-envoy-prom
+      interval: 15s
+      path: /stats/prometheus
+      scheme: http

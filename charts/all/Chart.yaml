@@ -1,0 +1,5 @@
+apiVersion: v2
+name: all
+description: Local ia-computer-vision application charts (referenced by Argo CD path)
+type: application
+version: 0.0.1

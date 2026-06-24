@@ -1,0 +1,46 @@
+clusterName: ""
+
+neuroface:
+  fullnameOverride: neuroface
+  clusterName: ""
+  backend:
+    image:
+      tag: v1.5.1
+  frontend:
+    image:
+      tag: v1.5.1
+  chat:
+    enabled: true
+    autoServiceAccount: false
+    modelEndpoint: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"
+    modelName: "llama-scout-17b"
+    apiKey: ""
+  ovms:
+    enabled: true
+    externalUrl: "http://modelmesh-serving.redhat-ods-applications.svc.cluster.local:8008"
+    modelName: "face-detection-retail-0005"
+    modelmesh:
+      enabled: true
+  litellm:
+    enabled: false
+  ppe:
+    enabled: true
+    useFederatedGateway: false
+    endpoint: "http://yolo-ppe-serving.neuroface-cv.svc:8080"
+    classes: "hardhat,safety-vest,goggles"
+    confidence: "0.15"
+    kafka:
+      enabled: true
+      bootstrap: "kafka-east-tst.service-interconnect.svc:9092"
+      topic: "cv.ppe.detections"
+    dataPersistence:
+      enabled: true
+      s3Endpoint: "http://minio-hub.service-interconnect.svc:9000"
+      s3Bucket: "models"
+      s3Prefix: "ppe-detection/training-data"
+      s3AccessKey: "minio"
+      s3SecretKey: "minio123"
+      s3Secure: false
+      samplingRate: 1.0
+  route:
+    enabled: false

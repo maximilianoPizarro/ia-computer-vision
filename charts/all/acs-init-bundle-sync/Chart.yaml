@@ -1,0 +1,5 @@
+apiVersion: v2
+name: acs-init-bundle-sync
+description: PostSync Job to generate and apply ACS init bundles on hub and spokes
+type: application
+version: 0.1.0

@@ -1,0 +1,111 @@
+# Workshop: full read/use for all authenticated Developer Hub users (OIDC / Keycloak).
+# Keycloak + catalog-users.yaml use group developers (user1..userN memberOf developers).
+g, group:default/developers, role:default/authenticated
+g, group:default/backstage-users, role:default/authenticated
+g, user:default/admin, role:default/authenticated
+g, user:default/platformadmin, role:default/authenticated
+# Catalog
+p, role:default/authenticated, catalog-entity, read, allow
+p, role:default/authenticated, catalog.location, read, allow
+p, role:default/authenticated, catalog.location.create, create, allow
+p, role:default/authenticated, catalog.entity.create, create, allow
+# Scaffolder
+p, role:default/authenticated, scaffolder-template, read, allow
+p, role:default/authenticated, scaffolder.task.read, read, allow
+p, role:default/authenticated, scaffolder.task.create, create, allow
+p, role:default/authenticated, scaffolder.action.execute, use, allow
+p, role:default/authenticated, scaffolder.template.parameter.read, read, allow
+p, role:default/authenticated, scaffolder.template.step.read, read, allow
+# Kubernetes + Topology
+p, role:default/authenticated, kubernetes.clusters.read, read, allow
+p, role:default/authenticated, kubernetes.resources.read, read, allow
+p, role:default/authenticated, kubernetes.proxy, use, allow
+# OCM
+p, role:default/authenticated, ocm.entity.read, read, allow
+p, role:default/authenticated, ocm.cluster.read, read, allow
+# ArgoCD
+p, role:default/authenticated, argocd.view.read, read, allow
+# Notifications
+p, role:default/authenticated, notification.entity.read, read, allow
+p, role:default/authenticated, notification.entity.create, create, allow
+p, role:default/authenticated, notification.send, create, allow
+# Quay (catalog entity tab)
+p, role:default/authenticated, quay.repository.read, read, allow
+# Tekton
+p, role:default/authenticated, tekton.pipelinerun.read, read, allow
+p, role:default/authenticated, tekton.pipeline.read, read, allow
+p, role:default/authenticated, kafka.topic.read, read, allow
+p, role:default/authenticated, kafka.consumer-group.read, read, allow
+# Adoption Insights
+p, role:default/authenticated, adoption-insights.events.read, read, allow
+p, role:default/authenticated, adoption-insights.nav.read, read, allow
+p, role:default/authenticated, adoption-insights.entity.read, read, allow
+# TechDocs
+p, role:default/authenticated, techdocs.entity.read, read, allow
+# Lightspeed
+p, role:default/authenticated, lightspeed.chat.read, read, allow
+p, role:default/authenticated, lightspeed.chat.create, create, allow
+p, role:default/authenticated, lightspeed.chat.delete, delete, allow
+# Notifications
+p, role:default/authenticated, notification.entity.read, read, allow
+# Kuadrant (permission names per docs.kuadrant.io — no hyphen in apiproduct)
+p, role:default/authenticated, kuadrant.apiproduct.list, read, allow
+p, role:default/authenticated, kuadrant.apiproduct.read.own, read, allow
+p, role:default/authenticated, kuadrant.apiproduct.read.all, read, allow
+p, role:default/authenticated, kuadrant.apiproduct.update.own, update, allow
+p, role:default/authenticated, kuadrant.apikey.create, create, allow
+p, role:default/authenticated, kuadrant.apikey.read.own, read, allow
+p, role:default/authenticated, kuadrant.apikey.read.all, read, allow
+p, role:default/authenticated, kuadrant.apikey.update.own, update, allow
+p, role:default/authenticated, kuadrant.apikey.delete.own, delete, allow
+p, role:default/authenticated, kuadrant.apikey.list, read, allow
+p, role:default/authenticated, kuadrant.apikey.approve, update, allow
+p, role:default/authenticated, kuadrant.planpolicy.list, read, allow
+p, role:default/authenticated, kuadrant.planpolicy.read, read, allow
+p, role:default/authenticated, kuadrant.planpolicy.read.all, read, allow
+p, role:default/authenticated, kuadrant.httproute.list, read, allow
+p, role:default/authenticated, kuadrant.authpolicy.list, read, allow
+p, role:default/authenticated, kuadrant.ratelimitpolicy.list, read, allow
+# Platform Admin — explicit full access (supplements policyAdminUser bypass)
+g, user:default/platformadmin, role:default/admin
+# Admin: explicit permissions (rbac-backend does not support role inheritance)
+p, role:default/admin, catalog-entity, read, allow
+p, role:default/admin, scaffolder-template, read, allow
+p, role:default/admin, scaffolder.action.execute, use, allow
+p, role:default/admin, kubernetes.clusters.read, read, allow
+p, role:default/admin, kubernetes.resources.read, read, allow
+p, role:default/admin, ocm.entity.read, read, allow
+p, role:default/admin, ocm.cluster.read, read, allow
+p, role:default/admin, adoption-insights.events.read, read, allow
+p, role:default/admin, adoption-insights.nav.read, read, allow
+p, role:default/admin, adoption-insights.entity.read, read, allow
+p, role:default/admin, techdocs.entity.read, read, allow
+p, role:default/admin, lightspeed.chat.read, read, allow
+p, role:default/admin, lightspeed.chat.create, create, allow
+p, role:default/admin, kubernetes.proxy, use, allow
+p, role:default/admin, argocd.view.read, read, allow
+p, role:default/admin, notification.entity.read, read, allow
+p, role:default/admin, notification.entity.create, create, allow
+p, role:default/admin, notification.send, create, allow
+p, role:default/admin, quay.repository.read, read, allow
+p, role:default/admin, tekton.pipelinerun.read, read, allow
+p, role:default/admin, tekton.pipeline.read, read, allow
+p, role:default/admin, policy-entity, read, allow
+p, role:default/admin, policy-entity, create, allow
+p, role:default/admin, policy-entity, update, allow
+p, role:default/admin, policy-entity, delete, allow
+p, role:default/admin, kuadrant.apiproduct.create, create, allow
+p, role:default/admin, kuadrant.apiproduct.read.all, read, allow
+p, role:default/admin, kuadrant.apiproduct.update.all, update, allow
+p, role:default/admin, kuadrant.apiproduct.delete.all, delete, allow
+p, role:default/admin, kuadrant.apiproduct.list, read, allow
+p, role:default/admin, kuadrant.apikey.create, create, allow
+p, role:default/admin, kuadrant.apikey.read.all, read, allow
+p, role:default/admin, kuadrant.apikey.update.all, update, allow
+p, role:default/admin, kuadrant.apikey.approve, update, allow
+p, role:default/admin, kuadrant.apikey.delete.all, delete, allow
+p, role:default/admin, kuadrant.planpolicy.create, create, allow
+p, role:default/admin, kuadrant.planpolicy.read, read, allow
+p, role:default/admin, kuadrant.planpolicy.update, update, allow
+p, role:default/admin, kuadrant.planpolicy.delete, delete, allow
+p, role:default/admin, kuadrant.planpolicy.list, read, allow

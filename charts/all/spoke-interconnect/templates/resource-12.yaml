@@ -1,0 +1,13 @@
+{{- if .Values.industrialEdge.enabled }}
+apiVersion: skupper.io/v2alpha1
+kind: Connector
+metadata:
+  name: kafka-{{ include "spoke-interconnect.clusterName" . }}-stormshift
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  routingKey: kafka-{{ include "spoke-interconnect.clusterName" . }}-stormshift
+  host: factory-cluster-kafka-bootstrap.industrial-edge-stormshift-messaging.svc.cluster.local
+  port: 9092
+{{- end }}

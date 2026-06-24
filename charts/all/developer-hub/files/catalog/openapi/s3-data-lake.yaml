@@ -1,0 +1,191 @@
+    openapi: 3.0.3
+    info:
+      title: MinIO S3 Data Lake API
+      version: 1.0.0
+      description: |
+        S3-compatible object storage on the hub for ML models, Kubecost ETL, and
+        Industrial Edge telemetry archives. Use MinIO Console for bucket management.
+    servers:
+      - url: https://minio-console-industrial-edge-ml-workspace.__HUB_APPS_DOMAIN__
+        description: MinIO Console (hub)
+      - url: http://minio-hub.service-interconnect.svc:9000
+        description: In-cluster S3 endpoint
+    components:
+      schemas:
+        Bucket:
+          type: object
+          properties:
+            name:
+              type: string
+              example: industrial-edge-archive
+            creationDate:
+              type: string
+              format: date-time
+        ObjectMetadata:
+          type: object
+          properties:
+            key:
+              type: string
+              example: telemetry/2026/06/17/temperature.jsonl
+            size:
+              type: integer
+              format: int64
+              example: 4096
+            etag:
+              type: string
+            lastModified:
+              type: string
+              format: date-time
+            contentType:
+              type: string
+              example: application/x-ndjson
+        ListBucketsResponse:
+          type: object
+          properties:
+            buckets:
+              type: array
+              items:
+                $ref: "#/components/schemas/Bucket"
+        ListObjectsResponse:
+          type: object
+          properties:
+            name:
+              type: string
+            prefix:
+              type: string
+            objects:
+              type: array
+              items:
+                $ref: "#/components/schemas/ObjectMetadata"
+        Error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    paths:
+      /minio/health/live:
+        get:
+          summary: MinIO liveness probe
+          operationId: minioHealthLive
+          responses:
+            "200":
+              description: MinIO is healthy
+      /minio/health/ready:
+        get:
+          summary: MinIO readiness probe
+          operationId: minioHealthReady
+          responses:
+            "200":
+              description: MinIO is ready to serve
+      /:
+        get:
+          summary: List buckets (S3 ListBuckets)
+          operationId: listBuckets
+          responses:
+            "200":
+              description: Bucket list
+              content:
+                application/xml:
+                  schema:
+                    type: string
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/ListBucketsResponse"
+      /{bucket}:
+        get:
+          summary: List objects in bucket
+          operationId: listObjects
+          parameters:
+            - name: bucket
+              in: path
+              required: true
+              schema:
+                type: string
+              example: industrial-edge-archive
+            - name: prefix
+              in: query
+              schema:
+                type: string
+              example: telemetry/2026/
+          responses:
+            "200":
+              description: Object listing
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/ListObjectsResponse"
+      /{bucket}/{objectKey}:
+        get:
+          summary: Get object metadata or download
+          operationId: getObject
+          parameters:
+            - name: bucket
+              in: path
+              required: true
+              schema:
+                type: string
+            - name: objectKey
+              in: path
+              required: true
+              schema:
+                type: string
+              example: models/anomaly-detection/v1.onnx
+          responses:
+            "200":
+              description: Object body or metadata
+              content:
+                application/octet-stream:
+                  schema:
+                    type: string
+                    format: binary
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/ObjectMetadata"
+            "404":
+              description: Object not found
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/Error"
+        put:
+          summary: Upload object (S3 PutObject)
+          operationId: putObject
+          parameters:
+            - name: bucket
+              in: path
+              required: true
+              schema:
+                type: string
+            - name: objectKey
+              in: path
+              required: true
+              schema:
+                type: string
+          requestBody:
+            content:
+              application/octet-stream:
+                schema:
+                  type: string
+                  format: binary
+          responses:
+            "200":
+              description: Object stored
+        delete:
+          summary: Delete object
+          operationId: deleteObject
+          parameters:
+            - name: bucket
+              in: path
+              required: true
+              schema:
+                type: string
+            - name: objectKey
+              in: path
+              required: true
+              schema:
+                type: string
+          responses:
+            "204":
+              description: Object deleted

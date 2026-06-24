@@ -1,0 +1,214 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: platform-overview
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 2,
+      "id": null,
+      "links": [],
+      "panels": [
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 100, "title": "Multi-Cluster Traffic (Hub mesh + spoke Kafka)", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 4, "x": 0, "y": 1},
+          "id": 1,
+          "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_hub}"}, "expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\"}[15m])) or sum(rate(istio_tcp_connections_opened_total{job=\"ztunnel/ztunnel-metrics\"}[15m]))", "legendFormat": "Hub", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_brokertopicmetrics_messagesinpersec) or sum(rate(istio_tcp_sent_bytes_total{job=\"ztunnel/ztunnel-metrics\"}[15m]))", "legendFormat": "East", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_brokertopicmetrics_messagesinpersec) or sum(rate(istio_tcp_sent_bytes_total{job=\"ztunnel/ztunnel-metrics\"}[15m]))", "legendFormat": "West", "refId": "C"}
+          ],
+          "title": "Throughput (Hub req/s · spokes msg/s)",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 15, "gradientMode": "opacity", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": false, "stacking": {"mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "unit": "Bps"}, "overrides": [{"matcher": {"id": "byName", "options": "Hub HTTP"}, "properties": [{"id": "unit", "value": "reqps"}]}]},
+          "gridPos": {"h": 8, "w": 20, "x": 4, "y": 1},
+          "id": 2,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_hub}"}, "expr": "sum(rate(istio_requests_total{reporter=\"source\"}[15m]))", "legendFormat": "Hub HTTP", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesinpersec) or sum(rate(istio_tcp_sent_bytes_total{job=\"ztunnel/ztunnel-metrics\"}[15m]))", "legendFormat": "East Kafka in", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesinpersec) or sum(rate(istio_tcp_sent_bytes_total{job=\"ztunnel/ztunnel-metrics\"}[15m]))", "legendFormat": "West Kafka in", "refId": "C"}
+          ],
+          "title": "Traffic per cluster (Hub HTTP · spoke Kafka bytes/s)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "continuous-GrYlRd"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "ops"}, "overrides": [{"matcher": {"id": "byRegexp", "options": "/bytes/"}, "properties": [{"id": "unit", "value": "Bps"}]}]},
+          "gridPos": {"h": 6, "w": 12, "x": 0, "y": 9},
+          "id": 3,
+          "options": {"displayMode": "lcd", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_hub}"}, "expr": "sum(rate(istio_tcp_connections_opened_total{job=\"ztunnel/ztunnel-metrics\"}[15m]))", "legendFormat": "Hub L4 conn/s", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_brokertopicmetrics_messagesinpersec)", "legendFormat": "East msg/s", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_brokertopicmetrics_messagesinpersec)", "legendFormat": "West msg/s", "refId": "C"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_hub}"}, "expr": "sum(rate(istio_tcp_sent_bytes_total{job=\"ztunnel/ztunnel-metrics\"}[15m]))", "legendFormat": "Hub bytes/s", "refId": "D"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesinpersec)", "legendFormat": "East bytes/s", "refId": "E"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesinpersec)", "legendFormat": "West bytes/s", "refId": "F"}
+          ],
+          "title": "Throughput snapshot (Hub ztunnel · spoke Kafka)",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": {"mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "decimals": 3, "max": 1, "min": 0, "unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 9},
+          "id": 4,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_hub}"}, "expr": "sum(rate(istio_requests_total{reporter=\"source\", response_code=~\"5..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\"}[5m]))", "legendFormat": "Hub 5xx", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_hub}"}, "expr": "sum(rate(istio_requests_total{reporter=\"source\", response_code=~\"4..\"}[5m])) / sum(rate(istio_requests_total{reporter=\"source\"}[5m]))", "legendFormat": "Hub 4xx", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_brokertopicmetrics_failedproducerequestspersec) / clamp_min(sum(kafka_server_brokertopicmetrics_totalproducerequestspersec), 1)", "legendFormat": "East Kafka produce fail ratio", "refId": "C"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_brokertopicmetrics_failedproducerequestspersec) / clamp_min(sum(kafka_server_brokertopicmetrics_totalproducerequestspersec), 1)", "legendFormat": "West Kafka produce fail ratio", "refId": "D"}
+          ],
+          "title": "Error rates per cluster (Hub HTTP · spoke Kafka produce)",
+          "type": "timeseries"
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15}, "id": 200, "title": "Hub Gateway — Traffic Split & Latency", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "showPoints": "never", "spanNulls": false, "stacking": {"mode": "normal"}, "thresholdsStyle": {"mode": "off"}}, "unit": "reqps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 14, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"calcs": ["mean"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [
+            {"expr": "sum(rate(istio_requests_total{reporter=\"source\", source_workload_namespace=\"hub-gateway-system\", destination_service_name=~\"ie-gateway-east.*\"}[5m]))", "legendFormat": "east backends", "refId": "A"},
+            {"expr": "sum(rate(istio_requests_total{reporter=\"source\", source_workload_namespace=\"hub-gateway-system\", destination_service_name=~\"ie-gateway-west.*\"}[5m]))", "legendFormat": "west backends", "refId": "B"},
+            {"expr": "sum(rate(istio_requests_total{reporter=\"source\", source_workload_namespace=\"hub-gateway-system\"}[5m])) by (destination_service_name)", "legendFormat": "{{ "{{destination_service_name}}" }}", "refId": "C"}
+          ],
+          "title": "Hub gateway weighted backends & downstream",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 0, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": {"mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "unit": "ms"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 10, "x": 14, "y": 16},
+          "id": 6,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\", source_workload_namespace=\"hub-gateway-system\"}[5m])) by (le)) or histogram_quantile(0.50, sum(rate(istio_request_duration_seconds_bucket{reporter=\"source\", source_workload_namespace=\"hub-gateway-system\"}[5m])) by (le)) * 1000", "legendFormat": "Hub p50", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\", source_workload_namespace=\"hub-gateway-system\"}[5m])) by (le)) or histogram_quantile(0.95, sum(rate(istio_request_duration_seconds_bucket{reporter=\"source\", source_workload_namespace=\"hub-gateway-system\"}[5m])) by (le)) * 1000", "legendFormat": "Hub p95", "refId": "B"}
+          ],
+          "title": "Request latency (hub gateway waypoint, p50 / p95)",
+          "type": "timeseries"
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24}, "id": 300, "title": "Kafka — Broker Health", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${ds_east}"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"color": "red", "text": "Offline"}, "3": {"color": "green", "text": "Running"}}, "type": "value"}], "max": 3, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1}, {"color": "green", "value": 3}]}}, "overrides": []},
+          "gridPos": {"h": 6, "w": 4, "x": 0, "y": 25},
+          "id": 10,
+          "options": {"minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto"},
+          "targets": [{"expr": "kafka_server_kafkaserver_brokerstate", "legendFormat": "East Broker", "refId": "A"}],
+          "title": "East Broker",
+          "type": "gauge"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${ds_west}"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"color": "red", "text": "Offline"}, "3": {"color": "green", "text": "Running"}}, "type": "value"}], "max": 3, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1}, {"color": "green", "value": 3}]}}, "overrides": []},
+          "gridPos": {"h": 6, "w": 4, "x": 4, "y": 25},
+          "id": 11,
+          "options": {"minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto"},
+          "targets": [{"expr": "kafka_server_kafkaserver_brokerstate", "legendFormat": "West Broker", "refId": "A"}],
+          "title": "West Broker",
+          "type": "gauge"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 6, "w": 8, "x": 8, "y": 25},
+          "id": 12,
+          "options": {"legend": {"displayMode": "table", "placement": "right", "showLegend": true, "values": ["value"]}, "pieType": "donut", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_replicamanager_leadercount)", "legendFormat": "East leaders", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_replicamanager_leadercount)", "legendFormat": "West leaders", "refId": "B"}
+          ],
+          "title": "Leader partitions (East vs West)",
+          "type": "piechart"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+          "gridPos": {"h": 6, "w": 4, "x": 16, "y": 25},
+          "id": 13,
+          "options": {"minVizHeight": 75, "minVizWidth": 75, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto"},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "kafka_server_replicamanager_underreplicatedpartitions", "legendFormat": "East", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "kafka_server_replicamanager_underreplicatedpartitions", "legendFormat": "West", "refId": "B"}
+          ],
+          "title": "Under-replicated",
+          "type": "gauge"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "continuous-GrYlRd"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 6, "w": 4, "x": 20, "y": 25},
+          "id": 14,
+          "options": {"displayMode": "gradient", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_replicamanager_partitioncount)", "legendFormat": "East", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_replicamanager_partitioncount)", "legendFormat": "West", "refId": "B"}
+          ],
+          "title": "Partitions",
+          "type": "bargauge"
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31}, "id": 400, "title": "Kafka — Network & I/O", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 10, "gradientMode": "opacity", "lineInterpolation": "smooth", "lineWidth": 1, "showPoints": "never", "spanNulls": false, "stacking": {"mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "unit": "Bps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+          "id": 15,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesinpersec)", "legendFormat": "East in", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesoutpersec)", "legendFormat": "East out", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesinpersec)", "legendFormat": "West in", "refId": "C"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "sum(kafka_server_brokertopicmetrics_bytesoutpersec)", "legendFormat": "West out", "refId": "D"}
+          ],
+          "title": "Kafka broker I/O (East + West)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "-- Mixed --"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "reqps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+          "id": 16,
+          "options": {"displayMode": "lcd", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${ds_east}"}, "expr": "topk(5, sum(kafka_network_requestmetrics_requestspersec_total) by (request))", "legendFormat": "East {{ "{{request}}" }}", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${ds_west}"}, "expr": "topk(5, sum(kafka_network_requestmetrics_requestspersec_total) by (request))", "legendFormat": "West {{ "{{request}}" }}", "refId": "B"}
+          ],
+          "title": "Kafka API requests/sec (top 5 per spoke)",
+          "type": "bargauge"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["istio", "multi-cluster", "kafka", "hub-gateway", "platform", "industrial-edge"],
+      "templating": {
+        "list": [
+          {"current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0, "includeAll": false, "label": "Hub", "multi": false, "name": "ds_hub", "options": [], "query": "prometheus", "refresh": 1, "regex": "/^Prometheus$/", "skipUrlSync": false, "type": "datasource"},
+          {"current": {"selected": false, "text": "Prometheus-East", "value": "Prometheus-East"}, "hide": 0, "includeAll": false, "label": "East", "multi": false, "name": "ds_east", "options": [], "query": "prometheus", "refresh": 1, "regex": "/East/", "skipUrlSync": false, "type": "datasource"},
+          {"current": {"selected": false, "text": "Prometheus-West", "value": "Prometheus-West"}, "hide": 0, "includeAll": false, "label": "West", "multi": false, "name": "ds_west", "options": [], "query": "prometheus", "refresh": 1, "regex": "/West/", "skipUrlSync": false, "type": "datasource"}
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Platform Overview — Multi-Cluster Mesh & Kafka",
+      "uid": "platform-overview",
+      "version": 3
+    }

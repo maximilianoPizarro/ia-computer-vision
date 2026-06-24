@@ -1,0 +1,133 @@
+    openapi: 3.0.3
+    info:
+      title: httpbin.org
+      version: 1.0.0
+      description: HTTP request/response testing service — no auth required for Try It Out
+    servers:
+      - url: https://httpbin.org
+    components:
+      schemas:
+        HttpbinArgs:
+          type: object
+          properties:
+            args:
+              type: object
+              additionalProperties:
+                type: string
+            headers:
+              type: object
+              additionalProperties:
+                type: string
+            origin:
+              type: string
+            url:
+              type: string
+        HttpbinPostResponse:
+          allOf:
+            - $ref: "#/components/schemas/HttpbinArgs"
+            - type: object
+              properties:
+                data:
+                  type: string
+                json:
+                  type: object
+                form:
+                  type: object
+    paths:
+      /get:
+        get:
+          summary: Returns GET request data
+          operationId: getRequest
+          parameters:
+            - name: show_env
+              in: query
+              schema:
+                type: integer
+                enum: [0, 1]
+          responses:
+            "200":
+              description: Echo of GET request
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/HttpbinArgs"
+                  example:
+                    args: { workshop: demo }
+                    headers:
+                      Accept: "application/json"
+                    origin: "203.0.113.1"
+                    url: "https://httpbin.org/get?workshop=demo"
+      /post:
+        post:
+          summary: Echo POST body
+          operationId: postRequest
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  type: object
+                  additionalProperties: true
+                example:
+                  message: hello httpbin
+          responses:
+            "200":
+              description: Echo of POST request
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/HttpbinPostResponse"
+      /headers:
+        get:
+          summary: Return request headers
+          operationId: getHeaders
+          responses:
+            "200":
+              description: Request headers
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      headers:
+                        type: object
+                        additionalProperties:
+                          type: string
+      /status/{code}:
+        get:
+          summary: Returns given HTTP status code
+          operationId: getStatus
+          parameters:
+            - name: code
+              in: path
+              required: true
+              schema:
+                type: integer
+                minimum: 100
+                maximum: 599
+              example: 418
+          responses:
+            "200":
+              description: Status 200
+            "418":
+              description: I'm a teapot
+            "500":
+              description: Internal Server Error
+      /delay/{seconds}:
+        get:
+          summary: Delay then respond
+          operationId: getDelay
+          parameters:
+            - name: seconds
+              in: path
+              required: true
+              schema:
+                type: integer
+                minimum: 0
+                maximum: 10
+          responses:
+            "200":
+              description: Delayed response
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/HttpbinArgs"

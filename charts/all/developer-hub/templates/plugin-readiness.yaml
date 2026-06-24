@@ -1,0 +1,71 @@
+{{- if .Values.pluginReadiness.enabled | default true }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: developer-hub-plugin-readiness
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: developer-hub
+      restartPolicy: OnFailure
+      containers:
+        - name: check
+          image: {{ .Values.pluginReadiness.image | default "registry.redhat.io/ubi9/ubi-minimal:latest" | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              BASE="https://developer-hub.{{ include "developer-hub.clusterDomain" . }}"
+              echo "Checking Developer Hub health at $BASE/healthcheck"
+              for i in $(seq 1 40); do
+                if curl -sk -o /dev/null -w "%{http_code}" "$BASE/healthcheck" | grep -qE '200|401'; then
+                  echo "Healthcheck OK"
+                  break
+                fi
+                if [ "$i" -eq 40 ]; then
+                  echo "Healthcheck failed"
+                  exit 1
+                fi
+                sleep 10
+              done
+              if [ ! -f /opt/app-root/src/rbac-policy.csv ]; then
+                echo "WARNING: rbac-policy.csv not mounted (Topology/OCM RBAC may fail)"
+              else
+                echo "rbac-policy.csv present"
+              fi
+              if ! grep -q kubernetes.clusters.read /opt/app-root/src/rbac-policy.csv 2>/dev/null; then
+                echo "WARNING: kubernetes.clusters.read missing from RBAC CSV"
+              fi
+              {{- if include "developer-hub.lightspeedEnabled" . | trim }}
+              if curl -sk -o /dev/null -w "%{http_code}" "$BASE/lightspeed" | grep -qE '200|302'; then
+                echo "Lightspeed route reachable"
+              else
+                echo "WARNING: /lightspeed not reachable (check plugin + MaaS key sync)"
+              fi
+              KEY="$(oc get secret llama-stack-secrets -n developer-hub -o jsonpath='{.data.VLLM_API_KEY}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+              if [ -z "$KEY" ] || [ "$KEY" = "CHANGEME-inject-via-RHDP" ]; then
+                echo "WARNING: llama-stack-secrets missing valid VLLM_API_KEY — create maas-facilitator-seed in vault"
+              else
+                echo "Lightspeed MaaS key present in llama-stack-secrets"
+              fi
+              {{- end }}
+              echo "Plugin readiness checks complete"
+          volumeMounts:
+            - name: rhdh-rbac-policy
+              mountPath: /opt/app-root/src/rbac-policy.csv
+              subPath: rbac-policy.csv
+              readOnly: true
+      volumes:
+        - name: rhdh-rbac-policy
+          configMap:
+            name: rhdh-rbac-policy
+            optional: true
+{{- end }}

@@ -1,0 +1,24 @@
+{{- $templates := list "ai-computer-vision" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-software-templates
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  software-templates.yaml: |
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Location
+    metadata:
+      name: software-templates
+      description: Software Templates for Developer Hub (bundled manifests — no GitLab fetch required for catalog)
+    spec:
+      type: file
+      targets:
+{{- range $name := $templates }}
+        - /opt/app-root/src/catalog-data/software-templates/manifests/{{ $name }}.yaml
+{{- end }}

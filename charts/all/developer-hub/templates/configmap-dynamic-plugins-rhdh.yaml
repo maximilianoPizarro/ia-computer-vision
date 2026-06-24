@@ -1,0 +1,488 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dynamic-plugins-rhdh
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  dynamic-plugins.yaml: |
+    includes:
+      - dynamic-plugins.default.yaml
+    plugins:
+      - package: ./dynamic-plugins/dist/backstage-plugin-techdocs
+        disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage.plugin-techdocs:
+                entityTabs:
+                  - path: /docs
+                    title: Docs
+                    mountPoint: entity.page.docs
+                    importName: EntityTechdocsContent
+                    config:
+                      if:
+                        allOf:
+                          - isTechDocsAvailable
+      - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-backend-dynamic
+        disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
+      - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
+        disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-ocm-backend-dynamic
+        disabled: false
+        pluginConfig:
+          catalog:
+            providers:
+              ocm:
+                default:
+                  name: hub
+                  kubernetesPluginRef: hub
+                  url: https://kubernetes.default.svc.cluster.local:443
+                  skipTLSVerify: true
+                  owner: group:platform-engineering
+                  schedule:
+                    frequency: { minutes: 15 }
+                    timeout: { minutes: 10 }
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-ocm
+        disabled: false
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-ocm:
+                appIcons:
+                  - name: ocmIcon
+                    importName: OcmIcon
+                dynamicRoutes:
+                  - path: /ocm
+                    importName: OcmPage
+                    menuItem:
+                      icon: ocmIcon
+                      text: Clusters
+                  - path: /clusters
+                    importName: OcmPage
+                mountPoints:
+                  - mountPoint: entity.page.overview/context
+                    importName: ClusterContextProvider
+                  - mountPoint: entity.page.overview/cards
+                    importName: ClusterAvailableResourceCard
+                    config:
+                      layout:
+                        gridColumnEnd:
+                          lg: span 4
+                          md: span 6
+                          xs: span 12
+                      if:
+                        allOf:
+                          - isKind: resource
+                          - isType: kubernetes-cluster
+                  - mountPoint: entity.page.overview/cards
+                    importName: ClusterInfoCard
+                    config:
+                      layout:
+                        gridColumnEnd:
+                          lg: span 4
+                          md: span 6
+                          xs: span 12
+                      if:
+                        allOf:
+                          - isKind: resource
+                          - isType: kubernetes-cluster
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-rbac
+        disabled: {{ not (.Values.plugins.rbac.enabled | default false) }}
+      - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes
+        disabled: false
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage.plugin-kubernetes:
+                entityTabs:
+                  - path: /kubernetes
+                    title: Kubernetes
+                    mountPoint: entity.page.kubernetes
+                    importName: EntityKubernetesContent
+                    config:
+                      if:
+                        anyOf:
+                          - hasAnnotation: backstage.io/kubernetes-id
+                          - hasAnnotation: backstage.io/kubernetes-namespace
+                mountPoints:
+                  - mountPoint: entity.page.kubernetes/content
+                    importName: EntityKubernetesContent
+                    config:
+                      if:
+                        anyOf:
+                          - hasAnnotation: backstage.io/kubernetes-id
+                          - hasAnnotation: backstage.io/kubernetes-namespace
+      # Disabled: package missing in RHDH 1.9 image (npm pack ENOENT). Use redhat-argocd plugin instead.
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-argocd
+        disabled: true
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-topology
+        disabled: false
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-topology:
+                translationResources:
+                  - importName: topologyTranslations
+                    ref: topologyTranslationRef
+                    module: Alpha
+                entityTabs:
+                  - path: /topology
+                    title: Topology
+                    mountPoint: entity.page.topology
+                    importName: TopologyPage
+                    config:
+                      if:
+                        anyOf:
+                          - hasAnnotation: backstage.io/kubernetes-id
+                          - hasAnnotation: backstage.io/kubernetes-namespace
+                mountPoints:
+                  - mountPoint: entity.page.topology/cards
+                    importName: TopologyPage
+                    config:
+                      layout:
+                        gridColumn: 1 / -1
+                        height: 75vh
+                      if:
+                        anyOf:
+                          - hasAnnotation: backstage.io/kubernetes-id
+                          - hasAnnotation: backstage.io/kubernetes-namespace
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-scaffolder-backend-module-kubernetes-dynamic
+        disabled: false
+      # Kafka — NOT in RHDH 1.9 image and no ghcr.io OCI package available; hardcode disabled
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-kafka-backend-dynamic
+        disabled: true
+        pluginConfig:
+          kafka:
+            clientId: backstage
+            clusters:
+              - name: hub-kafka
+                dashboardUrl: https://kafka-console-kafka-console.{{ include "developer-hub.clusterDomain" . }}
+                brokers:
+                  - my-cluster-kafka-bootstrap.kafka-cdc.svc.cluster.local:9092
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-kafka
+        disabled: true
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-kafka:
+                mountPoints:
+                  - mountPoint: entity.page.kafka/content
+                    importName: EntityKafkaContent
+      - package: "@kuadrant/kuadrant-backstage-plugin-backend-dynamic@v0.2.1"
+        disabled: {{ not (.Values.plugins.kuadrant.enabled | default false) }}
+        integrity: sha512-pttQ6Lp7wD6EqDXAC3AIm4FWuQYO0i1KwoR0k6opTTyRZOGaNyO3YmPQdF403n+WjfTZRE+dfccD/9R4/SO5iA==
+        pluginConfig:
+          kuadrant:
+            dev: true
+      - package: "@kuadrant/kuadrant-backstage-plugin-frontend@v0.2.1"
+        disabled: {{ not (.Values.plugins.kuadrant.enabled | default false) }}
+        integrity: sha512-E4zgwY3QQmA2mn0CwO2Zwc0k9/oCtHcsVHRcrKal2PfnXv6chKb9fCKi5SznH9FbNtx8fHVYnac9SQjFh5XGCA==
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              internal.plugin-kuadrant:
+                apiFactories:
+                  - importName: kuadrantApiFactory
+                appIcons:
+                  - name: kuadrantIcon
+                    importName: KuadrantIcon
+                dynamicRoutes:
+                  - path: /kuadrant
+                    importName: KuadrantPage
+                    menuItem:
+                      icon: kuadrantIcon
+                      text: Kuadrant
+                  - path: /kuadrant/api-products/:namespace/:name
+                    importName: ApiProductDetailPage
+                  - path: /kuadrant/api-keys/:namespace/:name
+                    importName: ApiKeyDetailPage
+                mountPoints:
+                  - mountPoint: entity.page.api/cards
+                    importName: EntityKuadrantApiKeyManagementTab
+                    config:
+                      layout:
+                        gridColumn: "1 / -1"
+                      if:
+                        allOf:
+                          - isKind: api
+                  - mountPoint: entity.page.api/cards
+                    importName: EntityKuadrantApiProductInfoContent
+                    config:
+                      layout:
+                        gridColumn: "1 / -1"
+                      if:
+                        allOf:
+                          - isKind: api
+                  - mountPoint: entity.page.api/cards
+                    importName: EntityKuadrantApiProductOpenApiAlert
+                    config:
+                      layout:
+                        gridColumn: "1 / -1"
+                      if:
+                        allOf:
+                          - isKind: api
+                  - mountPoint: entity.page.overview/cards
+                    importName: EntityKuadrantApiProductInfoContent
+                    config:
+                      layout:
+                        gridColumn: "1 / -1"
+                      if:
+                        allOf:
+                          - hasAnnotation: kuadrant.io/api-product
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-tekton
+        disabled: {{ not (.Values.plugins.tekton.enabled | default true) }}
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-tekton:
+                translationResources:
+                  - importName: tektonTranslations
+                    ref: tektonTranslationRef
+                entityTabs:
+                  - path: /tekton
+                    title: Tekton
+                    mountPoint: entity.page.ci
+                    importName: TektonCI
+                    config:
+                      if:
+                        allOf:
+                          - isTektonCIAvailable
+                mountPoints:
+                  - mountPoint: entity.page.ci/cards
+                    importName: TektonCI
+                    config:
+                      layout:
+                        gridColumn: 1 / -1
+                      if:
+                        allOf:
+                          - isTektonCIAvailable
+{{- if .Values.plugins.techRadar.enabled | default true }}
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-tech-radar-backend-dynamic
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-tech-radar
+        disabled: false
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-tech-radar:
+                dynamicRoutes:
+                  - path: /tech-radar
+                    importName: TechRadarPage
+                    menuItem:
+                      text: Tech Radar
+{{- end }}
+{{- if .Values.plugins.mcp.enabled | default true }}
+      {{- $mcpTag := .Values.plugins.mcp.pluginTag | default "bs_1.45.3__0.1.5" }}
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-mcp-actions-backend:{{ $mcpTag }}
+        disabled: false
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-software-catalog-mcp-tool:{{ .Values.plugins.mcp.catalogToolTag | default "bs_1.45.3__0.4.1" }}
+        disabled: false
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-techdocs-mcp-tool:{{ .Values.plugins.mcp.techdocsToolTag | default "bs_1.45.3__0.3.2" }}
+        disabled: false
+{{- end }}
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/roadiehq-backstage-plugin-argo-cd-backend:bs_1.45.3__4.6.0
+        disabled: {{ not (.Values.plugins.argocd.enabled | default false) }}
+        pluginConfig:
+          argocd:
+            appLocatorMethods:
+              - type: config
+                instances:
+                  - name: default
+                    url: https://openshift-gitops-server-openshift-gitops.{{ include "developer-hub.clusterDomain" . }}
+                    token: ${K8S_SA_TOKEN}
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-redhat-argocd:bs_1.45.3__2.3.0
+        disabled: {{ not (.Values.plugins.argocd.enabled | default false) }}
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-redhat-argocd:
+                mountPoints:
+                  - mountPoint: entity.page.cd/content
+                    importName: EntityArgoCDOverview
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-acr
+        disabled: true
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-quay
+        disabled: {{ not (.Values.plugins.quay.enabled | default true) }}
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-quay:
+                entityTabs:
+                  - path: /quay
+                    title: Quay
+                    mountPoint: entity.page.image-registry
+                    importName: QuayPage
+                    config:
+                      if:
+                        anyOf:
+                          - isQuayAvailable
+                mountPoints:
+                  - mountPoint: entity.page.image-registry/cards
+                    importName: QuayPage
+                    config:
+                      layout:
+                        gridColumn: 1 / -1
+                      if:
+                        anyOf:
+                          - isQuayAvailable
+      # quay-backend-dynamic not in RHDH 1.9 image; frontend quay plugin is sufficient
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-quay-backend-dynamic
+        disabled: true
+      - package: ./dynamic-plugins/dist/backstage-plugin-security-insights
+        disabled: {{ not (.Values.plugins.acsSecurityInsights.enabled | default false) }}
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage.plugin-security-insights:
+                mountPoints:
+                  - mountPoint: entity.page.overview/cards
+                    importName: EntitySecurityInsightsContent
+      - package: ./dynamic-plugins/dist/roadiehq-scaffolder-backend-module-http-request-dynamic
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-catalog-backend-module-keycloak-dynamic
+        disabled: false
+        pluginConfig:
+          catalog:
+            providers:
+              keycloakOrg:
+                default:
+                  baseUrl: https://sso.{{ include "developer-hub.clusterDomain" . }}
+                  loginRealm: backstage
+                  realm: backstage
+                  clientId: developer-hub-catalog
+                  clientSecret: ${OIDC_CLIENT_SECRET}
+                  schedule:
+                    frequency: { minutes: 30 }
+                    timeout: { minutes: 3 }
+{{- if .Values.plugins.gitlab.enabled | default true }}
+      {{- $gitlabTag := .Values.plugins.gitlab.pluginTag | default "bs_1.45.3__6.13.0" }}
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/immobiliarelabs-backstage-plugin-gitlab-backend:{{ $gitlabTag }}
+        disabled: false
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/immobiliarelabs-backstage-plugin-gitlab:{{ $gitlabTag }}
+        disabled: false
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              immobiliarelabs.backstage-plugin-gitlab:
+                mountPoints:
+                  - mountPoint: entity.page.ci/cards
+                    importName: EntityGitlabPipelinesTable
+                    config:
+                      layout:
+                        gridColumn: "1 / -1"
+                      if:
+                        allOf:
+                          - isGitlabAvailable
+                  - mountPoint: entity.page.overview/cards
+                    importName: EntityGitlabMergeRequestStatsCard
+                    config:
+                      layout:
+                        gridColumnEnd:
+                          lg: "span 4"
+                          md: "span 6"
+                          xs: "span 12"
+                      if:
+                        allOf:
+                          - isGitlabAvailable
+                entityTabs:
+                  - path: /gitlab
+                    title: GitLab
+                    mountPoint: entity.page.gitlab
+                    importName: EntityGitlabContent
+                    config:
+                      if:
+                        allOf:
+                          - isGitlabAvailable
+{{- end }}
+      - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-gitlab-dynamic
+        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
+      - package: ./dynamic-plugins/dist/backstage-plugin-catalog-backend-module-gitlab-dynamic
+        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
+      - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-github-dynamic
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-notifications
+        disabled: false
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage.plugin-notifications:
+                dynamicRoutes:
+                  - importName: NotificationsPage
+                    menuItem:
+                      config:
+                        props:
+                          titleCounterEnabled: true
+                          webNotificationsEnabled: true
+                      importName: NotificationsSidebarItem
+                    path: /notifications
+      - package: ./dynamic-plugins/dist/backstage-plugin-notifications-backend-dynamic
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-notifications-backend-module-email-dynamic
+        disabled: {{ not (.Values.plugins.notificationsEmail.enabled | default false) }}
+        pluginConfig:
+          notifications:
+            processors:
+              email:
+                transportConfig:
+                  transport: smtp
+                  hostname: mailpit.mailpit.svc.cluster.local
+                  port: 1025
+                  secure: false
+                  requireTLS: false
+                sender: notifications@developer-hub.local
+                replyTo: no-reply@developer-hub.local
+                broadcastConfig:
+                  receiver: none
+      # --- Azure DevOps (disabled - requires AZURE_TOKEN and AZURE_ORG env vars) ---
+      # PAT scopes: Code (Read), Build (Read & Execute), Release (Read), Work Items (Read), Pull Request Threads (Read & Write)
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-azure-devops-backend-dynamic
+        disabled: true
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-azure-devops
+        disabled: true
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-azure-devops:
+                mountPoints:
+                  - mountPoint: entity.page.pull-requests/content
+                    importName: EntityAzurePullRequestsContent
+                  - mountPoint: entity.page.ci/cards
+                    importName: EntityAzurePipelinesContent
+{{- if include "developer-hub.lightspeedEnabled" . }}
+      {{- $lsTag := .Values.plugins.lightspeed.pluginTag | default "bs_1.45.3__1.2.3" }}
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-lightspeed:{{ $lsTag }}
+        disabled: false
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              red-hat-developer-hub.backstage-plugin-lightspeed:
+                translationResources:
+                  - importName: lightspeedTranslations
+                    module: Alpha
+                    ref: lightspeedTranslationRef
+                dynamicRoutes:
+                  - path: /lightspeed
+                    importName: LightspeedPage
+                mountPoints:
+                  - mountPoint: application/listener
+                    importName: LightspeedFAB
+                  - mountPoint: application/provider
+                    importName: LightspeedDrawerProvider
+                  - mountPoint: application/internal/drawer-state
+                    importName: LightspeedDrawerStateExposer
+                    config:
+                      id: lightspeed
+                  - mountPoint: application/internal/drawer-content
+                    importName: LightspeedChatContainer
+                    config:
+                      id: lightspeed
+                      priority: 100
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-lightspeed-backend:{{ $lsTag }}
+        disabled: false
+{{- end }}

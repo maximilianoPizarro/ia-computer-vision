@@ -1,0 +1,165 @@
+    openapi: 3.0.3
+    info:
+      title: JSONPlaceholder
+      version: 1.0.0
+      description: Fake online REST API for testing and prototyping — CORS enabled
+    servers:
+      - url: https://jsonplaceholder.typicode.com
+    components:
+      schemas:
+        Post:
+          type: object
+          properties:
+            userId:
+              type: integer
+            id:
+              type: integer
+            title:
+              type: string
+            body:
+              type: string
+          example:
+            userId: 1
+            id: 1
+            title: Hybrid Mesh demo post
+            body: JSONPlaceholder fake data for Developer Hub Try It Out
+        User:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            username:
+              type: string
+            email:
+              type: string
+              format: email
+            phone:
+              type: string
+            website:
+              type: string
+        Comment:
+          type: object
+          properties:
+            postId:
+              type: integer
+            id:
+              type: integer
+            name:
+              type: string
+            email:
+              type: string
+            body:
+              type: string
+    paths:
+      /posts:
+        get:
+          summary: List posts
+          operationId: listPosts
+          responses:
+            "200":
+              description: Array of posts
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Post"
+        post:
+          summary: Create a post (fake — not persisted)
+          operationId: createPost
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [title, body, userId]
+                  properties:
+                    title:
+                      type: string
+                    body:
+                      type: string
+                    userId:
+                      type: integer
+                example:
+                  title: New workshop post
+                  body: Created via Swagger Try It Out
+                  userId: 1
+          responses:
+            "201":
+              description: Created post (simulated)
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/Post"
+      /posts/{id}:
+        get:
+          summary: Get post by ID
+          operationId: getPost
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: integer
+              example: 1
+          responses:
+            "200":
+              description: Post details
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/Post"
+            "404":
+              description: Post not found
+      /users:
+        get:
+          summary: List users
+          operationId: listUsers
+          responses:
+            "200":
+              description: Array of users
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+      /users/{id}:
+        get:
+          summary: Get user by ID
+          operationId: getUser
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: integer
+          responses:
+            "200":
+              description: User details
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/User"
+      /posts/{id}/comments:
+        get:
+          summary: Comments for a post
+          operationId: getPostComments
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema:
+                type: integer
+          responses:
+            "200":
+              description: Comments
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Comment"

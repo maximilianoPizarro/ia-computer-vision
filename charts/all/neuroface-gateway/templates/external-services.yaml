@@ -1,0 +1,67 @@
+{{- if .Values.clusters.east.domain }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuroface-app-east
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  type: ExternalName
+  externalName: neuroface-app-east.service-interconnect.svc.cluster.local
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuroface-cv-east
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  type: ExternalName
+  externalName: neuroface-cv-east.service-interconnect.svc.cluster.local
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+{{- end }}
+---
+{{- if .Values.clusters.west.domain }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuroface-app-west
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  type: ExternalName
+  externalName: neuroface-app-west.service-interconnect.svc.cluster.local
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuroface-cv-west
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  type: ExternalName
+  externalName: neuroface-cv-west.service-interconnect.svc.cluster.local
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+{{- end }}

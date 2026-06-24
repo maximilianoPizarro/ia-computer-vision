@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: getting-started-samples
+  namespace: devspaces
+  labels:
+    app.kubernetes.io/part-of: che.eclipse.org
+    app.kubernetes.io/component: getting-started-samples
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+data:
+  devfile-samples.json: |
+    [
+      {
+        "displayName": "NeuroFace — AI Computer Vision",
+        "description": "PPE detection workbench with YOLO, OpenShift AI, and Continue AI",
+        "tags": ["python", "opencv", "ai", "ppe"],
+        "url": "https://raw.githubusercontent.com/maximilianoPizarro/neuroface/main/devfile.yaml"
+      },
+      {
+        "displayName": "Quarkus REST API",
+        "description": "Java Quarkus microservice with live reload (che-samples)",
+        "tags": ["java", "quarkus", "rest"],
+        "url": "https://raw.githubusercontent.com/che-samples/quarkus-rest-api/devfilev2-2.2/devfile.yaml"
+      },
+      {
+        "displayName": "Node.js Web Application",
+        "description": "Node.js sample with UDI (che-samples)",
+        "tags": ["node", "javascript"],
+        "url": "https://raw.githubusercontent.com/che-samples/web-nodejs-sample/devfilev2-2.2/devfile.yaml"
+      },
+      {
+        "displayName": "Python Flask",
+        "description": "Python Flask web app (che-samples)",
+        "tags": ["python", "flask"],
+        "url": "https://raw.githubusercontent.com/che-samples/python-flask-sample/devfilev2-2.2/devfile.yaml"
+      },
+      {
+        "displayName": "GitLab — Camel Kaoto (after scaffold)",
+        "description": "Open your scaffolded Camel CDC repo from Developer Hub via Open in DevSpaces",
+        "tags": ["camel", "kaoto", "gitlab", "kafka"],
+        "url": "https://gitlab.apps.{{ include "devspaces.hubClusterDomain" . }}/ws-user1/camel-cdc-east/raw/main/devfile.yaml"
+      }
+    ]

@@ -1,0 +1,65 @@
+{{- if .Values.plugins.kuadrant.enabled | default false }}
+# Kuadrant Backstage plugin: API keys, API Products, and optional HTTPRoute publishing.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: developer-hub-kuadrant
+  labels:
+    app.kubernetes.io/component: kuadrant-plugin
+    app.kubernetes.io/name: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: ["kuadrant.io"]
+    resources:
+      - authpolicies
+      - ratelimitpolicies
+      - tokenratelimitpolicies
+      - dnspolicies
+      - tlspolicies
+    verbs: [get, list, watch]
+  - apiGroups: ["extensions.kuadrant.io"]
+    resources:
+      - planpolicies
+    verbs: [get, list, watch]
+  - apiGroups: ["devportal.kuadrant.io"]
+    resources:
+      - apiproducts
+      - apikeys
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["devportal.kuadrant.io"]
+    resources:
+      - apikeys/status
+    verbs: [get, patch, update]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources:
+      - gateways
+      - httproutes
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources:
+      - namespaces
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: [get, list, watch, create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: developer-hub-kuadrant
+  labels:
+    app.kubernetes.io/component: kuadrant-plugin
+    app.kubernetes.io/name: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: developer-hub-kuadrant
+subjects:
+  - kind: ServiceAccount
+    name: developer-hub
+    namespace: developer-hub
+{{- end }}

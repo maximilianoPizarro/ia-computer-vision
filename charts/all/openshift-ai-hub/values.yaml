@@ -1,0 +1,58 @@
+clusterDomain: ""
+userCount: 30
+userProjects:
+  enabled: true
+  notebook:
+    enabled: true
+    deployCr: false
+    image: quay.io/opendatahub-contrib/workbench-images:jupyter-minimal-elyra-py311-ubi9
+    cpu: "250m"
+    memory: 1Gi
+  # KServe InferenceService (CPU sklearn on hub MinIO) — RawDeployment, no Serverless/Knative.
+  inferenceService:
+    enabled: true
+    name: workshop-sklearn
+    displayName: Workshop sklearn (CPU / MinIO)
+    modelFormat: sklearn
+    runtime: mlserver-1.x
+    storageSecretName: aws-connection-models
+    storagePath: anomaly-detection/model
+# S3 connection for OpenShift AI dashboard + KServe (hub MinIO; spokes use Skupper minio-hub).
+modelStorage:
+  enabled: true
+  accessKeyId: minio
+  secretAccessKey: minio123
+  region: us-east-1
+  bucket: models
+  endpoint: http://minio.industrial-edge-ml-workspace.svc:9000
+dashboardExtensions:
+  enabled: true
+modelServing:
+  # RawDeployment: KServe without OpenShift Serverless / Knative (recommended for this pattern).
+  modelMeshEnabled: false
+  serverlessEnabled: false
+  defaultDeploymentMode: RawDeployment
+maas:
+  endpoint: "https://maas-rhdp.apps.maas.redhatworkshops.io"
+  # Injected at runtime from litemaas.apiKey (RHDP); never commit to Git.
+  apiKey: ""
+  credentialsSecretName: openshift-ai-maas-credentials
+  credentialsSecretKey: api-key
+  models:
+    - id: llama-scout-17b
+      displayName: Llama Scout 17B (workshop default)
+      secretKey: api-key
+    - id: granite-3-2-8b-instruct
+      displayName: Granite 3.2 8B Instruct (Lightspeed default)
+      secretKey: granite-api-key
+    - id: deepseek-r1-distill-qwen-14b
+      displayName: DeepSeek R1 Distill Qwen 14B
+      secretKey: deepseek-api-key
+    - id: codellama-7b-instruct
+      displayName: CodeLlama 7B Instruct
+      secretKey: api-key
+playground:
+  enabled: true
+mcp:
+  enabled: true
+  deployServer: true

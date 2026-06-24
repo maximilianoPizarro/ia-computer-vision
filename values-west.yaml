@@ -1,0 +1,200 @@
+main:
+  clusterGroupName: west
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+
+clusterGroup:
+  name: west
+  argoCD:
+    env:
+      - name: GOMEMLIMIT
+        value: "3600MiB"
+      - name: GOMAXPROCS
+        value: "4"
+
+  namespaces:
+    stackrox: {}
+    neuroface: {}
+    neuroface-cv: {}
+    service-interconnect: {}
+    redhat-connectivity-link-operator: {}
+    redhat-ods-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    redhat-ods-applications: {}
+    devspaces: {}
+    openshift-cluster-observability-operator: {}
+    openshift-opentelemetry: {}
+    istio-system: {}
+    istio-cni: {}
+    ztunnel: {}
+    external-secrets-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    external-secrets: {}
+
+  subscriptions:
+    amq-streams:
+      name: amq-streams
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    skupper:
+      name: skupper-operator
+      namespace: openshift-operators
+      channel: stable-2
+      source: redhat-operators
+    rhacs:
+      name: rhacs-operator
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    servicemesh:
+      name: servicemeshoperator3
+      namespace: openshift-operators
+      channel: stable-3.2
+      source: redhat-operators
+    rhods:
+      name: rhods-operator
+      namespace: redhat-ods-operator
+      channel: stable-3.4
+      source: redhat-operators
+    grafana:
+      name: grafana-operator
+      namespace: openshift-operators
+      channel: v5
+      source: community-operators
+    kiali:
+      name: kiali-ossm
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    opentelemetry:
+      name: opentelemetry-product
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    cluster-observability-operator:
+      name: cluster-observability-operator
+      namespace: openshift-cluster-observability-operator
+      channel: stable
+      source: redhat-operators
+    devspaces:
+      name: devspaces
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    eso:
+      name: openshift-external-secrets-operator
+      namespace: external-secrets-operator
+      channel: stable-v1
+    rhcl:
+      name: connectivity-link-operator
+      namespace: redhat-connectivity-link-operator
+      channel: stable
+      source: redhat-operators
+
+  argoProjects:
+    - platform
+    - security
+    - mesh
+    - observability
+    - ai
+    - external-secrets
+
+  sharedValueFiles:
+    - '/overrides/values-{{ $.Values.global.clusterPlatform }}.yaml'
+    - '/overrides/values-{{ $.Values.global.clusterVersion }}-{{ $.Values.clusterGroup.name }}.yaml'
+
+  applications:
+    servicemesh-config:
+      name: servicemesh-config
+      namespace: istio-system
+      argoProject: mesh
+      path: charts/all/servicemesh-config
+      syncWave: "1"
+      overrides:
+        - name: clusterName
+          value: west
+        - name: clusterRole
+          value: spoke
+
+    observability:
+      name: observability
+      namespace: openshift-cluster-observability-operator
+      argoProject: observability
+      path: charts/all/observability
+      syncWave: "2"
+      overrides:
+        - name: clusterRole
+          value: spoke
+        - name: clusterName
+          value: west
+        - name: clusterSuffix
+          value: "-west"
+
+    acs-secured-cluster:
+      name: acs-secured-cluster
+      namespace: stackrox
+      argoProject: security
+      path: charts/all/acs-secured-cluster
+      syncWave: "3"
+      overrides:
+        - name: clusterName
+          value: west
+        - name: clusterRole
+          value: spoke
+
+    openshift-external-secrets:
+      name: openshift-external-secrets
+      namespace: external-secrets
+      argoProject: external-secrets
+      chart: openshift-external-secrets
+      chartVersion: 0.0.*
+      syncWave: "2"
+
+    spoke-interconnect:
+      name: spoke-interconnect
+      namespace: service-interconnect
+      argoProject: mesh
+      path: charts/all/spoke-interconnect
+      syncWave: "4"
+      overrides:
+        - name: clusterName
+          value: west
+
+    spoke-neuroface:
+      name: spoke-neuroface
+      namespace: neuroface
+      argoProject: ai
+      path: charts/all/spoke-neuroface
+      syncWave: "5"
+      overrides:
+        - name: clusterName
+          value: west
+        - name: neuroface.clusterName
+          value: west
+
+    spoke-neuroface-cv:
+      name: spoke-neuroface-cv
+      namespace: neuroface-cv
+      argoProject: ai
+      path: charts/all/spoke-neuroface-cv
+      syncWave: "6"
+      overrides:
+        - name: clusterName
+          value: west
+
+    devspaces:
+      name: devspaces
+      namespace: devspaces
+      argoProject: workshop
+      path: charts/all/devspaces
+      syncWave: "7"
+      overrides:
+        - name: userCount
+          value: "1"
+        - name: clusterName
+          value: west

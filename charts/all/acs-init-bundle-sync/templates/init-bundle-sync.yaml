@@ -1,0 +1,465 @@
+{{- if .Values.initBundleSync.enabled | default true }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acs-init-bundle-sync
+  namespace: stackrox
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: acs-init-bundle-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+  - apiGroups: ["action.open-cluster-management.io"]
+    resources: ["managedclusteractions"]
+    verbs: ["get", "list", "create", "delete", "watch"]
+  - apiGroups: ["view.open-cluster-management.io"]
+    resources: ["managedclusterviews"]
+    verbs: ["get", "list", "create", "delete", "watch"]
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclusters"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: acs-init-bundle-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: acs-init-bundle-sync
+subjects:
+  - kind: ServiceAccount
+    name: acs-init-bundle-sync
+    namespace: stackrox
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acs-init-bundle-sync-script
+  namespace: stackrox
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+data:
+  sync.py: |
+    #!/usr/bin/env python3
+    """Generate ACS init bundles and apply TLS secrets on hub + spokes via MCA."""
+    import json
+    import os
+    import ssl
+    import subprocess
+    import sys
+    import time
+    import urllib.error
+    import urllib.request
+    from pathlib import Path
+
+    CENTRAL = os.environ.get("ACS_CENTRAL_ENDPOINT", "central.stackrox.svc:443")
+    NS = os.environ.get("ACS_NAMESPACE", "stackrox")
+    CLUSTERS = [c.strip() for c in os.environ.get("CLUSTERS", "hub,east,west").split(",") if c.strip()]
+    SPOKES = [c for c in CLUSTERS if c != "hub"]
+    REQUIRED_SECRETS = ("collector-tls", "sensor-tls", "admission-control-tls")
+    MCA_NAME = "acs-init-bundle-apply"
+    VIEW_NAME = "acs-init-bundle-status"
+    MCA_SA = os.environ.get("MCA_SERVICE_ACCOUNT", "acs-init-bundle-apply")
+    MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "12"))
+    RETRY_INTERVAL = int(os.environ.get("RETRY_INTERVAL", "30"))
+    ROXCTL = os.environ.get("ROXCTL_PATH", "/shared/roxctl")
+
+    SA_TOKEN_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    SA_CA_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
+    API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
+    API_BASE = f"https://{API_HOST}:{API_PORT}"
+
+    def api_request(method, path, body=None):
+        token = SA_TOKEN_PATH.read_text().strip()
+        ctx = ssl.create_default_context(cafile=str(SA_CA_PATH))
+        headers = {"Authorization": f"Bearer {token}"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode()
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(f"{API_BASE}{path}", data=data, method=method, headers=headers)
+        with urllib.request.urlopen(req, context=ctx, timeout=120) as resp:
+            raw = resp.read().decode()
+            return json.loads(raw) if raw else {}
+
+    def hub_secrets_ready():
+        for name in REQUIRED_SECRETS:
+            path = f"/apis/v1/namespaces/{NS}/secrets/{name}"
+            try:
+                api_request("GET", path)
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    return False
+                raise
+        return True
+
+    def central_ready(password):
+        cmd = [
+            ROXCTL, "-e", CENTRAL, "--password", password,
+            "--insecure-skip-tls-verify", "central", "whoami",
+        ]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        return proc.returncode == 0
+
+    def managed_cluster_available(cluster):
+        if cluster == "hub":
+            return True
+        path = f"/apis/cluster.open-cluster-management.io/v1/managedclusters/{cluster}"
+        try:
+            mc = api_request("GET", path)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False
+            raise
+        for c in mc.get("status", {}).get("conditions") or []:
+            if c.get("type") == "ManagedClusterConditionAvailable" and c.get("status") == "True":
+                return True
+        return False
+
+    def generate_bundle(cluster_name, password):
+        cmd = [
+            ROXCTL, "-e", CENTRAL, "--password", password,
+            "--insecure-skip-tls-verify", "central", "init-bundles", "generate",
+            cluster_name, "--output-secrets", "-",
+        ]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"roxctl failed for {cluster_name}: {proc.stderr or proc.stdout}")
+        return proc.stdout
+
+    def apply_hub_bundle(yaml_text):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as fh:
+            fh.write(yaml_text)
+            path = fh.name
+        proc = subprocess.run(
+            ["oc", "apply", "-n", NS, "-f", path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"hub oc apply failed: {proc.stderr or proc.stdout}")
+
+    def spoke_secrets_ready(cluster):
+        for secret_name in REQUIRED_SECRETS:
+            if not spoke_secret_exists(cluster, secret_name):
+                return False
+        return True
+
+    def spoke_secret_exists(cluster, secret_name):
+        view_name = f"{VIEW_NAME}-{secret_name}"
+        delete_mcv(cluster, view_name)
+        body = {
+            "apiVersion": "view.open-cluster-management.io/v1beta1",
+            "kind": "ManagedClusterView",
+            "metadata": {"name": view_name},
+            "spec": {
+                "scope": {
+                    "apiGroup": "",
+                    "version": "v1",
+                    "resource": "secrets",
+                    "kind": "Secret",
+                    "name": secret_name,
+                    "namespace": NS,
+                }
+            },
+        }
+        api_request(
+            "POST",
+            f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews",
+            body,
+        )
+        view_path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{view_name}"
+        for _ in range(20):
+            view = api_request("GET", view_path)
+            if view.get("status", {}).get("result"):
+                delete_mcv(cluster, view_name)
+                return True
+            time.sleep(2)
+        delete_mcv(cluster, view_name)
+        return False
+
+    def delete_mcv(cluster, view_name=VIEW_NAME):
+        path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{view_name}"
+        try:
+            api_request("DELETE", path)
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+
+    def delete_mca(cluster):
+        path = f"/apis/action.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusteractions/{MCA_NAME}"
+        try:
+            api_request("DELETE", path)
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+
+    def wait_mca(cluster):
+        path = f"/apis/action.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusteractions/{MCA_NAME}"
+        for _ in range(90):
+            mca = api_request("GET", path)
+            for c in mca.get("status", {}).get("conditions") or []:
+                if c.get("type") == "Complete" and c.get("status") == "True":
+                    return True
+                if c.get("type") == "Complete" and c.get("reason") == "Failed":
+                    raise RuntimeError(c.get("message", "MCA failed"))
+            time.sleep(2)
+        raise RuntimeError(f"timeout MCA on {cluster}")
+
+    def apply_spoke_bundle(cluster, yaml_text):
+        delete_mca(cluster)
+        script = (
+            "set -e\n"
+            "cat > /tmp/bundle.yaml <<'BUNDLE_EOF'\n"
+            f"{yaml_text}\n"
+            "BUNDLE_EOF\n"
+            f"oc apply -n {NS} -f /tmp/bundle.yaml\n"
+        )
+        body = {
+            "apiVersion": "action.open-cluster-management.io/v1beta1",
+            "kind": "ManagedClusterAction",
+            "metadata": {"name": MCA_NAME, "namespace": cluster},
+            "spec": {
+                "actionType": "Create",
+                "kube": {
+                    "resource": "job",
+                    "namespace": NS,
+                    "template": {
+                        "apiVersion": "batch/v1",
+                        "kind": "Job",
+                        "metadata": {"name": MCA_NAME, "namespace": NS},
+                        "spec": {
+                            "ttlSecondsAfterFinished": 300,
+                            "template": {
+                                "spec": {
+                                    "restartPolicy": "Never",
+                                    "serviceAccountName": MCA_SA,
+                                    "containers": [{
+                                        "name": "apply",
+                                        "image": "registry.redhat.io/openshift4/ose-cli:latest",
+                                        "command": ["/bin/bash", "-c"],
+                                        "args": [script],
+                                    }],
+                                }
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        api_request(
+            "POST",
+            f"/apis/action.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusteractions",
+            body,
+        )
+        wait_mca(cluster)
+
+    def sync_cluster(cluster, password):
+        if cluster != "hub" and not managed_cluster_available(cluster):
+            print(f"{cluster}: ManagedCluster not Available — waiting for ACM import", file=sys.stderr)
+            return False
+        if cluster == "hub":
+            if hub_secrets_ready():
+                print(f"hub: init bundle secrets already present", file=sys.stderr)
+                return True
+            bundle = generate_bundle("hub", password)
+            apply_hub_bundle(bundle)
+            return hub_secrets_ready()
+        if spoke_secrets_ready(cluster):
+            print(f"{cluster}: init bundle secrets already present", file=sys.stderr)
+            return True
+        bundle = generate_bundle(cluster, password)
+        apply_spoke_bundle(cluster, bundle)
+        return spoke_secrets_ready(cluster)
+
+    def main():
+        password = os.environ.get("ROX_ADMIN_PASSWORD", "").strip()
+        if not password:
+            print(
+                "ROX_ADMIN_PASSWORD not set — create Secret acs-init-credentials in stackrox "
+                "then refresh acs-init-bundle-sync",
+                file=sys.stderr,
+            )
+            sys.exit(0)
+        for attempt in range(1, MAX_RETRIES + 1):
+            if not central_ready(password):
+                print(f"Central API not ready via roxctl (attempt {attempt}/{MAX_RETRIES})", file=sys.stderr)
+                if attempt < MAX_RETRIES:
+                    time.sleep(RETRY_INTERVAL)
+                    continue
+                sys.exit(1)
+            pending = []
+            for cluster in CLUSTERS:
+                try:
+                    if not sync_cluster(cluster, password):
+                        pending.append(cluster)
+                except Exception as exc:
+                    print(f"{cluster}: {exc}", file=sys.stderr)
+                    pending.append(cluster)
+            if not pending:
+                print("All ACS init bundles applied", file=sys.stderr)
+                return
+            if attempt < MAX_RETRIES:
+                print(f"Pending {pending}; retry in {RETRY_INTERVAL}s", file=sys.stderr)
+                time.sleep(RETRY_INTERVAL)
+        print(f"FAILED: init bundles not ready for {pending}", file=sys.stderr)
+        sys.exit(1)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acs-init-bundle-sync-hook
+  namespace: stackrox
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      serviceAccountName: acs-init-bundle-sync
+      restartPolicy: OnFailure
+      volumes:
+        - name: shared
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: acs-init-bundle-sync-script
+            defaultMode: 0555
+      initContainers:
+        - name: copy-roxctl
+          image: {{ .Values.initBundleSync.image | quote }}
+          command: ["sh", "-c", "cp /usr/bin/roxctl /shared/roxctl && chmod +x /shared/roxctl"]
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+        - name: copy-oc
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command: ["sh", "-c", "cp /usr/bin/oc /shared/oc && chmod +x /shared/oc"]
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      containers:
+        - name: sync
+          image: {{ .Values.initBundleSync.cliImage | default "registry.redhat.io/rhel9/support-tools:latest" | quote }}
+          command: ["python3", "/scripts/sync.py"]
+          env:
+            - name: PATH
+              value: /shared:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            - name: ACS_CENTRAL_ENDPOINT
+              value: {{ .Values.initBundleSync.centralEndpoint | default "central.stackrox.svc:443" | quote }}
+            - name: ACS_NAMESPACE
+              value: stackrox
+            - name: CLUSTERS
+              value: {{ .Values.initBundleSync.clusters | default "hub,east,west" | quote }}
+            - name: ROXCTL_PATH
+              value: /shared/roxctl
+            - name: MAX_RETRIES
+              value: {{ .Values.initBundleSync.maxRetries | default 12 | quote }}
+            - name: RETRY_INTERVAL
+              value: {{ .Values.initBundleSync.retryInterval | default 30 | quote }}
+            - name: MCA_SERVICE_ACCOUNT
+              value: acs-init-bundle-apply
+            - name: ROX_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: acs-init-credentials
+                  key: ROX_ADMIN_PASSWORD
+                  optional: true
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: acs-init-bundle-sync
+  namespace: stackrox
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  schedule: {{ .Values.initBundleSync.schedule | default "0 */12 * * *" | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          serviceAccountName: acs-init-bundle-sync
+          restartPolicy: OnFailure
+          volumes:
+            - name: shared
+              emptyDir: {}
+            - name: scripts
+              configMap:
+                name: acs-init-bundle-sync-script
+                defaultMode: 0555
+          initContainers:
+            - name: copy-roxctl
+              image: {{ .Values.initBundleSync.image | quote }}
+              command: ["sh", "-c", "cp /usr/bin/roxctl /shared/roxctl && chmod +x /shared/roxctl"]
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+            - name: copy-oc
+              image: registry.redhat.io/openshift4/ose-cli:latest
+              command: ["sh", "-c", "cp /usr/bin/oc /shared/oc && chmod +x /shared/oc"]
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+          containers:
+            - name: sync
+              image: {{ .Values.initBundleSync.cliImage | default "registry.redhat.io/rhel9/support-tools:latest" | quote }}
+              command: ["python3", "/scripts/sync.py"]
+              env:
+                - name: PATH
+                  value: /shared:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+                - name: ACS_CENTRAL_ENDPOINT
+                  value: {{ .Values.initBundleSync.centralEndpoint | default "central.stackrox.svc:443" | quote }}
+                - name: ACS_NAMESPACE
+                  value: stackrox
+                - name: CLUSTERS
+                  value: {{ .Values.initBundleSync.clusters | default "hub,east,west" | quote }}
+                - name: ROXCTL_PATH
+                  value: /shared/roxctl
+                - name: MAX_RETRIES
+                  value: {{ .Values.initBundleSync.maxRetries | default 12 | quote }}
+                - name: RETRY_INTERVAL
+                  value: {{ .Values.initBundleSync.retryInterval | default 30 | quote }}
+                - name: MCA_SERVICE_ACCOUNT
+                  value: acs-init-bundle-apply
+                - name: ROX_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: acs-init-credentials
+                      key: ROX_ADMIN_PASSWORD
+                      optional: true
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+{{- end }}

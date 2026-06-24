@@ -1,0 +1,111 @@
+{{- $yolo := .Values.yoloPpeServing -}}
+{{- $modelFile := $yolo.modelFile | default "best.pt" -}}
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: yolo-ppe-runtime
+  namespace: neuroface-cv
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  supportedModelFormats:
+    - name: custom
+      version: "1"
+      autoSelect: true
+  containers:
+    - name: kserve-container
+      image: {{ $yolo.image | quote }}
+      imagePullPolicy: Always
+      env:
+        - name: MODEL_PATH
+          value: /mnt/models/{{ $modelFile }}
+        - name: MODEL_NAME
+          value: yolo-ppe
+        - name: CLUSTER_NAME
+          value: {{ include "spoke-neuroface-cv.clusterName" . | quote }}
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /v2/models/yolo-ppe/ready
+          port: 8080
+        initialDelaySeconds: 30
+        periodSeconds: 15
+        failureThreshold: 8
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        failureThreshold: 5
+      resources:
+        {{- toYaml $yolo.resources | nindent 8 }}
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: yolo-ppe-serving
+  namespace: neuroface-cv
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/skip-health-check: "true"
+    serving.kserve.io/deploymentMode: RawDeployment
+    openshift.io/display-name: YOLO PPE Detection (CPU, v1.4.0)
+spec:
+  predictor:
+    minReplicas: {{ $yolo.hpa.minReplicas | default 1 }}
+    maxReplicas: {{ $yolo.hpa.maxReplicas | default 4 }}
+    labels:
+      istio.io/dataplane-mode: none
+    model:
+      modelFormat:
+        name: custom
+      runtime: yolo-ppe-runtime
+      storage:
+        key: {{ $yolo.storageSecretName | default "aws-connection-ppe-models" }}
+        path: {{ $yolo.storagePath | default "ppe-detection/model" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yolo-ppe-serving
+  namespace: neuroface-cv
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    serving.kserve.io/inferenceservice: yolo-ppe-serving
+    component: predictor
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: yolo-ppe-serving
+  namespace: neuroface-cv
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: yolo-ppe-serving-predictor
+  minReplicas: {{ $yolo.hpa.minReplicas | default 1 }}
+  maxReplicas: {{ $yolo.hpa.maxReplicas | default 4 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $yolo.hpa.targetCPUUtilization | default 70 }}

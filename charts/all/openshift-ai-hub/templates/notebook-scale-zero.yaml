@@ -1,0 +1,70 @@
+{{- if .Values.userProjects.enabled }}
+{{- $count := int (.Values.userCount | default 50) -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openshift-ai-notebook-scaler
+  namespace: maas-workshop
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openshift-ai-notebook-scaler
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets/scale"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-ai-notebook-scaler
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openshift-ai-notebook-scaler
+subjects:
+  - kind: ServiceAccount
+    name: openshift-ai-notebook-scaler
+    namespace: maas-workshop
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openshift-ai-notebooks-scale-zero
+  namespace: maas-workshop
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: openshift-ai-notebook-scaler
+      restartPolicy: Never
+      containers:
+        - name: scale
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              echo "Scaling neuroface-ml-lab notebooks to 0 (facilitator mode)..."
+              for i in $(seq 1 {{ $count }}); do
+                NS="ai-user${i}"
+                oc scale statefulset neuroface-ml-lab -n "$NS" --replicas=0 2>/dev/null || true
+              done
+              echo "Done."
+{{- end }}

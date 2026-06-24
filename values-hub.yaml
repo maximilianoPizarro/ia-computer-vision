@@ -1,0 +1,254 @@
+main:
+  clusterGroupName: hub
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+
+clusterGroup:
+  name: hub
+  namespaces:
+    open-cluster-management: {}
+    vault: {}
+    external-secrets-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    external-secrets: {}
+    stackrox: {}
+    neuroface-gateway-system: {}
+    redhat-connectivity-link-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    gitlab-system: {}
+    gitlab-runner: {}
+    rhdh-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    developer-hub: {}
+    keycloak-system: {}
+    quay-enterprise: {}
+    redhat-ods-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    redhat-ods-applications: {}
+    devspaces: {}
+    openshift-cluster-observability-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    openshift-opentelemetry: {}
+    istio-system: {}
+
+  subscriptions:
+    acm:
+      name: advanced-cluster-management
+      namespace: open-cluster-management
+      channel: release-2.16
+      source: redhat-operators
+    eso:
+      name: openshift-external-secrets-operator
+      namespace: external-secrets-operator
+      channel: stable-v1
+    rhacs:
+      name: rhacs-operator
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    rhcl:
+      name: connectivity-link-operator
+      namespace: redhat-connectivity-link-operator
+      channel: stable
+      source: redhat-operators
+    cluster-observability-operator:
+      name: cluster-observability-operator
+      namespace: openshift-cluster-observability-operator
+      channel: stable
+      source: redhat-operators
+    gitlab:
+      name: gitlab-operator-kubernetes
+      namespace: gitlab-system
+      channel: stable
+      source: certified-operators
+    rhdh:
+      name: rhdh
+      namespace: openshift-operators
+      channel: fast
+      source: redhat-operators
+    rhbk:
+      name: rhbk-operator
+      namespace: keycloak-system
+      channel: stable-v26.4
+      source: redhat-operators
+    quay:
+      name: quay-operator
+      namespace: quay-enterprise
+      channel: stable
+      source: redhat-operators
+    pipelines:
+      name: openshift-pipelines-operator-rh
+      namespace: openshift-operators
+      channel: latest
+      source: redhat-operators
+    rhods:
+      name: rhods-operator
+      namespace: redhat-ods-operator
+      channel: stable-3.4
+      source: redhat-operators
+    devspaces:
+      name: devspaces
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    # Optional TSSC stack (uncomment to enable Trusted Artifact Signer)
+    # rhtas:
+    #   name: rhtas-operator
+    #   namespace: openshift-operators
+    #   channel: alpha
+    #   source: redhat-operators
+    # rhtpa:
+    #   name: rhtpa-operator
+    #   namespace: openshift-operators
+    #   channel: alpha
+    #   source: redhat-operators
+    # cert-manager:
+    #   name: openshift-cert-manager-operator
+    #   namespace: cert-manager-operator
+    #   channel: stable-v1
+    #   source: redhat-operators
+
+  argoProjects:
+    - hub
+    - platform
+    - security
+    - mesh
+    - observability
+    - ai
+    - workshop
+    - external-secrets
+
+  sharedValueFiles:
+    - '/overrides/values-{{ $.Values.global.clusterPlatform }}.yaml'
+    - '/overrides/values-{{ $.Values.global.clusterVersion }}-{{ $.Values.clusterGroup.name }}.yaml'
+
+  applications:
+    openshift-gitops:
+      name: openshift-gitops
+      namespace: openshift-gitops
+      argoProject: platform
+      path: charts/all/openshift-gitops
+      syncWave: "0"
+      overrides:
+        - name: clusterRole
+          value: hub
+
+    observability:
+      name: observability
+      namespace: openshift-cluster-observability-operator
+      argoProject: observability
+      path: charts/all/observability
+      syncWave: "1"
+      overrides:
+        - name: clusterRole
+          value: hub
+
+    acm:
+      name: acm
+      namespace: open-cluster-management
+      argoProject: hub
+      chart: acm
+      chartVersion: 0.2.*
+      syncWave: "1"
+
+    vault:
+      name: vault
+      namespace: vault
+      argoProject: external-secrets
+      chart: hashicorp-vault
+      chartVersion: 0.1.*
+      syncWave: "2"
+
+    openshift-external-secrets:
+      name: openshift-external-secrets
+      namespace: external-secrets
+      argoProject: external-secrets
+      chart: openshift-external-secrets
+      chartVersion: 0.0.*
+      syncWave: "2"
+
+    rhbk:
+      name: rhbk
+      namespace: keycloak-system
+      argoProject: workshop
+      chart: rhbk
+      chartVersion: 0.1.*
+      syncWave: "2"
+
+    quay:
+      name: quay
+      namespace: quay-enterprise
+      argoProject: workshop
+      chart: quay
+      chartVersion: 0.1.*
+      syncWave: "2"
+
+    gitlab-operator:
+      name: gitlab-operator
+      namespace: gitlab-system
+      argoProject: workshop
+      path: charts/all/gitlab-operator
+      syncWave: "3"
+
+    developer-hub:
+      name: developer-hub
+      namespace: developer-hub
+      argoProject: workshop
+      path: charts/all/developer-hub
+      syncWave: "4"
+      overrides:
+        - name: userCount
+          value: "1"
+
+    openshift-ai-hub:
+      name: openshift-ai-hub
+      namespace: redhat-ods-applications
+      argoProject: ai
+      path: charts/all/openshift-ai-hub
+      syncWave: "5"
+      overrides:
+        - name: userCount
+          value: "1"
+
+    neuroface-gateway:
+      name: neuroface-gateway
+      namespace: neuroface-gateway-system
+      argoProject: mesh
+      path: charts/all/neuroface-gateway
+      syncWave: "6"
+
+    acs-init-bundle-sync:
+      name: acs-init-bundle-sync
+      namespace: stackrox
+      argoProject: security
+      path: charts/all/acs-init-bundle-sync
+      syncWave: "7"
+
+    devspaces:
+      name: devspaces
+      namespace: devspaces
+      argoProject: workshop
+      path: charts/all/devspaces
+      syncWave: "7"
+      overrides:
+        - name: userCount
+          value: "1"
+
+  managedClusterGroups:
+    east:
+      name: east
+      acmlabels:
+        - name: clusterGroup
+          value: east
+    west:
+      name: west
+      acmlabels:
+        - name: clusterGroup
+          value: west

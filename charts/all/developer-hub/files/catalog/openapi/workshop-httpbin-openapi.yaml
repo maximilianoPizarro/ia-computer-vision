@@ -1,0 +1,192 @@
+      openapi: 3.0.3
+      info:
+        title: httpbin (via workshop-apis)
+        description: |
+          Kuadrant-protected httpbin.org proxy. Request an API key in Developer Hub
+          (**Kuadrant** tab on this entity or `/kuadrant`) and send `Authorization: APIKEY <key>`.
+        version: v1
+        contact:
+          name: Platform Engineering
+      servers:
+        - url: https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin
+          description: Workshop APIs Gateway (Kuadrant APIKEY required)
+      security:
+        - ApiKeyAuth: []
+      components:
+        securitySchemes:
+          ApiKeyAuth:
+            type: apiKey
+            in: header
+            name: Authorization
+            description: "Kuadrant API key — format: `APIKEY <your-key>`"
+        schemas:
+          HttpbinArgs:
+            type: object
+            properties:
+              args:
+                type: object
+                additionalProperties:
+                  type: string
+              headers:
+                type: object
+                additionalProperties:
+                  type: string
+              origin:
+                type: string
+              url:
+                type: string
+            example:
+              args: {}
+              headers:
+                Accept: "*/*"
+                Authorization: "APIKEY ***"
+              origin: "203.0.113.1"
+              url: "https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get"
+          HttpbinPostResponse:
+            allOf:
+              - $ref: "#/components/schemas/HttpbinArgs"
+              - type: object
+                properties:
+                  data:
+                    type: string
+                  form:
+                    type: object
+                  json:
+                    type: object
+          HttpbinHeadersResponse:
+            type: object
+            properties:
+              headers:
+                type: object
+                additionalProperties:
+                  type: string
+          ErrorResponse:
+            type: object
+            properties:
+              message:
+                type: string
+      paths:
+        /get:
+          get:
+            summary: Echo GET request
+            description: Returns the incoming request headers, query args, and origin IP.
+            operationId: httpbinGet
+            parameters:
+              - name: show_env
+                in: query
+                schema:
+                  type: integer
+                  enum: [0, 1]
+                description: Include environment variables in response (upstream httpbin)
+            responses:
+              "200":
+                description: Echo of GET request
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/HttpbinArgs"
+                    example:
+                      args: { foo: bar }
+                      headers:
+                        Accept: "application/json"
+                        Authorization: "APIKEY workshop-key"
+                      origin: "203.0.113.1"
+                      url: "https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get?foo=bar"
+              "401":
+                description: Missing or invalid APIKEY
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/ErrorResponse"
+        /post:
+          post:
+            summary: Echo POST request
+            description: Returns posted JSON, form data, and headers.
+            operationId: httpbinPost
+            requestBody:
+              required: false
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    additionalProperties: true
+                  example:
+                    workshop: hybrid-mesh
+                    sensor: temperature
+                application/x-www-form-urlencoded:
+                  schema:
+                    type: object
+                    additionalProperties:
+                      type: string
+            responses:
+              "200":
+                description: Echo of POST request
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/HttpbinPostResponse"
+              "401":
+                description: Missing or invalid APIKEY
+        /headers:
+          get:
+            summary: Return request headers
+            operationId: httpbinHeaders
+            responses:
+              "200":
+                description: Request headers echoed
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/HttpbinHeadersResponse"
+                    example:
+                      headers:
+                        Accept: "application/json"
+                        Authorization: "APIKEY workshop-key"
+                        Host: "workshop-apis.__HUB_APPS_DOMAIN__"
+              "401":
+                description: Missing or invalid APIKEY
+        /status/{code}:
+          get:
+            summary: Return given HTTP status code
+            operationId: httpbinStatus
+            parameters:
+              - name: code
+                in: path
+                required: true
+                schema:
+                  type: integer
+                  minimum: 100
+                  maximum: 599
+                example: 418
+            responses:
+              "200":
+                description: Status 200
+              "401":
+                description: Missing or invalid APIKEY
+              "418":
+                description: I'm a teapot (example)
+              "500":
+                description: Internal Server Error (example)
+        /delay/{seconds}:
+          get:
+            summary: Delay response
+            description: Waits `seconds` before responding (max 10s upstream).
+            operationId: httpbinDelay
+            parameters:
+              - name: seconds
+                in: path
+                required: true
+                schema:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                example: 2
+            responses:
+              "200":
+                description: Delayed echo response
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/HttpbinArgs"
+              "401":
+                description: Missing or invalid APIKEY

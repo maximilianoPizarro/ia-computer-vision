@@ -1,0 +1,149 @@
+{{- if .Values.userProjects.enabled }}
+{{- $up := .Values.userProjects -}}
+{{- $nb := $up.notebook | default dict -}}
+{{- $img := $nb.image | default "quay.io/opendatahub-contrib/workbench-images:jupyter-minimal-elyra-py311-ubi9" -}}
+{{- $cpu := $nb.cpu | default "250m" -}}
+{{- $mem := $nb.memory | default "1Gi" -}}
+{{- $deployCr := $nb.deployCr | default false -}}
+{{- $count := int (.Values.userCount | default 50) -}}
+{{- $maasKey := include "openshift-ai-hub.maasApiKey" . -}}
+{{- $endpoint := include "openshift-ai-hub.maasApiUrl" . -}}
+{{- $maasModel := include "openshift-ai-hub.maasModel" . -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuroface-ml-lab-notebook
+  namespace: maas-workshop
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  neuroface-ml-lab.ipynb: |
+    {
+      "cells": [
+        {"cell_type": "markdown", "metadata": {}, "source": ["# NeuroFace microp learning lab\n", "\n", "Workshop notebook: OVMS face detection + MaaS chat. Open **NeuroFace** for PPE Safety webcam demo."]},
+        {"cell_type": "code", "metadata": {}, "source": ["import os, json, urllib.request\n", "MAAS = os.environ.get('OPENAI_API_BASE', '{{ $endpoint }}/v1')\n", "KEY = os.environ.get('OPENAI_API_KEY', '')\n", "MODEL = os.environ.get('MAAS_MODEL', '{{ $maasModel }}')\n", "print('MaaS base:', MAAS, 'model:', MODEL)\n", "req = urllib.request.Request(f'{MAAS}/chat/completions', data=json.dumps({\"model\":MODEL,\"messages\":[{\"role\":\"user\",\"content\":\"Hello from ai-user notebook\"}],\"max_tokens\":40}).encode(), headers={'Content-Type':'application/json','Authorization':f'Bearer {KEY}'}, method='POST')\n", "with urllib.request.urlopen(req, timeout=60) as r: print(r.read().decode()[:500])"]}
+      ],
+      "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}},
+      "nbformat": 4,
+      "nbformat_minor": 5
+    }
+  README.md: |
+    # NeuroFace ML lab (copy to ai-userN)
+
+    Per-user workbench **`neuroface-ml-lab`** mounts this notebook.
+    **OpenShift AI:** Dashboard → Projects → **ai-userN** → Workbenches → **neuroface-ml-lab**.
+    **NeuroFace UI:** https://neuroface.<hub-domain> — OVMS **face-detection-retail-0005** for PPE Safety webcam demo.
+{{- range $i := until $count }}
+{{- $n := add $i 1 }}
+{{- $user := printf "user%d" $n }}
+{{- $project := printf "ai-%s" $user }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $project }}
+  labels:
+    opendatahub.io/dashboard: "true"
+    pod-security.kubernetes.io/enforce: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    openshift.io/description: "OpenShift AI workshop project for {{ $user }}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $user }}-admin
+  namespace: {{ $project }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: User
+    name: {{ $user }}
+    apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maas-connection
+  namespace: {{ $project }}
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    opendatahub.io/connection-type: generic
+type: Opaque
+stringData:
+  {{- if $maasKey }}
+  api-key: {{ $maasKey | quote }}
+  {{- else }}
+  api-key: "CHANGEME-maas-facilitator-seed-or-litemaas"
+  {{- end }}
+  OPENAI_API_BASE: {{ printf "%s/v1" $endpoint | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuroface-ml-lab-src
+  namespace: {{ $project }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  neuroface-ml-lab.ipynb: |
+    {
+      "cells": [
+        {"cell_type": "markdown", "metadata": {}, "source": ["# NeuroFace microp learning — {{ $user }}\n", "Open **NeuroFace** for OVMS PPE Safety webcam. This notebook calls MaaS chat completions."]},
+        {"cell_type": "code", "metadata": {}, "source": ["import os, json, urllib.request\n", "base = os.environ.get('OPENAI_API_BASE', '{{ $endpoint }}/v1')\n", "key = os.environ.get('OPENAI_API_KEY', '')\n", "model = os.environ.get('MAAS_MODEL', '{{ $maasModel }}')\n", "body = json.dumps({\"model\":model,\"messages\":[{\"role\":\"user\",\"content\":\"Summarize Industrial Edge in one sentence.\"}],\"max_tokens\":60}).encode()\n", "req = urllib.request.Request(f'{base}/chat/completions', data=body, headers={'Content-Type':'application/json','Authorization':f'Bearer {key}'}, method='POST')\n", "print(urllib.request.urlopen(req, timeout=90).read().decode()[:800])"]}
+      ],
+      "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}},
+      "nbformat": 4,
+      "nbformat_minor": 5
+    }
+---
+{{- if $deployCr }}
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: neuroface-ml-lab
+  namespace: {{ $project }}
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    opendatahub.io/username: {{ $user | quote }}
+spec:
+  template:
+    spec:
+      containers:
+        - name: neuroface-ml-lab
+          image: {{ $img | quote }}
+          resources:
+            requests:
+              cpu: {{ $cpu | quote }}
+              memory: {{ $mem | quote }}
+            limits:
+              memory: {{ $mem | quote }}
+          env:
+            - name: OPENAI_API_BASE
+              value: {{ printf "%s/v1" $endpoint | quote }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: maas-connection
+                  key: api-key
+          volumeMounts:
+            - name: notebook-src
+              mountPath: /opt/app-root/src/neuroface-ml-lab.ipynb
+              subPath: neuroface-ml-lab.ipynb
+      volumes:
+        - name: notebook-src
+          configMap:
+            name: neuroface-ml-lab-src
+{{- end }}
+{{- end }}
+{{- end }}

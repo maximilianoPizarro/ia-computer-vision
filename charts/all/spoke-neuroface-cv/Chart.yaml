@@ -1,0 +1,5 @@
+apiVersion: v2
+name: spoke-neuroface-cv
+description: YOLO PPE inference on spoke clusters exposed to hub via Skupper
+type: application
+version: 0.1.0

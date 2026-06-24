@@ -1,0 +1,180 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: industrial-edge-camel-kaoto
+  title: "Industrial Edge — Camel Routes (Kaoto + Continue AI)"
+  description: >
+    Camel Quarkus routes (MQTT→Kafka, Kafka→S3/MinIO, alerts→Mailpit) editable in DevSpaces
+    with Kaoto and Continue AI (MaaS deepseek). Ambient mesh with ztunnel L4 Prometheus metrics.
+  tags:
+    - camel
+    - kaoto
+    - industrial-edge
+    - continue-ai
+spec:
+  owner: platform-engineering
+  type: service
+  parameters:
+    - title: Project Configuration
+      required:
+        - name
+        - owner
+        - targetCluster
+        - environment
+        - clusterDomain
+      properties:
+        name:
+          title: Application Name
+          type: string
+          default: ie-camel-routes
+          pattern: "^[a-z0-9-]+$"
+        owner:
+          title: Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - User
+        targetCluster:
+          title: Target spoke cluster
+          type: string
+          enum: [east, west]
+          default: east
+        environment:
+          title: Environment (Kairos tier)
+          type: string
+          enum: [dev, qa, prod]
+          enumNames: [Development (-dev), QA (-qa), Production (-prod)]
+          default: dev
+        clusterDomain:
+          title: Hub apps domain
+          type: string
+          description: GitLab on hub
+          default: apps.cluster-xqg4c.dynamic2.redhatworkshops.io
+      dependencies:
+        targetCluster:
+          oneOf:
+            - properties:
+                targetCluster:
+                  const: east
+                spokeAppsDomain:
+                  type: string
+                  default: apps.cluster-2847b.dynamic2.redhatworkshops.io
+            - properties:
+                targetCluster:
+                  const: west
+                spokeAppsDomain:
+                  type: string
+                  default: apps.cluster-5zjkk.dynamic2.redhatworkshops.io
+    - title: Integration Endpoints
+      properties:
+        mqttBrokerUri:
+          title: MQTT Broker URI
+          type: string
+          default: "tcp://messaging.industrial-edge-tst-all.svc:1883"
+        kafkaBrokerUri:
+          title: Kafka bootstrap
+          type: string
+          default: "dev-cluster-kafka-bootstrap.industrial-edge-tst-all.svc:9092"
+        s3Endpoint:
+          title: MinIO S3 endpoint (hub via Skupper)
+          type: string
+          default: "http://minio-hub.service-interconnect.svc:9000"
+        s3Bucket:
+          title: S3 bucket
+          type: string
+          default: "industrial-edge-data"
+        mailpitApiUrl:
+          title: Mailpit API (hub)
+          type: string
+          default: "http://mailpit.mailpit.svc:8025"
+  steps:
+    - id: fetch-skeleton
+      name: Fetch Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          uniqueName: "${{ parameters.owner }}-${{ parameters.name }}-${{ parameters.environment }}"
+          owner: ${{ parameters.owner }}
+          environment: ${{ parameters.environment }}
+          namespace: "${{ parameters.owner }}-apps-${{ parameters.targetCluster }}-${{ parameters.environment }}"
+          targetCluster: ${{ parameters.targetCluster }}
+          clusterDomain: ${{ parameters.clusterDomain }}
+          spokeAppsDomain: ${{ parameters.spokeAppsDomain }}
+          mqttBrokerUri: ${{ parameters.mqttBrokerUri }}
+          kafkaBrokerUri: ${{ parameters.kafkaBrokerUri }}
+          s3Endpoint: ${{ parameters.s3Endpoint }}
+          s3Bucket: ${{ parameters.s3Bucket }}
+          mailpitApiUrl: ${{ parameters.mailpitApiUrl }}
+    - id: publish
+      name: Publish to GitLab
+      action: publish:github
+      input:
+        repoUrl: "gitlab.apps.${{ parameters.clusterDomain }}?owner=ws-${{ parameters.owner }}&repo=${{ parameters.name }}-${{ parameters.targetCluster }}-${{ parameters.environment }}"
+        description: ${{ parameters.name }}
+        defaultBranch: main
+        repoVisibility: public
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+    - id: create-argocd-app
+      name: Create ArgoCD Application
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/proxy/k8s-api/apis/argoproj.io/v1alpha1/namespaces/openshift-gitops/applications
+        headers:
+          Content-Type: application/json
+        body:
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: "gen-${{ parameters.owner }}-${{ parameters.name }}-${{ parameters.targetCluster }}-${{ parameters.environment }}"
+            namespace: openshift-gitops
+          spec:
+            project: default
+            source:
+              repoURL: "https://gitlab.apps.${{ parameters.clusterDomain }}/ws-${{ parameters.owner }}/${{ parameters.name }}-${{ parameters.targetCluster }}-${{ parameters.environment }}"
+              targetRevision: main
+              path: manifests
+            destination:
+              name: ${{ parameters.targetCluster }}
+              namespace: "${{ parameters.owner }}-apps-${{ parameters.targetCluster }}"
+            syncPolicy:
+              automated:
+                selfHeal: true
+                prune: true
+              syncOptions:
+                - CreateNamespace=true
+    - id: notify
+      name: Notify Owner
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/notifications
+        headers:
+          Content-Type: application/json
+        body:
+          recipients:
+            type: entity
+            entityRef: "user:default/${{ parameters.owner }}"
+          payload:
+            title: "Camel Kaoto '${{ parameters.name }}' deployed on ${{ parameters.targetCluster }}"
+            description: "Your Camel integration is deploying via ArgoCD."
+            link: ${{ steps['register'].output.entityRef }}
+            severity: normal
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: View in Catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}
+      - title: Open in DevSpaces (Kaoto)
+        icon: chat
+        url: "https://devspaces.${{ parameters.spokeAppsDomain }}/#https://gitlab.apps.${{ parameters.clusterDomain }}/ws-${{ parameters.owner }}/${{ parameters.name }}-${{ parameters.targetCluster }}-${{ parameters.environment }}"

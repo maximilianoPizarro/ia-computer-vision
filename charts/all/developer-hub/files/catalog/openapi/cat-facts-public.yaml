@@ -1,0 +1,78 @@
+    openapi: 3.0.3
+    info:
+      title: Cat Facts API
+      version: 1.0.0
+      description: Returns random cat facts — open CORS, no auth
+    servers:
+      - url: https://catfact.ninja
+    components:
+      schemas:
+        CatFact:
+          type: object
+          properties:
+            fact:
+              type: string
+              example: Cats spend approximately 30% of their waking hours grooming themselves.
+            length:
+              type: integer
+              example: 72
+        CatFactsList:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/CatFact"
+            current_page:
+              type: integer
+            last_page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    paths:
+      /fact:
+        get:
+          summary: Get a random cat fact
+          operationId: getRandomFact
+          parameters:
+            - name: max_length
+              in: query
+              schema:
+                type: integer
+                minimum: 1
+              description: Maximum character length of the fact
+              example: 100
+          responses:
+            "200":
+              description: A cat fact
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/CatFact"
+      /facts:
+        get:
+          summary: Get multiple cat facts (paginated)
+          operationId: getFacts
+          parameters:
+            - name: limit
+              in: query
+              schema:
+                type: integer
+                minimum: 1
+                maximum: 50
+              example: 5
+            - name: page
+              in: query
+              schema:
+                type: integer
+                minimum: 1
+              example: 1
+          responses:
+            "200":
+              description: Paginated list of cat facts
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/CatFactsList"

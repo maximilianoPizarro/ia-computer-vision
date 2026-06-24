@@ -1,0 +1,142 @@
+{{- if .Values.bootstrap.platformContent.enabled }}
+{{- $api := include "gitlab-operator.apiUrl" . -}}
+{{- $web := include "gitlab-operator.webUrl" . -}}
+{{- $g := .Values.global | default dict -}}
+{{- $repoUrl := .Values.bootstrap.platformContent.repoUrl | default $g.repoURL | default "https://github.com/maximilianoPizarro/hybrid-mesh-platform" -}}
+{{- $revision := .Values.bootstrap.platformContent.revision | default $g.targetRevision | default "main" -}}
+{{- $group := .Values.bootstrap.developerHubGroup -}}
+{{- $project := .Values.bootstrap.platformContent.project -}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-platform-content-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: gitlab-workshop-bootstrap
+      initContainers:
+        - name: gitlab-pat
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          env:
+            - name: GITLAB_NS
+              value: {{ .Values.namespace | quote }}
+            - name: GITLAB_API
+              value: {{ $api | quote }}
+            - name: DEVHUB_GROUP
+              value: {{ $group | quote }}
+            - name: PROJECT_NAME
+              value: {{ $project | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              echo "Waiting for gitlab-toolbox..."
+              for attempt in $(seq 1 90); do
+                if oc get deploy gitlab-toolbox -n "${GITLAB_NS}" -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q '^1$'; then
+                  break
+                fi
+                sleep 10
+              done
+              oc get deploy gitlab-toolbox -n "${GITLAB_NS}" -o jsonpath='{.status.readyReplicas}' | grep -q '^1$' \
+                || { echo "gitlab-toolbox not ready" >&2; exit 1; }
+              RAILS_OUT=$(oc exec -n "${GITLAB_NS}" deploy/gitlab-toolbox -c toolbox -- gitlab-rails runner 'root = User.find_by(username: "root") || User.admins.first; pat_name = "platform-content-seed"; root.personal_access_tokens.where(name: pat_name).find_each(&:revoke!); pat = root.personal_access_tokens.create!(name: pat_name, scopes: [:api, :read_repository, :write_repository], expires_at: 1.year.from_now); puts pat.token')
+              echo "${RAILS_OUT}" | tail -1 | tr -d '\r' > /shared/gitlab-pat
+              chmod 600 /shared/gitlab-pat
+              GITLAB_PAT=$(cat /shared/gitlab-pat)
+
+              GROUP_JSON=$(curl -skS "${GITLAB_API}/groups/${DEVHUB_GROUP}" \
+                -H "PRIVATE-TOKEN: ${GITLAB_PAT}" || echo '{}')
+              GROUP_ID=$(echo "${GROUP_JSON}" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1)
+              if [ -z "${GROUP_ID}" ]; then
+                echo "ERROR: group ${DEVHUB_GROUP} not found — run gitlab-workshop-bootstrap first" >&2
+                exit 1
+              fi
+
+              PROJECT_PATH="${DEVHUB_GROUP}/${PROJECT_NAME}"
+              HTTP=$(curl -skS -o /dev/null -w "%{http_code}" \
+                -H "PRIVATE-TOKEN: ${GITLAB_PAT}" \
+                "${GITLAB_API}/projects/${PROJECT_PATH//\//%2F}")
+              if [ "${HTTP}" = "404" ]; then
+                echo "Creating project ${PROJECT_PATH}..."
+                CREATE=$(curl -skS -X POST "${GITLAB_API}/projects" \
+                  -H "PRIVATE-TOKEN: ${GITLAB_PAT}" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"name\":\"${PROJECT_NAME}\",\"path\":\"${PROJECT_NAME}\",\"namespace_id\":${GROUP_ID},\"visibility\":\"public\",\"initialize_with_readme\":false}")
+                echo "${CREATE}" | grep -q '"id"' || { echo "Project create failed: ${CREATE}" >&2; exit 1; }
+              fi
+              curl -skS -X DELETE "${GITLAB_API}/projects/${PROJECT_PATH//\//%2F}/protected_branches/main" \
+                -H "PRIVATE-TOKEN: ${GITLAB_PAT}" >/dev/null 2>&1 || true
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+        - name: clone-pattern
+          image: {{ .Values.bootstrap.platformContent.cloneImage | default "quay.io/rhpds/git-cloner:v1.1.2" | quote }}
+          env:
+            - name: GIT_REPO_URL
+              value: {{ $repoUrl | quote }}
+            - name: GIT_REPO_REF
+              value: {{ $revision | quote }}
+            - name: CLONE_DIR
+              value: /shared/pattern
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      containers:
+        - name: seed
+          image: {{ .Values.bootstrap.platformContent.cloneImage | default "quay.io/rhpds/git-cloner:v1.1.2" | quote }}
+          env:
+            - name: GITLAB_WEB
+              value: {{ $web | quote }}
+            - name: DEVHUB_GROUP
+              value: {{ $group | quote }}
+            - name: PROJECT_NAME
+              value: {{ $project | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              GITLAB_PAT=$(cat /shared/gitlab-pat)
+              PROJECT_PATH="${DEVHUB_GROUP}/${PROJECT_NAME}"
+              WORK=/shared/repo
+              ROOT_DIR=/shared/pattern
+              rm -rf "${WORK}"
+              mkdir -p "${WORK}"
+              cd "${WORK}"
+              git init -b main
+              git config user.email platform-content@developer-hub.local
+              git config user.name platform-content-seed
+              REMOTE="https://oauth2:${GITLAB_PAT}@${GITLAB_WEB#https://}/${PROJECT_PATH}.git"
+              git remote add origin "${REMOTE}"
+              if git ls-remote --heads origin main | grep -q 'refs/heads/main'; then
+                git fetch origin main
+                git checkout -B main origin/main
+              fi
+              mkdir -p "${WORK}/docs"
+              cp -a "${ROOT_DIR}/docs/assets/backstage/software-templates" "${WORK}/"
+              cp -a "${ROOT_DIR}/charts/all/developer-hub/files/onboarding" "${WORK}/docs/"
+              cp -a "${ROOT_DIR}/charts/all/developer-hub/files/techdocs/industrial-edge" "${WORK}/docs/industrial-edge"
+              printf '%s\n' "# Platform content" "" "Seeded from pattern repo." > "${WORK}/README.md"
+              git add .
+              if git diff --cached --quiet; then
+                echo "platform-content already up to date"
+              else
+                git commit -m "Seed platform content from pattern"
+                git push -u origin main
+              fi
+              echo "gitlab-platform-content-seed complete: ${GITLAB_WEB}/${PROJECT_PATH}"
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      volumes:
+        - name: shared
+          emptyDir: {}
+{{- end }}

@@ -1,0 +1,46 @@
+# VCS and editor
+.git/
+.gitignore
+.cursor/
+
+# Local reference clones
+_ref_mcg/
+_ref_hmp/
+
+# Documentation and metadata (not packaged into the chart)
+docs/
+README.md
+SUPPORT.md
+PLAN.md
+pattern-metadata.yaml
+
+# Secrets and local state
+values-secret.yaml
+values-secret.yaml.template
+*.expected.yaml
+pattern-vault.init
+vault.init
+.tmp-kc/
+.env
+.env.*
+
+# CI, lint, and tooling
+.github/
+.ansible-lint
+.gitleaks.toml
+.trivyignore
+super-linter.log
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.venv-*/
+venv/
+
+# Pattern CLI / Ansible (repo tooling, not chart content)
+Makefile
+Makefile-common
+pattern.sh
+ansible/
+ansible.cfg
+tests/

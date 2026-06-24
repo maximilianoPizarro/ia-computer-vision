@@ -1,0 +1,260 @@
+{{- $maas := .Values.maas | default dict -}}
+{{- $endpoint := $maas.endpoint | default "https://maas-rhdp.apps.maas.redhatworkshops.io" -}}
+{{- $secretName := $maas.credentialsSecretName | default "openshift-ai-maas-credentials" -}}
+{{- $defaultSecretKey := $maas.credentialsSecretKey | default "api-key" -}}
+{{- $maasKey := include "openshift-ai-hub.maasApiKey" . -}}
+{{- $ms := .Values.modelServing | default dict -}}
+{{- $modelMesh := $ms.modelMeshEnabled | default false -}}
+{{- $serverless := $ms.serverlessEnabled | default false -}}
+{{- $deployMode := $ms.defaultDeploymentMode | default "RawDeployment" -}}
+---
+apiVersion: dscinitialization.opendatahub.io/v2
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  applicationsNamespace: redhat-ods-applications
+  monitoring:
+    namespace: redhat-ods-monitoring
+    managementState: Managed
+  trustedCABundle:
+    managementState: Managed
+  devFlags:
+    logLevel: INFO
+---
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  components:
+    aipipelines:
+      managementState: Removed
+    dashboard:
+      managementState: Managed
+    feastoperator:
+      managementState: Removed
+    kserve:
+      managementState: Managed
+      defaultDeploymentMode: {{ $deployMode | quote }}
+      serving:
+        managementState: {{ if $serverless }}Managed{{ else }}Removed{{ end }}
+    kueue:
+      managementState: Removed
+    llamastackoperator:
+      managementState: Removed
+    modelregistry:
+      managementState: Removed
+    ray:
+      managementState: Removed
+    trainingoperator:
+      managementState: Removed
+    trustyai:
+      managementState: Removed
+    workbenches:
+      managementState: Managed
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maas-workshop
+  labels:
+    opendatahub.io/dashboard: "true"
+    pod-security.kubernetes.io/enforce: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    openshift.io/description: "OpenShift AI workshop — MaaS external models and playground"
+---
+{{- if $maasKey }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  namespace: maas-workshop
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: Replace=true
+    opendatahub.io/connection-type: generic
+    openshift.io/display-name: MaaS RHDP API Key
+type: Opaque
+stringData:
+  {{ $defaultSecretKey }}: {{ $maasKey | quote }}
+  OPENAI_API_BASE: {{ printf "%s/v1" (trimSuffix "/" $endpoint) | quote }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maas-external-gateway
+  namespace: maas-workshop
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  type: ExternalName
+  externalName: {{ $endpoint | trimPrefix "https://" | trimPrefix "http://" | trimSuffix "/v1" | trimSuffix "/" | quote }}
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maas-playground-models
+  namespace: maas-workshop
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  models.json: |
+    [
+{{- range $i, $m := ($maas.models | default list) }}
+      {
+        "id": {{ $m.id | quote }},
+        "displayName": {{ $m.displayName | default $m.id | quote }},
+        "endpoint": {{ printf "%s/v1" (trimSuffix "/" $endpoint) | quote }},
+        "apiKeySecret": {{ $secretName | quote }},
+        "apiKeySecretKey": {{ ($m.secretKey | default $defaultSecretKey) | quote }}
+      }{{- if ne $i (sub (len ($maas.models | default list)) 1) }},{{ end }}
+{{- end }}
+    ]
+  README.md: |
+    # MaaS Workshop Models
+
+    Inject API key (never commit to Git):
+
+    ```bash
+    oc create secret generic {{ $secretName }} -n maas-workshop \
+      --from-literal={{ $defaultSecretKey }}='sk-...' \
+      --from-literal=OPENAI_API_BASE='{{ trimSuffix "/" $endpoint }}/v1' \
+      --dry-run=client -o yaml | oc apply -f -
+    ```
+
+    Open OpenShift AI dashboard → Data Science Projects → **maas-workshop** → OpenShift AI Playground.
+---
+{{- if .Values.playground.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openshift-ai-playground-config
+  namespace: maas-workshop
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  default-project: maas-workshop
+  default-model: llama-scout-17b
+  maas-endpoint: {{ printf "%s/v1" (trimSuffix "/" $endpoint) | quote }}
+{{- end }}
+---
+{{- if .Values.mcp.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openshift-ai-mcp-server
+  namespace: maas-workshop
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  mcp-playground.json: |
+    {
+      "name": "maas-playground",
+      "description": "Test MaaS models from OpenShift AI playground",
+      "endpoint": "{{ printf "%s/v1" (trimSuffix "/" $endpoint) }}",
+      "models": ["llama-scout-17b", "codellama-7b-instruct", "deepseek-r1-distill-qwen-14b"]
+    }
+  mcp-cluster-reconciler.json: |
+    {
+      "name": "platform-gitops-reconciler",
+      "description": "Cluster-admin MCP — sync field-content apps (use hub Developer Hub MCP + oc SA)",
+      "note": "Use Developer Hub /api/mcp with platformadmin; reconcile via Argo CD Applications in openshift-gitops"
+    }
+{{- end }}
+---
+{{- range $i, $m := ($maas.models | default list) }}
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ $m.id | replace "." "-" }}
+  namespace: maas-workshop
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/skip-health-check: "true"
+    serving.kserve.io/deploymentMode: RawDeployment
+    maas.redhat.com/model-id: {{ $m.id | quote }}
+    maas.redhat.com/display-name: {{ $m.displayName | default $m.id | quote }}
+spec:
+  predictor:
+    containers:
+      - name: kserve-container
+        image: registry.redhat.io/ubi9/python-311:latest
+        command:
+          - python3
+          - -c
+          - |
+            import os, json
+            from http.server import HTTPServer, BaseHTTPRequestHandler
+            import urllib.request
+            MODEL = os.environ["MODEL_ID"]
+            BASE = os.environ["MAAS_BASE"].rstrip("/")
+            KEY = os.environ.get("API_KEY", "")
+            class H(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    if self.path in ("/", "/health"):
+                        self.send_response(200); self.end_headers()
+                        self.wfile.write(b"ok")
+                    else:
+                        self.send_response(404); self.end_headers()
+                def do_POST(self):
+                    n = int(self.headers.get("Content-Length", 0))
+                    body = self.rfile.read(n) if n else b"{}"
+                    req = urllib.request.Request(
+                        f"{BASE}/v1/chat/completions",
+                        data=body, method="POST",
+                        headers={"Content-Type": "application/json", "Authorization": f"Bearer {KEY}"})
+                    try:
+                        with urllib.request.urlopen(req, timeout=120) as r:
+                            data = r.read()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(data)
+                    except Exception as e:
+                        self.send_response(502); self.end_headers()
+                        self.wfile.write(json.dumps({"error": str(e)}).encode())
+            print(f"Proxy for {MODEL} -> {BASE}")
+            HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+        ports:
+          - containerPort: 8080
+            protocol: TCP
+        env:
+          - name: MODEL_ID
+            value: {{ $m.id | quote }}
+          - name: MAAS_BASE
+            value: {{ trimSuffix "/" $endpoint | quote }}
+          - name: API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ $secretName }}
+                key: {{ $m.secretKey | default $defaultSecretKey }}
+                optional: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+---
+{{- end }}

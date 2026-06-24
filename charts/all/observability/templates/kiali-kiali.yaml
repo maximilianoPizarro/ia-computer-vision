@@ -1,0 +1,53 @@
+apiVersion: kiali.io/v1alpha1
+kind: Kiali
+metadata:
+  name: kiali
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  auth:
+    strategy: anonymous
+  deployment:
+    cluster_wide_access: true
+    namespace: openshift-cluster-observability-operator
+  kubernetes_config:
+    cluster_name: Kubernetes
+  {{- if .Values.multiCluster.enabled }}
+  clustering:
+    autodetect_secrets:
+      enabled: true
+      label: "kiali.io/multiCluster=true"
+    {{- if or .Values.multiCluster.clusters.east.kialiUrl .Values.multiCluster.clusters.west.kialiUrl }}
+    kiali_urls:
+    {{- if .Values.multiCluster.clusters.east.kialiUrl }}
+    - cluster_name: {{ .Values.multiCluster.clusters.east.name }}
+      instance_name: kiali
+      namespace: openshift-cluster-observability-operator
+      url: {{ .Values.multiCluster.clusters.east.kialiUrl }}
+    {{- end }}
+    {{- if .Values.multiCluster.clusters.west.kialiUrl }}
+    - cluster_name: {{ .Values.multiCluster.clusters.west.name }}
+      instance_name: kiali
+      namespace: openshift-cluster-observability-operator
+      url: {{ .Values.multiCluster.clusters.west.kialiUrl }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  external_services:
+    istio:
+      config_map_name: istio-default
+      istio_sidecar_injector_config_map_name: istio-sidecar-injector-default
+      istiod_deployment_name: istiod-default
+    grafana:
+      enabled: true
+      in_cluster_url: http://grafana-service.openshift-cluster-observability-operator.svc:3000
+      url: https://grafana.{{ include "kiali.clusterDomain" . }}
+    prometheus:
+      auth:
+        insecure_skip_verify: true
+        type: bearer
+        use_kiali_token: true
+      thanos_proxy:
+        enabled: true
+      url: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091

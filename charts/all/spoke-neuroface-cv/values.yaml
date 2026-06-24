@@ -1,0 +1,24 @@
+clusterName: ""
+
+yoloPpeServing:
+  image: quay.io/maximilianopizarro/neuroface-ppe-serving:v1.5.0
+  modelFile: best.pt
+  storageSecretName: aws-connection-ppe-models
+  storagePath: ppe-detection/model
+  modelStorage:
+    accessKeyId: minio
+    secretAccessKey: minio123
+    region: us-east-1
+    bucket: models
+    endpoint: http://minio-hub.service-interconnect.svc:9000
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+  hpa:
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilization: 70

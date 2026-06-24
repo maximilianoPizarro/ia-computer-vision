@@ -1,0 +1,267 @@
+{{- if .Values.spokeTokenSync.enabled | default true }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: developer-hub-spoke-token-sync
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: developer-hub-spoke-token-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+rules:
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclusters"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: developer-hub-spoke-token-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: developer-hub-spoke-token-sync
+subjects:
+  - kind: ServiceAccount
+    name: developer-hub-spoke-token-sync
+    namespace: developer-hub
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-spoke-token-sync-script
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  sync.py: |
+    #!/usr/bin/env python3
+    """Sync ManagedServiceAccount tokens and cluster API URLs into developer-hub-spoke-tokens."""
+    import base64
+    import json
+    import os
+    import ssl
+    import sys
+    import time
+    import urllib.error
+    import urllib.request
+    from pathlib import Path
+
+    HUB_NS = os.environ.get("DEVELOPER_HUB_NAMESPACE", "developer-hub")
+    SECRET_NAME = os.environ.get("SECRET_NAME", "developer-hub-spoke-tokens")
+    MSA_NAME = os.environ.get("MSA_NAME", "developer-hub")
+    CLUSTERS = [c.strip() for c in os.environ.get("CLUSTERS", "east,west").split(",") if c.strip()]
+    MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "15"))
+    RETRY_INTERVAL = int(os.environ.get("RETRY_INTERVAL", "20"))
+
+    SA_TOKEN_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    SA_CA_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
+    API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
+    API_BASE = f"https://{API_HOST}:{API_PORT}"
+
+
+    def api_request(method, path, body=None, content_type="application/json"):
+        token = SA_TOKEN_PATH.read_text().strip()
+        ctx = ssl.create_default_context(cafile=str(SA_CA_PATH))
+        headers = {"Authorization": f"Bearer {token}"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode() if isinstance(body, dict) else body
+            headers["Content-Type"] = content_type
+        req = urllib.request.Request(f"{API_BASE}{path}", data=data, method=method, headers=headers)
+        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+            raw = resp.read().decode()
+            return json.loads(raw) if raw else {}
+
+
+    def get_managed_cluster(name):
+        return api_request("GET", f"/apis/cluster.open-cluster-management.io/v1/managedclusters/{name}")
+
+
+    def find_msa_token(cluster_ns):
+        """Read token from MSA secret (name matches MSA_NAME) in the managed cluster namespace on hub."""
+        path = f"/api/v1/namespaces/{cluster_ns}/secrets/{MSA_NAME}"
+        try:
+            sec = api_request("GET", path)
+            token_b64 = sec.get("data", {}).get("token")
+            if token_b64:
+                return base64.b64decode(token_b64).decode().strip()
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+        return None
+
+
+    def upsert_spoke_tokens_secret(data):
+        secret = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {"name": SECRET_NAME, "namespace": HUB_NS},
+            "type": "Opaque",
+            "stringData": data,
+        }
+        try:
+            api_request("GET", f"/api/v1/namespaces/{HUB_NS}/secrets/{SECRET_NAME}")
+            token = SA_TOKEN_PATH.read_text().strip()
+            ctx = ssl.create_default_context(cafile=str(SA_CA_PATH))
+            body = json.dumps({"stringData": data}).encode()
+            req = urllib.request.Request(
+                f"{API_BASE}/api/v1/namespaces/{HUB_NS}/secrets/{SECRET_NAME}",
+                data=body,
+                method="PATCH",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/strategic-merge-patch+json",
+                },
+            )
+            with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+                resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+            api_request("POST", f"/api/v1/namespaces/{HUB_NS}/secrets", secret)
+
+
+    def main():
+        for attempt in range(1, MAX_RETRIES + 1):
+            string_data = {}
+            all_ready = True
+            for cluster in CLUSTERS:
+                try:
+                    mc = get_managed_cluster(cluster)
+                    cfg = mc["spec"]["managedClusterClientConfigs"][0]
+                    api_url = cfg["url"]
+                    token = find_msa_token(cluster)
+                    if not token:
+                        print(
+                            f"WARN: MSA token not ready for {cluster} (attempt {attempt}/{MAX_RETRIES})",
+                            file=sys.stderr,
+                        )
+                        all_ready = False
+                        break
+                    prefix = cluster.upper()
+                    string_data[f"{prefix}_API_URL"] = api_url
+                    string_data[f"{prefix}_SA_TOKEN"] = token
+                    print(f"OK: {cluster} api={api_url}", file=sys.stderr)
+                except Exception as exc:
+                    print(f"WARN: {cluster}: {exc} (attempt {attempt}/{MAX_RETRIES})", file=sys.stderr)
+                    all_ready = False
+                    break
+
+            if all_ready and string_data:
+                upsert_spoke_tokens_secret(string_data)
+                print(f"Updated {SECRET_NAME} with {len(CLUSTERS)} clusters", file=sys.stderr)
+                return
+
+            if attempt < MAX_RETRIES:
+                time.sleep(RETRY_INTERVAL)
+
+        print(f"FAILED after {MAX_RETRIES} attempts", file=sys.stderr)
+        sys.exit(1)
+
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: developer-hub-spoke-token-sync-hook
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  backoffLimit: 8
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: developer-hub-spoke-token-sync
+      restartPolicy: OnFailure
+      containers:
+        - name: sync
+          image: {{ .Values.spokeTokenSync.image | default "registry.redhat.io/ubi9/python-311:latest" | quote }}
+          command: ["python3", "/scripts/sync.py"]
+          env:
+            - name: CLUSTERS
+              value: {{ .Values.spokeTokenSync.clusters | default "east,west" | quote }}
+            - name: MAX_RETRIES
+              value: "20"
+            - name: RETRY_INTERVAL
+              value: "25"
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: script
+          configMap:
+            name: developer-hub-spoke-token-sync-script
+            defaultMode: 0755
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: developer-hub-spoke-token-sync
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  schedule: {{ .Values.spokeTokenSync.schedule | default "0 */6 * * *" | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: developer-hub-spoke-token-sync
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: {{ .Values.spokeTokenSync.image | default "registry.redhat.io/ubi9/python-311:latest" | quote }}
+              command: ["python3", "/scripts/sync.py"]
+              env:
+                - name: CLUSTERS
+                  value: {{ .Values.spokeTokenSync.clusters | default "east,west" | quote }}
+                - name: MAX_RETRIES
+                  value: "8"
+                - name: RETRY_INTERVAL
+                  value: "20"
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+          volumes:
+            - name: script
+              configMap:
+                name: developer-hub-spoke-token-sync-script
+                defaultMode: 0755
+{{- end }}

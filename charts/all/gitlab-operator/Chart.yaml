@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gitlab-operator
+description: GitLab Operator — self-managed GitLab + Runner for workshop SCM
+type: application
+version: 0.1.0

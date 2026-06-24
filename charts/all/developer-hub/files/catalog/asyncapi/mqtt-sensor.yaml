@@ -1,0 +1,105 @@
+    asyncapi: 2.6.0
+    info:
+      title: MQTT Sensor API
+      version: 1.0.0
+      description: |
+        Machine sensor telemetry published over MQTT (AMQ Broker) from east/west spokes.
+        Topics follow `iot-sensor/{site}/{metric}` convention.
+    defaultContentType: application/json
+    servers:
+      mqtt-east:
+        url: mqtt://messaging-industrial-edge-tst-all.__EAST_APPS_DOMAIN__:443
+        protocol: mqtt
+        description: AMQ MQTT acceptor (east spoke)
+      mqtt-west:
+        url: mqtt://messaging-industrial-edge-tst-all.__WEST_APPS_DOMAIN__:443
+        protocol: mqtt
+        description: AMQ MQTT acceptor (west spoke)
+    components:
+      schemas:
+        TemperatureReading:
+          type: object
+          required: [sensorId, timestamp, value, unit]
+          properties:
+            sensorId:
+              type: string
+              example: machine-sensor-sw-01
+            timestamp:
+              type: string
+              format: date-time
+              example: "2026-06-17T12:00:00Z"
+            value:
+              type: number
+              format: float
+              minimum: -40
+              maximum: 200
+              example: 72.4
+            unit:
+              type: string
+              enum: [celsius, fahrenheit]
+              example: celsius
+            site:
+              type: string
+              example: sw
+            line:
+              type: string
+              example: assembly-1
+        VibrationReading:
+          type: object
+          required: [sensorId, timestamp, value, unit]
+          properties:
+            sensorId:
+              type: string
+              example: machine-sensor-sw-01
+            timestamp:
+              type: string
+              format: date-time
+              example: "2026-06-17T12:00:00Z"
+            value:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 50
+              example: 2.31
+            unit:
+              type: string
+              enum: [mm/s, g]
+              example: mm/s
+            axis:
+              type: string
+              enum: [x, y, z]
+              example: z
+            site:
+              type: string
+              example: sw
+    channels:
+      iot-sensor/sw/temperature:
+        description: South-west factory line temperature telemetry
+        publish:
+          summary: Publish temperature reading
+          message:
+            name: TemperatureReading
+            contentType: application/json
+            payload:
+              $ref: "#/components/schemas/TemperatureReading"
+      iot-sensor/sw/vibration:
+        description: South-west factory line vibration telemetry
+        publish:
+          summary: Publish vibration reading
+          message:
+            name: VibrationReading
+            contentType: application/json
+            payload:
+              $ref: "#/components/schemas/VibrationReading"
+      iot-sensor/east/temperature:
+        description: East spoke temperature telemetry
+        publish:
+          message:
+            payload:
+              $ref: "#/components/schemas/TemperatureReading"
+      iot-sensor/west/temperature:
+        description: West spoke temperature telemetry
+        publish:
+          message:
+            payload:
+              $ref: "#/components/schemas/TemperatureReading"

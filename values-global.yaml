@@ -1,0 +1,15 @@
+---
+global:
+  pattern: ia-computer-vision
+  singleArgoCD: true
+  argoNamespace: openshift-gitops
+  options:
+    useCSV: false
+    syncPolicy: Automatic
+    installPlanApproval: Automatic
+main:
+  clusterGroupName: hub
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io

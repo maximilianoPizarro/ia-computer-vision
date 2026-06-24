@@ -1,0 +1,47 @@
+{{- if and .Values.neuroface.ovms.enabled .Values.neuroface.ovms.externalUrl .Values.neuroface.ovms.modelmesh.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: neuroface-download-model
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: neuroface
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      containers:
+        - name: downloader
+          image: {{ .Values.neuroface.ovms.modelmesh.downloadJob.image | default "registry.access.redhat.com/ubi9/python-311:latest" }}
+          command:
+            - bash
+            - -c
+            - |
+              pip install openvino-dev[onnx,tensorflow] > /dev/null 2>&1
+              omz_downloader --name {{ .Values.neuroface.ovms.modelName | default "face-detection-retail-0005" }} --precision FP16 \
+                -o /tmp/models
+              mkdir -p /models/{{ .Values.neuroface.ovms.modelName | default "face-detection-retail-0005" }}/1
+              cp /tmp/models/intel/{{ .Values.neuroface.ovms.modelName | default "face-detection-retail-0005" }}/FP16/* \
+                /models/{{ .Values.neuroface.ovms.modelName | default "face-detection-retail-0005" }}/1/
+              ls -la /models/{{ .Values.neuroface.ovms.modelName | default "face-detection-retail-0005" }}/1/
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: neuroface-models
+      restartPolicy: Never
+{{- end }}

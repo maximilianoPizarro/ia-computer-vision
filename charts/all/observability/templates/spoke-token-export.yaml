@@ -1,0 +1,158 @@
+{{- /*
+  Spoke-only: export kiali-service-account token to a ConfigMap for hub Kiali multi-cluster sync.
+  Includes a PostSync hook Job (runs on every Argo sync) and a CronJob (periodic refresh).
+*/ -}}
+{{- if .Values.exportTokenForHub }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kiali-token-export
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kiali-hub-export
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kiali-token-export
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    resourceNames: ["kiali-service-account"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["kiali-hub-export"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kiali-token-export
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kiali-token-export
+subjects:
+  - kind: ServiceAccount
+    name: kiali-token-export
+    namespace: openshift-cluster-observability-operator
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kiali-hub-token-export-hook
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: kiali-token-export
+      restartPolicy: OnFailure
+      containers:
+        - name: export
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              NS="openshift-cluster-observability-operator"
+              SA="kiali-service-account"
+              MAX_WAIT=60
+              INTERVAL=10
+
+              echo "Waiting for ServiceAccount $SA to be created by Kiali operator..."
+              elapsed=0
+              while ! oc get sa "$SA" -n "$NS" &>/dev/null; do
+                if [ $elapsed -ge $MAX_WAIT ]; then
+                  echo "ERROR: $SA not found after ${MAX_WAIT}s - retrying via backoffLimit"
+                  exit 1
+                fi
+                echo "  $SA not yet available (${elapsed}s/${MAX_WAIT}s)..."
+                sleep $INTERVAL
+                elapsed=$((elapsed + INTERVAL))
+              done
+              echo "ServiceAccount $SA found."
+
+              TOKEN=$(oc create token "$SA" -n "$NS" --duration={{ .Values.exportTokenDuration | default "86400s" }})
+              if [ -z "$TOKEN" ]; then
+                echo "ERROR: empty token returned"
+                exit 1
+              fi
+
+              oc patch configmap kiali-hub-export -n "$NS" --type merge -p \
+                "{\"data\":{\"token\":\"${TOKEN}\",\"updatedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}"
+              echo "OK: Exported token for hub Kiali multi-cluster sync"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kiali-hub-token-export
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  schedule: {{ .Values.exportTokenSchedule | default "0 */6 * * *" | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: kiali-token-export
+          restartPolicy: OnFailure
+          containers:
+            - name: export
+              image: registry.redhat.io/openshift4/ose-cli:latest
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  NS="openshift-cluster-observability-operator"
+                  SA="kiali-service-account"
+                  if ! oc get sa "$SA" -n "$NS" &>/dev/null; then
+                    echo "ERROR: $SA not found"
+                    exit 1
+                  fi
+                  TOKEN=$(oc create token "$SA" -n "$NS" --duration={{ .Values.exportTokenDuration | default "86400s" }})
+                  oc patch configmap kiali-hub-export -n "$NS" --type merge -p \
+                    "{\"data\":{\"token\":\"${TOKEN}\",\"updatedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}"
+                  echo "OK: Exported token for hub"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+{{- end }}

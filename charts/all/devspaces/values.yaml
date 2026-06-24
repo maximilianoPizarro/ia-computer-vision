@@ -1,0 +1,14 @@
+clusterDomain: ""
+userCount: 1
+hubClusterDomain: ""
+keycloakOidc:
+  enabled: true
+  clientSecret: ""
+keycloakOidcClientSecret: ""
+continueAi:
+  enabled: false
+  apiBase: ""
+  model: ""
+  credentialsSecretName: ""
+  credentialsSecretNamespace: ""
+  credentialsSecretKey: ""

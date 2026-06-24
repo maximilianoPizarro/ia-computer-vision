@@ -1,0 +1,15 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: neuroface-app
+  namespace: neuroface
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  parentRefs:
+    - name: neuroface-spoke-gateway
+      namespace: neuroface
+  rules:
+    - backendRefs:
+        - name: neuroface-frontend
+          port: 8080

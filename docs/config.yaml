@@ -1,0 +1,33 @@
+baseURL: https://maximilianopizarro.github.io/ia-computer-vision/
+languageCode: en-us
+title: AI Computer Vision Validated Pattern
+theme: learn
+
+params:
+  author: Maximiliano Pizarro
+  description: Multi-cluster AI Computer Vision at the Edge Validated Pattern
+  disableSearch: false
+
+markup:
+  defaultMarkdownHandler: asciidoctor
+  asciidoctor:
+    extensions:
+      - asciidoctor-html5s
+      - asciidoctor-diagram
+    attributes:
+      experimental: ""
+      icons: font
+      sectanchors: ""
+      sectlinks: ""
+      source-highlighter: highlightjs
+      toc: left
+      toclevels: 3
+
+menu:
+  main:
+    - name: Home
+      url: /
+      weight: 10
+    - name: Pattern
+      url: /patterns/ia-computer-vision/
+      weight: 20

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-label="AI Computer Vision hub-spoke architecture">
+  <defs>
+    <style>
+      .box { fill: #f4f4f4; stroke: #333; stroke-width: 2; }
+      .hub { fill: #e7f1ff; }
+      .spoke { fill: #eef8ee; }
+      .title { font: bold 18px sans-serif; fill: #111; }
+      .label { font: 14px sans-serif; fill: #222; }
+      .small { font: 12px sans-serif; fill: #444; }
+      .arrow { stroke: #555; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555"/>
+    </marker>
+  </defs>
+
+  <text x="480" y="34" text-anchor="middle" class="title">AI Computer Vision  Hub and Spoke Architecture</text>
+
+  <rect x="300" y="60" width="360" height="150" rx="12" class="box hub"/>
+  <text x="480" y="88" text-anchor="middle" class="title">Hub Cluster</text>
+  <text x="320" y="115" class="small">ACM · Vault · ESO · ACS Central</text>
+  <text x="320" y="135" class="small">Developer Hub · GitLab · OpenShift AI · Quay</text>
+  <text x="320" y="155" class="small">RHCL Gateway (50/50 HTTPRoute)</text>
+  <text x="320" y="175" class="small">Observability · Keycloak</text>
+
+  <rect x="40" y="280" width="300" height="170" rx="12" class="box spoke"/>
+  <text x="190" y="308" text-anchor="middle" class="title">East Spoke</text>
+  <text x="60" y="335" class="small">NeuroFace · OVMS / YOLO CV</text>
+  <text x="60" y="355" class="small">Skupper · Service Mesh ambient</text>
+  <text x="60" y="375" class="small">ACS Secured · Observability</text>
+  <text x="60" y="395" class="small">DevSpaces</text>
+
+  <rect x="620" y="280" width="300" height="170" rx="12" class="box spoke"/>
+  <text x="770" y="308" text-anchor="middle" class="title">West Spoke</text>
+  <text x="640" y="335" class="small">NeuroFace · OVMS / YOLO CV</text>
+  <text x="640" y="355" class="small">Skupper · Service Mesh ambient</text>
+  <text x="640" y="375" class="small">ACS Secured · Observability</text>
+  <text x="640" y="395" class="small">DevSpaces</text>
+
+  <rect x="390" y="470" width="180" height="40" rx="8" class="box"/>
+  <text x="480" y="496" text-anchor="middle" class="label">Git Repository (GitOps)</text>
+
+  <line x1="480" y1="420" x2="480" y2="470" class="arrow"/>
+  <line x1="480" y1="420" x2="190" y2="280" class="arrow"/>
+  <line x1="480" y1="420" x2="770" y2="280" class="arrow"/>
+  <line x1="480" y1="210" x2="190" y2="280" class="arrow"/>
+  <line x1="480" y1="210" x2="770" y2="280" class="arrow"/>
+  <line x1="190" y1="450" x2="770" y2="450" class="arrow"/>
+</svg>

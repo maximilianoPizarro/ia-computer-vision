@@ -1,0 +1,22 @@
+{{- if and .Values.neuroface.ovms.enabled .Values.neuroface.ovms.externalUrl .Values.neuroface.ovms.modelmesh.enabled }}
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ .Values.neuroface.ovms.modelName | default "face-detection-retail-0005" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: neuroface
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    serving.kserve.io/deploymentMode: ModelMesh
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: openvino_ir
+      runtime: neuroface
+      storage:
+        key: neuroface-models
+        path: {{ .Values.neuroface.ovms.modelName | default "face-detection-retail-0005" }}
+{{- end }}

@@ -1,0 +1,115 @@
+{{- /*
+  Dedicated Istio Gateway for GitLab — provides mesh visibility, circuit breaking,
+  and Kairos observability on GitLab ingress traffic.
+
+  Architecture:
+    [workshop user] → OpenShift Route (edge TLS) → gitlab-gateway-istio (ClusterIP)
+                    → HTTPRoute → gitlab-webservice-default:8080
+
+  The existing Route gitlab-apps is kept for direct Route access.
+  This Gateway adds Istio mesh plane + allows future Kuadrant/AuthPolicy on Git HTTP.
+*/ -}}
+{{- $host := include "gitlab-operator.host" . -}}
+{{- $ns := .Values.namespace }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gitlab-gateway
+  namespace: {{ $ns }}
+  labels:
+    app: gitlab
+    app.kubernetes.io/component: gateway
+    kairos.io/managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    networking.istio.io/service-type: ClusterIP
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 8080
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: gitlab-http
+  namespace: {{ $ns }}
+  labels:
+    app: gitlab
+    app.kubernetes.io/component: httproute
+    kairos.io/managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - name: gitlab-gateway
+      namespace: {{ $ns }}
+  hostnames:
+    - {{ $host | quote }}
+  rules:
+    # Git LFS — memory-intensive, route first to avoid conflicts
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /info/lfs
+      backendRefs:
+        - name: gitlab-webservice-default
+          port: 8080
+      timeouts:
+        request: 120s
+    # Git SSH push over HTTP (large payloads)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /upload
+      backendRefs:
+        - name: gitlab-webservice-default
+          port: 8080
+      timeouts:
+        request: 120s
+    # KAS WebSocket (DevSpaces + kubeconfig)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /-/kubernetes
+      backendRefs:
+        - name: gitlab-kas
+          port: 8154
+    # Default — all GitLab HTTP traffic
+    - backendRefs:
+        - name: gitlab-webservice-default
+          port: 8080
+      timeouts:
+        request: 60s
+---
+# OpenShift Route backed by the Istio gateway sidecar (ClusterIP service auto-created by Istio).
+# Name distinct from the operator-managed gitlab-apps Route.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gitlab-gateway-route
+  namespace: {{ $ns }}
+  labels:
+    app: gitlab
+    app.kubernetes.io/component: gateway
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  host: {{ printf "gitlab-gw.%s" (include "gitlab-operator.appsDomain" .) | quote }}
+  to:
+    kind: Service
+    name: gitlab-gateway-istio
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,31 @@
+clusterDomain: ""
+clusterRole: hub
+clusterName: ""
+clusterSuffix: ""
+
+exportTokenForHub: false
+exportTokenSchedule: "0 */6 * * *"
+exportTokenDuration: "86400s"
+
+multiCluster:
+  enabled: false
+  automateTokens: false
+  clusters:
+    east:
+      name: east
+      apiUrl: ""
+      caData: ""
+      kialiToken: ""
+      kialiUrl: ""
+    west:
+      name: west
+      apiUrl: ""
+      caData: ""
+      kialiToken: ""
+      kialiUrl: ""
+  tokenSync:
+    schedule: "0 */6 * * *"
+    image: registry.redhat.io/ubi9/python-311:latest
+
+workshopGateways:
+  enabled: false
