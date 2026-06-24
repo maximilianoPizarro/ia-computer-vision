@@ -102,20 +102,6 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: platform-devspaces
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://devspaces.{{ $domain }}"
-  location: ApplicationMenu
-  text: "DevSpaces"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
   name: platform-gitlab
   annotations:
     argocd.argoproj.io/sync-wave: "10"
