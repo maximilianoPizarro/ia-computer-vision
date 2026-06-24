@@ -91,10 +91,10 @@ clusterGroup:
       namespace: external-secrets-operator
       channel: stable-v1
     rhcl:
-      name: connectivity-link-operator
+      name: rhcl-operator
       namespace: redhat-connectivity-link-operator
       channel: stable
-      source: redhat-operators
+      source: community-operators
 
   argoProjects:
     - platform

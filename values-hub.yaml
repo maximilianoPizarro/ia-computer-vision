@@ -57,7 +57,7 @@ clusterGroup:
       channel: stable
       source: redhat-operators
     rhcl:
-      name: connectivity-link-operator
+      name: rhcl-operator
       namespace: redhat-connectivity-link-operator
       channel: stable
       source: redhat-operators
@@ -84,7 +84,7 @@ clusterGroup:
     quay:
       name: quay-operator
       namespace: quay-enterprise
-      channel: stable
+      channel: stable-3.17
       source: redhat-operators
     pipelines:
       name: openshift-pipelines-operator-rh
