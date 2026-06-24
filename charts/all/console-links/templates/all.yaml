@@ -38,9 +38,23 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kiali.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://kiali-openshift-cluster-observability-operator.{{ $hubDomain }}"
+  href: "https://kiali-openshift-cluster-observability-operator.{{ $domain }}"
   location: ApplicationMenu
   text: "Kiali Service Mesh"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-skupper-console
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "skupper.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://skupper-console-service-interconnect.{{ $domain }}"
+  location: ApplicationMenu
+  text: "Skupper Console (Network)"
 {{- if eq $role "hub" }}
 ---
 apiVersion: console.openshift.io/v1
@@ -74,12 +88,12 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: workshop-developer-hub
+  name: platform-developer-hub
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "rhdh.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://developer-hub.{{ $domain }}"
   location: ApplicationMenu
@@ -88,12 +102,12 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: workshop-devspaces
+  name: platform-devspaces
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "devspaces.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://devspaces.{{ $domain }}"
   location: ApplicationMenu
@@ -102,21 +116,7 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: workshop-openshift-ai
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "rhoai.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://rhods-dashboard-redhat-ods-applications.{{ $domain }}"
-  location: ApplicationMenu
-  text: "OpenShift AI"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
-  name: workshop-gitlab
+  name: platform-gitlab
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
@@ -125,12 +125,12 @@ spec:
     section: "Platform AI Computer Vision"
   href: "https://gitlab.{{ $domain }}"
   location: ApplicationMenu
-  text: "GitLab"
+  text: "GitLab (SCM)"
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: workshop-quay
+  name: platform-quay-registry
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
@@ -144,14 +144,14 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: workshop-neuroface-api
+  name: platform-neuroface
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "neuroface.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://api.neuroface.{{ $domain }}/swagger/index.html"
+  href: "https://neuroface-gateway.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "NeuroFace API Gateway"
 {{- end }}
