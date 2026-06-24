@@ -9,7 +9,7 @@ The AI Computer Vision pattern uses a three-cluster topology.
 
 ## Topology
 
-![Architecture diagram](/images/ia-computer-vision/architecture.svg)
+![Architecture diagram](../images/ia-computer-vision/architecture.svg)
 
 ## Cluster roles
 

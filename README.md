@@ -69,7 +69,7 @@ flowchart TB
 ## Prerequisites
 
 - Three Red Hat OpenShift Container Platform 4.20+ clusters (hub, east, west)
-- Recommended AWS sizing per cluster: 3× `m6a.2xlarge` control plane + 3× `m6a.2xlarge` workers (see [cluster sizing](docs/content/patterns/ia-computer-vision/cluster-sizing.adoc))
+- Recommended AWS sizing per cluster: 3× `m6a.2xlarge` control plane + 3× `m6a.2xlarge` workers (see [cluster sizing](docs/content/docs/cluster-sizing.md))
 - Validated Patterns Operator installed on each cluster
 - `podman` and cluster admin `kubeconfig` for CLI install
 
