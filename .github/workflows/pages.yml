@@ -26,11 +26,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ruby/setup-ruby@v1
+      - uses: actions/setup-go@v5
         with:
-          ruby-version: "3.3"
-
-      - run: gem install asciidoctor rouge
+          go-version: "1.21"
 
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
@@ -39,7 +37,7 @@ jobs:
           extended: true
 
       - name: Build site
-        run: hugo --minify --baseURL https://maximilianopizarro.github.io/ia-computer-vision/
+        run: hugo --minify
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

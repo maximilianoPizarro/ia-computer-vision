@@ -1,27 +1,26 @@
 baseURL: https://maximilianopizarro.github.io/ia-computer-vision/
 languageCode: en-us
 title: AI Computer Vision Validated Pattern
-theme: learn
+
+module:
+  imports:
+    - path: github.com/alex-shpak/hugo-book
 
 params:
   author: Maximiliano Pizarro
   description: Multi-cluster AI Computer Vision at the Edge Validated Pattern
-  disableSearch: false
+  BookToC: true
+  BookSection: patterns
 
 markup:
-  defaultMarkdownHandler: asciidoctor
-  asciidoctor:
-    extensions:
-      - asciidoctor-html5s
-      - asciidoctor-diagram
+  asciidocExt:
     attributes:
-      experimental: ""
+      source-highlighter: rouge
       icons: font
       sectanchors: ""
       sectlinks: ""
-      source-highlighter: highlightjs
-      toc: left
-      toclevels: 3
+      experimental: ""
+    safeMode: unsafe
 
 menu:
   main:
