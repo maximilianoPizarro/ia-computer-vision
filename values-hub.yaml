@@ -19,7 +19,10 @@ clusterGroup:
     redhat-connectivity-link-operator:
       operatorGroup: true
       targetNamespaces: []
-    gitlab-system: {}
+    gitlab-system:
+      operatorGroup: true
+      targetNamespaces:
+        - gitlab-system
     gitlab-runner: {}
     rhdh-operator:
       operatorGroup: true
