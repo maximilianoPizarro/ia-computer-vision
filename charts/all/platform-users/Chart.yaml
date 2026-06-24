@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-users
+description: Workshop htpasswd users, OAuth identity provider, and optional cluster-reader RBAC
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

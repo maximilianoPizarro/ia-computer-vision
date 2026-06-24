@@ -1,0 +1,62 @@
+# Showroom Lab Guide Configuration
+showroom:
+  enabled: true
+  namespace: showroom
+  name: showroom
+
+  # Lab guide Git repository
+  content:
+    repoUrl: "https://github.com/maximilianoPizarro/showroom-ia-computer-vision.git"
+    repoRef: "main"
+    antoraPlaybook: "site.yml"
+    image: "quay.io/rhpds/showroom-content:v1.3.1"
+
+  nookbag:
+    enabled: false
+
+  # Terminal configuration
+  terminal:
+    enabled: true
+    image: "quay.io/rhpds/openshift-showroom-terminal-ocp:latest"
+    # Match platform-users.userCount for workshop-lab-reader bindings
+    userCount: 30
+    # Namespaces lab modules inspect with oc (Showroom SA + userN after hub-login)
+    workshopNamespaces:
+      - developer-hub
+      - neuroface-gateway-system
+      - stackrox
+      - vault
+      - openshift-gitops
+      - gitlab-system
+      - quay-enterprise
+      - redhat-connectivity-link-operator
+      - service-interconnect
+      - neuroface
+      - neuroface-cv
+      - redhat-ods-applications
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
+clusterDomain: ""
+hubClusterDomain: ""
+clusterRole: hub
+
+clusters:
+  east:
+    domain: ""
+    apiUrl: ""
+  west:
+    domain: ""
+    apiUrl: ""
+
+registration:
+  url: ""
+
+demo:
+  namespace: "neuroface"
+  appName: "neuroface"

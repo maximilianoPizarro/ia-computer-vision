@@ -1,0 +1,490 @@
+{{- if .Values.showroom.enabled }}
+{{- $hubDomain := include "showroom.hubClusterDomain" . -}}
+{{- $hubApiUrl := include "showroom.hubApiUrl" . -}}
+{{- $eastDomain := include "showroom.eastDomain" . -}}
+{{- $westDomain := include "showroom.westDomain" . -}}
+{{- $eastApiUrl := include "showroom.eastApiUrl" . -}}
+{{- $westApiUrl := include "showroom.westApiUrl" . -}}
+---
+# Showroom ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.showroom.name }}
+  namespace: {{ .Values.showroom.namespace }}
+---
+# Showroom RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: edit-{{ .Values.showroom.name }}-sa
+  namespace: {{ .Values.showroom.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.showroom.name }}
+  namespace: {{ .Values.showroom.namespace }}
+---
+# Showroom ClusterRoleBinding — read-only access across all namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.showroom.name }}-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-reader
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.showroom.name }}
+  namespace: {{ .Values.showroom.namespace }}
+---
+# Showroom Nginx ConfigMap
+kind: ConfigMap
+metadata:
+  name: {{ .Values.showroom.name }}-proxy-config
+  namespace: {{ .Values.showroom.namespace }}
+apiVersion: v1
+data:
+  nginx.conf: |
+    events {
+    }
+    error_log /dev/stdout info;
+    http {
+      include /etc/nginx/mime.types;
+      proxy_cache off;
+      expires -1;
+      proxy_cache_path /dev/null keys_zone=mycache:10m;
+      map $http_upgrade $connection_upgrade {
+          default upgrade;
+          '' close;
+      }
+      server {
+        listen 8080;
+        absolute_redirect off;
+        location / {
+          proxy_pass http://127.0.0.1:8000;
+          expires off;
+          proxy_cache off;
+          proxy_pass_request_headers on;
+          proxy_set_header Accept-Encoding "";
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        {{- if .Values.showroom.terminal.enabled }}
+        location /terminal/ {
+          proxy_pass http://127.0.0.1:7681;
+          rewrite ^/terminal/(.*)$ /$1 break;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_read_timeout 43200000;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-NginX-Proxy true;
+        }
+        {{- end }}
+      }
+    }
+---
+# Showroom User Data ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.showroom.name }}-userdata
+  namespace: {{ .Values.showroom.namespace }}
+data:
+  user_data.yml: |
+    hub_domain: {{ $hubDomain }}
+    cluster_domain: {{ $hubDomain }}
+    hub_api_url: {{ $hubApiUrl | quote }}
+    east_domain: {{ $eastDomain }}
+    east_api_url: {{ $eastApiUrl | quote }}
+    west_domain: {{ $westDomain }}
+    west_api_url: {{ $westApiUrl | quote }}
+    registration_url: {{ .Values.registration.url | default (printf "https://workshop-registration.%s" $hubDomain) }}
+    user_name: '%USER_NAME%'
+    user_password: '%USER_PASSWORD%'
+    demo_namespace: {{ .Values.demo.namespace }}
+    demo_app: {{ .Values.demo.appName }}
+---
+# Showroom PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.showroom.name }}-terminal-lab-user-home
+  namespace: {{ .Values.showroom.namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: "5Gi"
+---
+# Showroom Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.showroom.name }}
+  namespace: {{ .Values.showroom.namespace }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/name: {{ .Values.showroom.name }}
+---
+# Showroom Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.showroom.name }}
+  namespace: {{ .Values.showroom.namespace }}
+  labels:
+    demo.redhat.com/application: "showroom"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.showroom.name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.showroom.name }}
+    spec:
+      serviceAccountName: {{ .Values.showroom.name }}
+      automountServiceAccountToken: true
+      initContainers:
+      - name: git-cloner
+        image: "quay.io/rhpds/git-cloner:v1.1.2"
+        env:
+        - name: GIT_REPO_URL
+          value: {{ .Values.showroom.content.repoUrl | quote }}
+        - name: GIT_REPO_REF
+          value: {{ .Values.showroom.content.repoRef | quote }}
+        - name: CLONE_DIR
+          value: "/showroom/repo"
+        volumeMounts:
+        - mountPath: /showroom/repo
+          name: showroom-files
+          subPath: repo
+      - name: antora-userdata-merge
+        image: "docker.io/mikefarah/yq:4"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            SITE="/showroom/repo/site.yml"
+            if [ -f "$SITE" ] && [ -f /user_data/user_data.yml ]; then
+              yq -i '.asciidoc.attributes *= load("/user_data/user_data.yml")' "$SITE"
+            fi
+            for ANTORA in \
+              "/showroom/repo/content/antora.yml" \
+              "/showroom/repo/content/modules/en/antora.yml" \
+              "/showroom/repo/content/modules/es/antora.yml"; do
+              if [ -f "$ANTORA" ] && [ -f /user_data/user_data.yml ]; then
+                yq -i '.asciidoc.attributes *= load("/user_data/user_data.yml")' "$ANTORA"
+              fi
+            done
+        volumeMounts:
+        - mountPath: /showroom/repo
+          name: showroom-files
+          subPath: repo
+        - name: user-data
+          mountPath: /user_data/
+      - name: antora-builder
+        image: "quay.io/rhpds/antora:v1.0.1"
+        env:
+        - name: FILES_DIR
+          value: "/showroom/repo"
+        - name: OUTPUT_DIR
+          value: "/showroom/www"
+        - name: ANTORA_SITE_FILE
+          value: {{ .Values.showroom.content.antoraPlaybook | quote }}
+        volumeMounts:
+        - mountPath: /showroom/repo
+          name: showroom-files
+          subPath: repo
+        - name: user-data
+          mountPath: /user_data/
+        - mountPath: /showroom/www
+          name: showroom-files
+          subPath: www
+      - name: antora-html-subst
+        image: "docker.io/mikefarah/yq:4"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            UD="/user_data/user_data.yml"
+            WWW="/showroom/www"
+            if [ ! -f "$UD" ] || [ ! -d "$WWW" ]; then
+              echo "skip html subst — missing user_data or www"
+              exit 0
+            fi
+            HUB=$(yq -r '.hub_domain // ""' "$UD")
+            EAST=$(yq -r '.east_domain // ""' "$UD")
+            WEST=$(yq -r '.west_domain // ""' "$UD")
+            REG=$(yq -r '.registration_url // ""' "$UD")
+            for f in $(find "$WWW" -name '*.html' 2>/dev/null); do
+              [ -n "$HUB" ] && sed -i "s|%HUB_DOMAIN%|${HUB}|g" "$f"
+              [ -n "$EAST" ] && sed -i "s|%EAST_DOMAIN%|${EAST}|g" "$f"
+              [ -n "$WEST" ] && sed -i "s|%WEST_DOMAIN%|${WEST}|g" "$f"
+              [ -n "$REG" ] && sed -i "s|%REGISTRATION_URL%|${REG}|g" "$f"
+              [ -n "$REG" ] && sed -i "s|https://workshop-registration.${HUB}|${REG}|g" "$f"
+            done
+            echo "substituted domains in $(find "$WWW" -name '*.html' | wc -l) html files"
+        volumeMounts:
+        - mountPath: /showroom/www
+          name: showroom-files
+          subPath: www
+        - name: user-data
+          mountPath: /user_data/
+      {{- if .Values.showroom.terminal.enabled }}
+      - name: terminal-cli-bootstrap
+        image: {{ .Values.showroom.terminal.image | quote }}
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: {{ .Values.showroom.terminal.resources.requests.cpu | quote }}
+            memory: {{ .Values.showroom.terminal.resources.requests.memory | quote }}
+          limits:
+            cpu: {{ .Values.showroom.terminal.resources.limits.cpu | quote }}
+            memory: {{ .Values.showroom.terminal.resources.limits.memory | quote }}
+        env:
+        - name: CLUSTER_DOMAIN
+          value: {{ $hubDomain | quote }}
+        - name: EAST_DOMAIN
+          value: {{ .Values.clusters.east.domain | default "" | quote }}
+        - name: WEST_DOMAIN
+          value: {{ .Values.clusters.west.domain | default "" | quote }}
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            export HOME=/home/lab-user
+            BIN="/home/lab-user/.local/bin"
+            mkdir -p "$BIN"
+            if [ ! -f "$BIN/rosa" ]; then
+              curl -sL "https://mirror.openshift.com/pub/openshift-v4/clients/rosa/latest/rosa-linux.tar.gz" | tar xz -C "$BIN" rosa 2>/dev/null || true
+            fi
+            if [ ! -f "$BIN/yq" ]; then
+              curl -sL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" -o "$BIN/yq" && chmod +x "$BIN/yq" 2>/dev/null || true
+            fi
+            if [ ! -f "$BIN/argocd" ]; then
+              curl -sL "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64" -o "$BIN/argocd" && chmod +x "$BIN/argocd" 2>/dev/null || true
+            fi
+            if [ ! -f "$BIN/aws" ]; then
+              curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscli.zip && \
+              cd /tmp && unzip -qo awscli.zip && ./aws/install --bin-dir "$BIN" --install-dir "$BIN/aws-install" --update 2>/dev/null && rm -rf /tmp/aws* || true
+            fi
+            if [ ! -x "$BIN/az" ]; then
+              AZ_VENV="/home/lab-user/.local/lib/azure-cli"
+              python3 -m venv "$AZ_VENV" && \
+              "$AZ_VENV/bin/pip" install --quiet azure-cli && \
+              ln -sf "$AZ_VENV/bin/az" "$BIN/az" || true
+            fi
+            if [ ! -f "$BIN/gcloud" ]; then
+              curl -sL "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz" | tar xz -C /home/lab-user/.local 2>/dev/null && \
+              /home/lab-user/.local/google-cloud-sdk/install.sh --quiet --path-update=false --usage-reporting=false 2>/dev/null && \
+              ln -sf /home/lab-user/.local/google-cloud-sdk/bin/gcloud "$BIN/gcloud" && \
+              ln -sf /home/lab-user/.local/google-cloud-sdk/bin/gsutil "$BIN/gsutil" && \
+              ln -sf /home/lab-user/.local/google-cloud-sdk/bin/bq "$BIN/bq" || true
+            fi
+            cat > /home/lab-user/.bashrc << 'BASHRC'
+            export HOME=/home/lab-user
+            export PATH="$HOME/.local/bin:$PATH"
+            export PS1='\[\e[1;31m\][\u@showroom]\[\e[0m\] \w \$ '
+
+            hub-login() {
+              oc login -u "${1:-user1}" -p Welcome123! "https://api.${CLUSTER_DOMAIN#apps.}:6443" --insecure-skip-tls-verify
+            }
+            sa-login() {
+              local token="/var/run/secrets/kubernetes.io/serviceaccount/token"
+              local ca="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+              local server="${HUB_API_URL:-https://api.${CLUSTER_DOMAIN#apps.}:6443}"
+              if [[ ! -f "$token" ]]; then
+                echo "No SA token mounted; use hub-login userN"
+                return 1
+              fi
+              oc login --token="$(cat "$token")" --server="$server" \
+                --certificate-authority="$ca" --insecure-skip-tls-verify
+            }
+            east-login() {
+              oc login -u "${1:-user1}" -p Welcome123! "$EAST_API_URL" --insecure-skip-tls-verify
+            }
+            west-login() {
+              oc login -u "${1:-user1}" -p Welcome123! "$WEST_API_URL" --insecure-skip-tls-verify
+            }
+
+            neuroface-cv-status() {
+              local hub="${CLUSTER_DOMAIN}"
+              curl -sk "https://neuroface-cv.${hub}/api/ppe/status" | head -c 400
+              echo
+            }
+            neuroface-cv-traffic() {
+              sa-login 2>/dev/null || hub-login "${1:-user1}"
+              oc get httproute,gateway,route -n neuroface-gateway-system 2>/dev/null || true
+              oc get listener,connector -n service-interconnect 2>/dev/null | grep -E 'neuroface-cv|NAME' || true
+            }
+            neuroface-spoke-status() {
+              sa-login 2>/dev/null || hub-login "${1:-user1}"
+              oc get deploy,pods -n neuroface 2>/dev/null || true
+              oc get deploy,pods -n neuroface-cv 2>/dev/null || true
+            }
+
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║  AI Computer Vision Workshop Terminal                        ║"
+            echo "╠══════════════════════════════════════════════════════════════╣"
+            echo "║  oc login:     hub-login userN | sa-login (read-only SA)     ║"
+            echo "║  spokes:       east-login | west-login                       ║"
+            echo "║  NeuroFace CV: neuroface-cv-status | neuroface-cv-traffic    ║"
+            echo "║  Edge apps:    neuroface-spoke-status                          ║"
+            echo "║  argocd:       argocd login argocd-server-openshift-gitops..   ║"
+            echo "╠══════════════════════════════════════════════════════════════╣"
+            echo "║  Hub: $CLUSTER_DOMAIN"
+            echo "║  East: $EAST_DOMAIN"
+            echo "║  West: $WEST_DOMAIN"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+            BASHRC
+        volumeMounts:
+        - name: terminal-lab-user-home
+          mountPath: /home/lab-user
+      {{- end }}
+      containers:
+      - name: nginx
+        image: "quay.io/rhpds/nginx:1.25"
+        imagePullPolicy: "IfNotPresent"
+        volumeMounts:
+        - mountPath: /etc/nginx/nginx.conf
+          name: nginx-config
+          subPath: nginx.conf
+        - mountPath: /var/cache/nginx
+          name: nginx-cache
+        - mountPath: /var/run
+          name: nginx-pid
+        ports:
+        - name: web
+          containerPort: 8080
+      - name: content
+        image: {{ .Values.showroom.content.image | quote }}
+        imagePullPolicy: "IfNotPresent"
+        env:
+        - name: GIT_REPO_URL
+          value: {{ .Values.showroom.content.repoUrl | quote }}
+        - name: GIT_REPO_REF
+          value: {{ .Values.showroom.content.repoRef | quote }}
+        - name: ANTORA_PLAYBOOK
+          value: {{ .Values.showroom.content.antoraPlaybook | quote }}
+        - name: DOMAIN
+          value: {{ $hubDomain | quote }}
+        {{- if .Values.showroom.nookbag.enabled }}
+        - name: ZT_BUNDLE
+          value: {{ .Values.showroom.nookbag.bundleUrl | quote }}
+        - name: ZT_UI_ENABLED
+          value: "true"
+        - name: GUID
+          value: {{ .Values.showroom.namespace | quote }}
+        {{- end }}
+        volumeMounts:
+        - name: user-data
+          mountPath: /user_data/
+        - mountPath: /showroom/repo
+          name: showroom-files
+          subPath: repo
+        - mountPath: /showroom/www
+          name: showroom-files
+          subPath: www
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+      {{- if .Values.showroom.terminal.enabled }}
+      - name: terminal
+        image: {{ .Values.showroom.terminal.image | quote }}
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CLUSTER_DOMAIN
+          value: {{ $hubDomain | quote }}
+        - name: HUB_API_URL
+          value: {{ $hubApiUrl | quote }}
+        - name: EAST_API_URL
+          value: {{ .Values.clusters.east.apiUrl | default "" | quote }}
+        - name: WEST_API_URL
+          value: {{ .Values.clusters.west.apiUrl | default "" | quote }}
+        - name: EAST_DOMAIN
+          value: {{ .Values.clusters.east.domain | default "" | quote }}
+        - name: WEST_DOMAIN
+          value: {{ .Values.clusters.west.domain | default "" | quote }}
+        volumeMounts:
+        - name: terminal-lab-user-home
+          mountPath: /home/lab-user
+        - name: user-data
+          mountPath: /user_data/
+        ports:
+        - containerPort: 7681
+          protocol: TCP
+        resources:
+          limits:
+            cpu: {{ .Values.showroom.terminal.resources.limits.cpu }}
+            memory: {{ .Values.showroom.terminal.resources.limits.memory }}
+          requests:
+            cpu: {{ .Values.showroom.terminal.resources.requests.cpu }}
+            memory: {{ .Values.showroom.terminal.resources.requests.memory }}
+      {{- end }}
+      volumes:
+      - name: showroom-files
+        emptyDir: {}
+      - name: user-data
+        configMap:
+          name: {{ .Values.showroom.name }}-userdata
+      - name: nginx-config
+        configMap:
+          defaultMode: 420
+          name: {{ .Values.showroom.name }}-proxy-config
+      - name: nginx-pid
+        emptyDir: {}
+      - name: nginx-cache
+        emptyDir: {}
+      - name: terminal-lab-user-home
+        persistentVolumeClaim:
+          claimName: {{ .Values.showroom.name }}-terminal-lab-user-home
+---
+# Showroom Route
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .Values.showroom.name }}
+  namespace: {{ .Values.showroom.namespace }}
+  annotations:
+    haproxy.router.openshift.io/timeout: 1h
+    haproxy.router.openshift.io/timeout-tunnel: 1h
+spec:
+  to:
+    kind: Service
+    name: {{ .Values.showroom.name }}
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+{{- end }}

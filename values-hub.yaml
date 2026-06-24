@@ -30,6 +30,7 @@ clusterGroup:
     developer-hub: {}
     keycloak-system: {}
     quay-enterprise: {}
+    showroom: {}
     redhat-ods-operator:
       operatorGroup: true
       targetNamespaces: []
@@ -143,6 +144,18 @@ clusterGroup:
         - name: clusterRole
           value: hub
 
+    platform-users:
+      name: platform-users
+      namespace: openshift-gitops
+      argoProject: platform
+      path: charts/all/platform-users
+      syncWave: "0"
+      overrides:
+        - name: userCount
+          value: "30"
+        - name: clusterRole
+          value: hub
+
     observability:
       name: observability
       namespace: openshift-cluster-observability-operator
@@ -199,6 +212,9 @@ clusterGroup:
       argoProject: workshop
       path: charts/all/gitlab-operator
       syncWave: "3"
+      overrides:
+        - name: userCount
+          value: "30"
 
     developer-hub:
       name: developer-hub
@@ -208,7 +224,7 @@ clusterGroup:
       syncWave: "4"
       overrides:
         - name: userCount
-          value: "1"
+          value: "30"
 
     openshift-ai-hub:
       name: openshift-ai-hub
@@ -218,7 +234,17 @@ clusterGroup:
       syncWave: "5"
       overrides:
         - name: userCount
-          value: "1"
+          value: "30"
+
+    showroom:
+      name: showroom
+      namespace: showroom
+      argoProject: workshop
+      path: charts/all/showroom
+      syncWave: "5"
+      overrides:
+        - name: showroom.terminal.userCount
+          value: "30"
 
     neuroface-gateway:
       name: neuroface-gateway
@@ -242,7 +268,7 @@ clusterGroup:
       syncWave: "7"
       overrides:
         - name: userCount
-          value: "1"
+          value: "30"
 
     console-links:
       name: console-links

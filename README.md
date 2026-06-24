@@ -102,6 +102,20 @@ export TARGET_CLUSTERGROUP=west
 
 Copy `values-secret.yaml.template` to `~/values-secret-ia-computer-vision.yaml` and fill in optional values. See [Validated Patterns secrets management](https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/).
 
+## Workshop mode
+
+Workshop mode is enabled by default with 30 pre-provisioned users (`user1`–`user30`, password `Welcome123!`) and a Showroom lab guide on the hub cluster.
+
+| Component | Purpose |
+|-----------|---------|
+| `platform-users` | HTPasswd OAuth users + console RBAC (hub and spokes) |
+| `developer-hub` / `gitlab-operator` / `devspaces` | Per-user Developer Hub, GitLab, and DevSpaces access |
+| `showroom` | Antora lab guide with embedded `oc` terminal |
+
+Access Showroom at `https://showroom-showroom.apps.<hub_domain>`.
+
+To change the number of users, update the `userCount` override in `values-hub.yaml`, `values-east.yaml`, and `values-west.yaml`. See [Workshop mode documentation](docs/content/docs/workshop.md) for details.
+
 ## Documentation
 
 Full documentation is published at [https://maximilianopizarro.github.io/ia-computer-vision/](https://maximilianopizarro.github.io/ia-computer-vision/).

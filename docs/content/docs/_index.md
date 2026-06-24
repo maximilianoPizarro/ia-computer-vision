@@ -37,4 +37,5 @@ Install each cluster role independently using `clusterGroupName: hub`, `east`, o
 - [Getting started]({{< relref "getting-started" >}})
 - [Cluster sizing]({{< relref "cluster-sizing" >}})
 - [Architecture]({{< relref "architecture" >}})
+- [Workshop mode]({{< relref "workshop" >}})
 - [Ideas for customization]({{< relref "ideas-for-customization" >}})

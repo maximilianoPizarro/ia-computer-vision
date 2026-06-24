@@ -1,0 +1,25 @@
+{{- if .Values.grantClusterReader }}
+{{- $count := int .Values.userCount }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: workshop-users-cluster-reader
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-reader
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: platformadmin
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: admin
+{{- range $i := until $count }}
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: {{ printf "user%d" (add $i 1) | quote }}
+{{- end }}
+{{- end }}

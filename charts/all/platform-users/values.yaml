@@ -1,0 +1,33 @@
+# Workshop user scale (profiles: 30, 50, 100, 200)
+userCount: 30
+defaultPassword: "Welcome123!"
+# Hub + spokes — view ACM, Kiali, Skupper, Grafana console links without cluster-admin
+grantClusterReader: true
+htpasswdSecretName: workshop-users
+identityProviderName: workshop-users
+# ose-cli lacks htpasswd; httpd image generates bcrypt hashes for OAuth.
+htpasswdImage: registry.access.redhat.com/ubi9/httpd-24:latest
+# hub | spoke — selects namespace view RoleBinding list
+clusterRole: ""
+viewNamespacesHub:
+  - developer-hub
+  - showroom
+  - redhat-ods-applications
+  - openshift-gitops
+  - stackrox
+  - gitlab-system
+  - quay-enterprise
+  - vault
+  - redhat-connectivity-link-operator
+  - openshift-cluster-observability-operator
+  - neuroface-gateway-system
+viewNamespacesSpoke:
+  - neuroface
+  - neuroface-cv
+  - service-interconnect
+  - redhat-ods-applications
+  - openshift-gitops
+  - stackrox
+  - devspaces
+  - openshift-cluster-observability-operator
+  - redhat-connectivity-link-operator

@@ -110,6 +110,18 @@ clusterGroup:
     - '/overrides/values-{{ $.Values.global.clusterVersion }}-{{ $.Values.clusterGroup.name }}.yaml'
 
   applications:
+    platform-users:
+      name: platform-users
+      namespace: openshift-gitops
+      argoProject: platform
+      path: charts/all/platform-users
+      syncWave: "0"
+      overrides:
+        - name: userCount
+          value: "30"
+        - name: clusterRole
+          value: spoke
+
     servicemesh-config:
       name: servicemesh-config
       namespace: istio-system
@@ -206,6 +218,6 @@ clusterGroup:
       syncWave: "7"
       overrides:
         - name: userCount
-          value: "1"
+          value: "30"
         - name: clusterName
           value: east

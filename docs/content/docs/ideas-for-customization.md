@@ -30,3 +30,7 @@ For proof-of-concept environments, deploy only the hub and one spoke by omitting
 ## Observability backends
 
 Point OpenTelemetry exporters to your existing tracing backend by overriding `charts/all/observability/values.yaml` on each cluster.
+
+## Workshop user count
+
+Workshop mode provisions `user1` through `userN` accounts (default: 30). To scale users, update the `userCount` override consistently across `platform-users`, `developer-hub`, `gitlab-operator`, `openshift-ai-hub`, `devspaces`, and `showroom` applications. See [Workshop mode](workshop.md) for details.
