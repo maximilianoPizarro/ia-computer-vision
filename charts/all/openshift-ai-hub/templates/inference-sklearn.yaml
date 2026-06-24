@@ -1,5 +1,5 @@
 {{- $is := .Values.userProjects.inferenceService | default dict -}}
-{{- if and .Values.userProjects.enabled ($is.enabled | default true) }}
+{{- if and .Values.userProjects.enabled (ne ($is.enabled | toString) "false") }}
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
