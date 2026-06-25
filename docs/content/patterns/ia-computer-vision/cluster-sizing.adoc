@@ -11,31 +11,48 @@ This page documents cluster sizing requirements, network prerequisites, and the 
 
 == Recommended AWS sizing
 
-[cols="2,2,2",options="header"]
+[cols="2,2,2,2",options="header"]
 |===
-| Cluster role | Control plane | Workers
+| Cluster role | Control plane | Workers | Notes
 
 | Hub
 | 3 x `m6a.2xlarge`
-| 3 x `m6a.2xlarge`
+| 3 x `m6a.4xlarge`
+| Hub runs 15+ operators and ~450 pods. `m6a.2xlarge` workers (8 vCPU) reach 98-99% CPU request allocation. Use `m6a.4xlarge` (16 vCPU, 64 GiB) for production. For sandbox/demo, `m6a.2xlarge` works if you remove the `NoSchedule` taint from master nodes.
 
 | East spoke
 | 3 x `m6a.2xlarge`
 | 3 x `m6a.2xlarge`
+| Spoke workloads are lighter (~150 pods). `m6a.2xlarge` is sufficient for CPU-only inference.
 
 | West spoke
 | 3 x `m6a.2xlarge`
 | 3 x `m6a.2xlarge`
+| Same as east.
 |===
 
-Each `m6a.2xlarge` instance provides 8 vCPU and 32 GiB memory.
+Each `m6a.2xlarge` instance provides 8 vCPU and 32 GiB memory. Each `m6a.4xlarge` provides 16 vCPU and 64 GiB memory.
+
+=== Sandbox sizing (m6a.2xlarge workers)
+
+In a tested sandbox deployment with `m6a.2xlarge` workers (3 control + 3 worker nodes per cluster), the hub reached **98-99% CPU request allocation** on the 3 schedulable worker nodes with all operators running. The following adjustments were needed:
+
+* Scale `rhods-dashboard` to 1 replica (default 2, each pod uses 3.1 CPU requests across 9 containers)
+* Reduce ACS Central scanner-v4 resource requests
+* Remove `NoSchedule` taint from master nodes to allow scheduling on all 6 nodes (taints reappear after reconciliation; use a MachineConfig or `Scheduler` CR with `mastersSchedulable: true` to persist)
+
+[IMPORTANT]
+====
+For production deployments, use `m6a.4xlarge` or larger workers on the hub. The hub runs RHACM, ACS Central (scanner, scanner-v4), GitLab, Developer Hub, OpenShift AI, Keycloak, Quay, and Vault — each operator contributes significant CPU requests even when idle.
+====
 
 == Minimum requirements
 
 * OCP 4.20 or later on all clusters
-* Three worker nodes per cluster (minimum)
+* Three worker nodes per cluster (minimum); hub recommended `m6a.4xlarge` or equivalent
 * Sufficient persistent storage for Vault, Quay, GitLab, and OpenShift AI on the hub
 * Default StorageClass configured and provisioning PVCs
+* Hub total CPU capacity: minimum 32 vCPU allocatable across workers (with operator defaults)
 
 == Network requirements
 
@@ -163,7 +180,7 @@ The following versions are tested with this pattern. The `Channel` column maps t
 | Red Hat Quay
 | 3.17
 | `stable-3.17`
-| Hub
+| Hub (requires ODF for ObjectBucketClaim)
 
 | GitLab Operator
 | 3.1

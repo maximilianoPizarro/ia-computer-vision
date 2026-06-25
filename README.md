@@ -119,13 +119,41 @@ flowchart TB
 ## Prerequisites
 
 - Three Red Hat OpenShift Container Platform 4.20+ clusters (hub, east, west)
-- Recommended AWS sizing per cluster: 3× `m6a.2xlarge` control plane + 3× `m6a.2xlarge` workers (see [cluster sizing](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/cluster-sizing/))
+- Hub cluster: 3× `m6a.2xlarge` control plane + 3× **`m6a.4xlarge`** workers (16 vCPU, 64 GiB). For sandbox/demo, `m6a.2xlarge` works with [reduced resource requests](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/cluster-sizing/)
+- Spoke clusters: 3× `m6a.2xlarge` control plane + 3× `m6a.2xlarge` workers
 - Validated Patterns Operator installed on each cluster
 - `podman` and cluster admin `kubeconfig` for CLI install
+- Quay requires OpenShift Data Foundation (ODF) for S3 storage
 
-## Quick start
+## Quick start (hub-last install order)
 
-### Hub cluster
+Install east and west spokes first, then the hub last. This allows automatic RHACM spoke import via Vault tokens.
+
+### 1. East spoke
+
+```bash
+export TARGET_CLUSTERGROUP=east
+./pattern.sh make install
+```
+
+### 2. West spoke
+
+```bash
+export TARGET_CLUSTERGROUP=west
+./pattern.sh make install
+```
+
+### 3. Collect spoke tokens
+
+```bash
+# On each spoke
+oc create token -n kube-system default --duration=87600h
+oc whoami --show-server
+```
+
+Add the tokens to `~/values-secret-ia-computer-vision.yaml` under `spoke-credentials`.
+
+### 4. Hub cluster
 
 ```bash
 ./pattern.sh make install
@@ -134,19 +162,7 @@ flowchart TB
 
 Or create a Pattern CR with `clusterGroupName: hub` pointing to this repository.
 
-### East spoke
-
-```bash
-export TARGET_CLUSTERGROUP=east
-./pattern.sh make install
-```
-
-### West spoke
-
-```bash
-export TARGET_CLUSTERGROUP=west
-./pattern.sh make install
-```
+The `acm-hub-spoke` chart (wave 6) auto-imports both spokes into RHACM using the tokens from Vault.
 
 For step-by-step verification commands, see the [Getting started guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/getting-started/).
 

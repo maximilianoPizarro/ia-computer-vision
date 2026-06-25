@@ -102,17 +102,30 @@ clusterGroup:
 
 Use `syncWave` in applications or `argocd.argoproj.io/sync-wave` annotation in templates:
 
-| Wave | Purpose | Examples |
-|------|---------|---------|
+### Hub sync waves
+| Wave | Purpose | Applications |
+|------|---------|-------------|
 | 0 | Platform base | openshift-gitops, platform-users |
-| 1 | Namespaces | namespaces chart |
-| 2 | Operator configs | operators-edge |
-| 3 | Security, ESO | kairos, rhcl-operator, ESO |
-| 4 | Service mesh, observability | servicemesh-config, observability, kiali |
-| 5 | Fleet sync | fleet-values-sync |
-| 6-7 | Application workloads | devspaces |
-| 8 | Cross-cluster | spoke-interconnect, spoke-neuroface |
-| 9 | Post-deploy | console-links, spoke-neuroface-cv |
+| 1 | Operators + ACM | observability, acm |
+| 2 | Secrets infrastructure | vault, openshift-external-secrets, rhbk, quay |
+| 3 | Developer tools | gitlab-operator |
+| 4 | Developer portal | developer-hub |
+| 5 | AI + workshop | openshift-ai-hub, showroom |
+| 6 | Multi-cluster | neuroface-gateway, acm-hub-spoke |
+| 7 | Security + IDE | acs-init-bundle-sync, devspaces |
+| 10 | Console UI | console-links |
+
+### Spoke sync waves
+| Wave | Purpose | Applications |
+|------|---------|-------------|
+| 0 | Platform base | openshift-gitops, platform-users |
+| 1 | Service Mesh + ESO | servicemesh-config, openshift-external-secrets |
+| 2 | Observability | observability |
+| 3 | Security | acs-secured-cluster |
+| 5 | CV inference | spoke-neuroface |
+| 6 | CV model serving | spoke-neuroface-cv |
+| 7 | Cross-cluster + IDE | spoke-interconnect, devspaces |
+| 10 | Console UI | console-links |
 
 ## Chart.yaml (root umbrella)
 
@@ -211,14 +224,35 @@ Never put actual secrets in values files. Use the VP secrets framework:
 - Vault injects secrets via External Secrets Operator
 - Reference secrets in charts via ESO `ExternalSecret` CRs
 
+## VP chart overrides (passwordVaultKey pattern)
+
+VP published charts like `rhbk` use `passwordVaultKey` to reference Vault secrets. These must be passed as overrides in values-hub.yaml:
+
+```yaml
+rhbk:
+  overrides:
+    - name: keycloak.adminUser.passwordVaultKey
+      value: secret/data/hub/rhbk-credentials
+    - name: keycloak.postgresqlDb.passwordVaultKey
+      value: secret/data/hub/rhbk-credentials
+```
+
+The Vault path follows the convention `secret/data/hub/{secret-name}` where `{secret-name}` matches the `name` field in `values-secret.yaml.template`.
+
+## Known Helm/ArgoCD pitfalls
+
+1. **ExternalSecret `remoteRef.key` empty**: VP charts using `passwordVaultKey` require the key as an override. Without it, the ExternalSecret validation fails with `Required value`.
+2. **ignoreDifferences for ExternalSecret**: When ExternalSecret points to a Vault path that doesn't exist yet, ArgoCD marks the app as Degraded. Add `ignoreDifferences` on `.status` to prevent blocking.
+3. **RHDH operator regenerates ConfigMaps**: The Backstage operator creates `backstage-dynamic-plugins-developer-hub` from `dynamic-plugins-rhdh` ConfigMap. Patches to the generated ConfigMap are overwritten on next reconciliation. Always patch the source `dynamic-plugins-rhdh` ConfigMap.
+4. **Community plugins not in RHDH image**: `backstage-community-plugin-{ocm,tekton,topology,kafka,quay,acr,rbac}` must be `disabled: true` in the dynamic plugins ConfigMap for RHDH 1.10.
+
 ## Porting from hybrid-mesh-platform
 
 When porting charts from hybrid-mesh-platform:
 1. Strip Industrial Edge components (disabled in ia-computer-vision)
-2. Strip workshop/showroom components
-3. Change `gitops.repoURL` to ia-computer-vision repo
-4. Change `global.pattern` to `ia-computer-vision`
-5. Simplify Developer Hub to AI CV template only
-6. Keep ambient mode Service Mesh configuration
-7. Keep Skupper spoke interconnect configuration
-8. Keep NeuroFace + OVMS/YOLO CV inference charts
+2. Use VP published charts where available (rhbk, quay, acm, vault, openshift-external-secrets)
+3. Keep ambient mode Service Mesh configuration (local `servicemesh-config` chart)
+4. Keep Skupper spoke interconnect configuration
+5. Keep NeuroFace + OVMS/YOLO CV inference charts
+6. Remove ApplicationSet-based fleet management (VP Operator handles spoke GitOps)
+7. Use `acm-hub-spoke` chart for auto-import with Vault-backed spoke tokens

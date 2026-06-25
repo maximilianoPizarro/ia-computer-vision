@@ -424,6 +424,141 @@ $ oc logs -n imperative $(oc get pods -n imperative -o name | tail -1) --tail=20
 $ oc create job manual-unseal --from=cronjob/unsealvault-cronjob -n imperative
 ----
 
+== Hub CPU exhaustion (pods Pending with Insufficient cpu)
+
+=== Symptom
+
+Multiple pods remain in `Pending` state. `oc describe pod` shows:
+
+[source,text]
+----
+0/6 nodes are available: 3 Insufficient cpu, 3 node(s) had untolerated taint {node-role.kubernetes.io/master: }
+----
+
+=== Cause
+
+The hub runs 15+ operators producing ~450 pods. With `m6a.2xlarge` workers (8 vCPU allocatable), the 3 schedulable worker nodes reach 98-99% CPU request allocation. Components with high CPU requests include:
+
+* `rhods-dashboard` — 3.1 CPU per pod (9 containers), 2 replicas = 6.2 CPU
+* ACS scanner-v4 — indexer (1.5 CPU x2), matcher (500m x2), scanner-v4-db (1 CPU)
+* `istiod-openshift-gateway` — 500m
+* `kube-auth-proxy` — 500m per replica
+
+=== Solution
+
+**Option A (recommended)**: Use `m6a.4xlarge` workers on the hub (16 vCPU, 64 GiB).
+
+**Option B (sandbox)**: Allow scheduling on master nodes:
+
+[source,bash]
+----
+$ oc adm taint nodes --all node-role.kubernetes.io/master:NoSchedule-
+----
+
+[NOTE]
+====
+This taint reappears when the machine config operator reconciles. For a persistent solution, set `mastersSchedulable: true` in the `Scheduler` CR.
+====
+
+**Option C**: Reduce resource requests on heavy operators:
+
+[source,bash]
+----
+$ oc scale deployment rhods-dashboard -n redhat-ods-applications --replicas=1
+$ oc patch central stackrox-central-services -n stackrox --type merge \
+  -p '{"spec":{"scannerV4":{"indexer":{"scaling":{"replicas":1},"resources":{"requests":{"cpu":"250m"}}},"matcher":{"scaling":{"replicas":1},"resources":{"requests":{"cpu":"250m"}}}}}}'
+----
+
+== Developer Hub CrashLoopBackOff (dynamic plugin ENOENT)
+
+=== Symptom
+
+The `backstage-developer-hub` pod crashes in `Init:CrashLoopBackOff`. The `install-dynamic-plugins` init container logs show:
+
+[source,text]
+----
+InstallException: Error while installing plugin .../backstage-community-plugin-ocm with 'npm pack':
+ENOENT: no such file or directory, open '.../package.json'
+----
+
+=== Cause
+
+The RHDH 1.10 image does not ship certain community plugins that were available in earlier versions: `ocm`, `tekton`, `topology`, `kafka`, `quay`, `acr`. The dynamic plugins ConfigMap references them with `disabled: false`.
+
+=== Solution
+
+Set `disabled: true` on all missing plugins in the `dynamic-plugins-rhdh` ConfigMap:
+
+[source,bash]
+----
+$ oc get configmap dynamic-plugins-rhdh -n developer-hub -o yaml | \
+  sed 's/backstage-community-plugin-ocm.*/&\n  disabled: true/' | \
+  oc apply -f -
+----
+
+Or patch the ConfigMap using Python/YAML to set `disabled: true` on all `backstage-community-plugin-*` entries from `./dynamic-plugins/dist/` that do not exist in the image. The following plugins must be disabled in RHDH 1.10: `ocm`, `ocm-backend-dynamic`, `tekton`, `topology`, `kafka`, `kafka-backend-dynamic`, `acr`, `quay`, `quay-backend-dynamic`, `rbac`.
+
+After patching, delete the pod to restart with the corrected config:
+
+[source,bash]
+----
+$ oc delete pod -n developer-hub -l app.kubernetes.io/name=backstage
+----
+
+== Quay Missing (ObjectBucketClaim CRD not found)
+
+=== Symptom
+
+The `quay` ArgoCD application shows `Missing` status with the error:
+
+[source,text]
+----
+The Kubernetes API could not find objectbucket.io/ObjectBucketClaim
+----
+
+=== Cause
+
+The Quay VP chart uses `ObjectBucketClaim` to provision S3-compatible storage via NooBaa (part of OpenShift Data Foundation). Without ODF installed, the CRD does not exist.
+
+=== Solution
+
+Install **OpenShift Data Foundation** on the hub cluster, or disable Quay in `values-hub.yaml` by adding `disabled: true` to the application entry if you do not need a private container registry.
+
+== Vault secrets empty after install
+
+=== Symptom
+
+ExternalSecrets show `SecretSyncedError` with `Secret does not exist` from Vault. RHBK PostgreSQL shows `CreateContainerConfigError: secret "postgresql-db" not found`.
+
+=== Cause
+
+Vault is initialized and unsealed, but `./pattern.sh make load-secrets` was never run. This happens when the pattern is installed via the OCP console Pattern CR instead of the CLI.
+
+=== Solution
+
+Run `./pattern.sh make load-secrets` from the repository root, or manually populate Vault:
+
+[source,bash]
+----
+$ oc exec vault-0 -n vault -- sh -c '
+  export VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true
+  vault kv put secret/hub/rhbk-credentials \
+    admin-password="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
+    db-password="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
+  vault kv put secret/hub/gitlab-credentials \
+    root-password="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
+    runner-token="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)"
+  vault kv put secret/hub/developer-hub-secrets \
+    session-secret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)" \
+    gitlab-token="placeholder"
+'
+----
+
+[NOTE]
+====
+The `rhbk-credentials` secret must include both `admin-password` and `db-password`. If `db-password` is missing, the PostgreSQL ExternalSecret fails with `cannot find secret data for key: "db-password"`.
+====
+
 == Getting additional help
 
 * Pattern issues: link:https://github.com/maximilianoPizarro/ia-computer-vision/issues[GitHub Issues]

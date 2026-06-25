@@ -127,14 +127,61 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 6. Architecture review (post-implementation)
 7. SUPPORT.md documenting support policy
 
+## Current chart inventory
+
+### Hub charts (values-hub.yaml)
+| Chart | Type | Wave | ArgoProject |
+|-------|------|------|-------------|
+| `openshift-gitops` | local | 0 | platform |
+| `platform-users` | local | 0 | platform |
+| `observability` | local | 1 | observability |
+| `acm` | VP chart | 1 | hub |
+| `vault` | VP chart | 2 | external-secrets |
+| `openshift-external-secrets` | VP chart | 2 | external-secrets |
+| `rhbk` | VP chart | 2 | workshop |
+| `quay` | VP chart | 2 | workshop (requires ODF) |
+| `gitlab-operator` | local | 3 | workshop |
+| `developer-hub` | local | 4 | workshop |
+| `openshift-ai-hub` | local | 5 | ai |
+| `showroom` | local | 5 | workshop |
+| `neuroface-gateway` | local | 6 | mesh |
+| `acm-hub-spoke` | local | 6 | hub |
+| `acs-init-bundle-sync` | local | 7 | security |
+| `devspaces` | local | 7 | workshop |
+| `console-links` | local | 10 | workshop |
+
+### Spoke charts (values-east.yaml / values-west.yaml)
+| Chart | Type | Wave | ArgoProject |
+|-------|------|------|-------------|
+| `openshift-gitops` | local | 0 | platform |
+| `platform-users` | local | 0 | platform |
+| `openshift-external-secrets` | VP chart | 1 | external-secrets |
+| `servicemesh-config` | local | 1 | mesh |
+| `observability` | local | 2 | observability |
+| `acs-secured-cluster` | local | 3 | security |
+| `spoke-neuroface` | local | 5 | ai |
+| `spoke-neuroface-cv` | local | 6 | ai |
+| `spoke-interconnect` | local | 7 | mesh |
+| `devspaces` | local | 7 | workshop |
+| `console-links` | local | 10 | workshop |
+
+## Known limitations (sandbox)
+
+- **Quay** requires ODF (ObjectBucketClaim). Without ODF, the app shows `Missing`. Disable or install ODF.
+- **Hub sizing**: `m6a.2xlarge` workers saturate at 98-99% CPU requests. Use `m6a.4xlarge` for production or remove master taints for sandbox.
+- **Developer Hub plugins**: OCM, Tekton, Topology, Kafka, Quay community plugins do not ship in RHDH 1.10 image. Must be `disabled: true` in `dynamic-plugins-rhdh` ConfigMap.
+- **Vault secrets**: If installed via OCP console Pattern CR (not CLI), secrets are not auto-loaded. Run `./pattern.sh make load-secrets` or populate Vault manually.
+- **RHBK**: The `rhbk-credentials` secret must include both `admin-password` and `db-password` fields.
+- **Spoke connectivity**: Spokes require Skupper and Service Mesh operators (subscriptions in `values-east.yaml`). The hub does NOT subscribe to these operators (Skupper runs on spokes only; Service Mesh on hub is installed via RHOAI operator).
+
 ## Key constraints
 
-- Do NOT create PRs to validatedpatterns/docs yet
 - Port charts from hybrid-mesh-platform, simplifying where possible
 - Developer Hub: only `ai-computer-vision` software template (not all 8 from hybrid-mesh-platform)
 - TSSC (RHTAS, RHTPA): optional, commented out in values-hub.yaml
 - Service Mesh: local chart for ambient mode (not VP `servicemesh` chart)
 - ArgoCD: hub needs 12Gi controller memory via `openshift-gitops` chart
+- Community plugins: disable in `configmap-dynamic-plugins-rhdh.yaml` any `backstage-community-plugin-*` from `./dynamic-plugins/dist/` not present in the RHDH image
 
 ## Reference plan
 
