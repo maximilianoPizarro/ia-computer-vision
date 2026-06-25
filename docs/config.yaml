@@ -40,9 +40,18 @@ menu:
     - name: Getting started
       url: /patterns/ia-computer-vision/getting-started/
       weight: 20
+    - name: Cluster sizing
+      url: /patterns/ia-computer-vision/cluster-sizing/
+      weight: 25
     - name: Architecture
       url: /patterns/ia-computer-vision/architecture/
       weight: 30
+    - name: Ideas for customization
+      url: /patterns/ia-computer-vision/ideas-for-customization/
+      weight: 35
     - name: Troubleshooting
       url: /patterns/ia-computer-vision/troubleshooting/
       weight: 40
+    - name: Workshop mode
+      url: /patterns/ia-computer-vision/workshop/
+      weight: 45
