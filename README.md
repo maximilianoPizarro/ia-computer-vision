@@ -145,12 +145,10 @@ export TARGET_CLUSTERGROUP=west
 
 ### 3. Collect spoke tokens
 
-The token **must** come from a ServiceAccount with `cluster-admin` permissions. The default SA in `kube-system` does not have them.
+The pattern automatically creates a `acm-import` ServiceAccount with `cluster-admin` in `kube-system` on each spoke (via the `platform-users` chart at wave 0). You only need to generate the token:
 
 ```bash
-# On each spoke — create a cluster-admin SA and generate a long-lived token
-oc create sa acm-import -n kube-system
-oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:kube-system:acm-import
+# On each spoke — generate a long-lived token (SA is created by the pattern)
 oc create token -n kube-system acm-import --duration=87600h
 oc whoami --show-server
 ```
