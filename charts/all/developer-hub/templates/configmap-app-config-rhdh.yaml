@@ -171,7 +171,7 @@ data:
               timeout: { minutes: 10 }
         keycloakOrg:
           default:
-            baseUrl: https://sso.{{ include "developer-hub.clusterDomain" . }}
+            baseUrl: https://keycloak.{{ include "developer-hub.clusterDomain" . }}
             loginRealm: backstage
             clientId: developer-hub-catalog
             clientSecret: ${OIDC_CLIENT_SECRET}
