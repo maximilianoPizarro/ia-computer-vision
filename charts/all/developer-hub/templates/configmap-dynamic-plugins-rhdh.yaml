@@ -122,7 +122,7 @@ data:
       - package: ./dynamic-plugins/dist/backstage-community-plugin-argocd
         disabled: true
       - package: ./dynamic-plugins/dist/backstage-community-plugin-topology
-        disabled: false
+        disabled: true
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -236,7 +236,7 @@ data:
                         allOf:
                           - hasAnnotation: kuadrant.io/api-product
       - package: ./dynamic-plugins/dist/backstage-community-plugin-tekton
-        disabled: {{ not (.Values.plugins.tekton.enabled | default true) }}
+        disabled: true
         pluginConfig:
           dynamicPlugins:
             frontend:
