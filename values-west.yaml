@@ -173,6 +173,13 @@ clusterGroup:
         - name: clusterName
           value: west
 
+    skupper-network-observer:
+      name: skupper-network-observer
+      namespace: service-interconnect
+      argoProject: mesh
+      path: charts/all/skupper-network-observer
+      syncWave: "5"
+
     spoke-neuroface:
       name: spoke-neuroface
       namespace: neuroface
@@ -186,6 +193,8 @@ clusterGroup:
           value: west
         - name: neuroface.chat.modelEndpoint
           value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"
+        - name: neuroface.ppe.kafka.enabled
+          value: "false"
 
     spoke-neuroface-cv:
       name: spoke-neuroface-cv

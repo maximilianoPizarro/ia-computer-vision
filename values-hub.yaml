@@ -29,7 +29,7 @@ clusterGroup:
       targetNamespaces: []
     developer-hub: {}
     keycloak-system: {}
-    quay-enterprise: {}
+    mailpit: {}
     showroom: {}
     redhat-ods-operator:
       operatorGroup: true
@@ -109,11 +109,6 @@ clusterGroup:
       name: rhbk-operator
       namespace: keycloak-system
       channel: stable-v26.4
-      source: redhat-operators
-    quay:
-      name: quay-operator
-      namespace: quay-enterprise
-      channel: stable-3.17
       source: redhat-operators
     pipelines:
       name: openshift-pipelines-operator-rh
@@ -231,14 +226,6 @@ clusterGroup:
         - name: keycloak.postgresqlDb.passwordVaultKey
           value: secret/data/hub/rhbk-credentials
 
-    quay:
-      name: quay
-      namespace: quay-enterprise
-      argoProject: workshop
-      chart: quay
-      chartVersion: 0.1.*
-      syncWave: "2"
-
     gitlab-operator:
       name: gitlab-operator
       namespace: gitlab-system
@@ -281,6 +268,13 @@ clusterGroup:
         - name: showroom.terminal.userCount
           value: "30"
 
+    mailpit:
+      name: mailpit
+      namespace: mailpit
+      argoProject: workshop
+      path: charts/all/mailpit
+      syncWave: "5"
+
     servicemesh-config:
       name: servicemesh-config
       namespace: istio-system
@@ -299,6 +293,13 @@ clusterGroup:
       namespace: service-interconnect
       argoProject: mesh
       path: charts/all/hub-interconnect
+      syncWave: "5"
+
+    skupper-network-observer:
+      name: skupper-network-observer
+      namespace: service-interconnect
+      argoProject: mesh
+      path: charts/all/skupper-network-observer
       syncWave: "5"
 
     neuroface-gateway:

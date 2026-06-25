@@ -16,7 +16,7 @@ viewNamespacesHub:
   - openshift-gitops
   - stackrox
   - gitlab-system
-  - quay-enterprise
+  - mailpit
   - vault
   - redhat-connectivity-link-operator
   - openshift-cluster-observability-operator

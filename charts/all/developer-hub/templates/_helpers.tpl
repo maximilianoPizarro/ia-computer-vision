@@ -52,3 +52,32 @@
 {{- define "developer-hub.platformContentBaseUrl" -}}
 {{- printf "https://%s/developer-hub/platform-content" (include "developer-hub.gitlabHost" .) -}}
 {{- end -}}
+
+{{- define "developer-hub.keycloakNamespace" -}}
+{{- .Values.keycloak.namespace | default "keycloak-system" -}}
+{{- end -}}
+
+{{- define "developer-hub.keycloakCrName" -}}
+{{- .Values.keycloak.crName | default "keycloak" -}}
+{{- end -}}
+
+{{- define "developer-hub.keycloakServiceName" -}}
+{{- .Values.keycloak.serviceName | default "keycloak-service-trusted" -}}
+{{- end -}}
+
+{{- define "developer-hub.ssoHost" -}}
+{{- printf "sso.%s" (include "developer-hub.clusterDomain" .) -}}
+{{- end -}}
+
+{{- define "developer-hub.ssoBaseUrl" -}}
+{{- printf "https://%s" (include "developer-hub.ssoHost" .) -}}
+{{- end -}}
+
+{{- define "developer-hub.oidcDiscoveryUrl" -}}
+{{- printf "%s/realms/backstage/.well-known/openid-configuration" (include "developer-hub.ssoBaseUrl" .) -}}
+{{- end -}}
+
+{{- define "developer-hub.oidcAuthVaultKey" -}}
+{{- $oa := .Values.oidcAuth | default dict -}}
+{{- $oa.vaultKey | default "secret/data/hub/developer-hub-secrets" -}}
+{{- end -}}

@@ -24,7 +24,7 @@ The **AI Computer Vision** Validated Pattern deploys a three-cluster architectur
 
 | Cluster | Role | Key components |
 |---------|------|----------------|
-| **Hub** | Fleet control plane | ACM, Vault, ESO, ACS Central, RHCL gateway, GitLab, Developer Hub, OpenShift AI, Quay, Keycloak |
+| **Hub** | Fleet control plane | ACM, Vault, ESO, ACS Central, RHCL gateway, GitLab, Developer Hub, OpenShift AI, Keycloak |
 | **East spoke** | Edge inference | NeuroFace, OVMS/YOLO CV, Skupper, Service Mesh ambient, ACS Secured, observability |
 | **West spoke** | Edge inference | Same as east (load-balanced via RHCL 50/50 HTTPRoute) |
 
@@ -41,7 +41,7 @@ After a full installation you obtain:
 - **Edge computer vision** — NeuroFace application with OVMS/YOLO PPE detection on each spoke
 - **Cross-cluster connectivity** — Skupper Service Interconnect linking hub and spoke services
 - **Service mesh telemetry** — OpenShift Service Mesh 3.2 ambient mode without sidecar injection
-- **Developer platform** — GitLab, Developer Hub (AI CV software template), OpenShift DevSpaces, Quay, Keycloak
+- **Developer platform** — GitLab, Developer Hub (AI CV software template with RHBK biometric OIDC), OpenShift DevSpaces, Keycloak
 - **AI platform** — OpenShift AI 3.4 DataScienceCluster on the hub for model serving workflows
 - **Observability** — Grafana, OpenTelemetry, Kiali, and Thanos federation across clusters
 - **Workshop mode (default)** — 30 HTPasswd users, Showroom lab guide with embedded terminal
@@ -58,8 +58,7 @@ After a full installation you obtain:
 | Red Hat OpenShift AI | 3.4 | `stable-3.4` | Model serving and data science platform |
 | Red Hat OpenShift Service Mesh | 3.2 | `stable-3.2` | Ambient mesh mTLS and telemetry |
 | Red Hat Developer Hub | — | `fast` | Developer portal and scaffolder |
-| Red Hat Build of Keycloak | 26.4 | `stable-v26.4` | OIDC identity provider |
-| Red Hat Quay | 3.17 | `stable-3.17` | Private container registry |
+| Red Hat Build of Keycloak | 26.4 | `stable-v26.4` | OIDC identity provider + per-user biometric RHBK |
 | GitLab Operator | — | `stable` | Source control and CI/CD |
 | OpenShift Pipelines | — | `latest` | CI/CD pipelines on hub |
 | OpenShift DevSpaces | — | `stable` | Cloud IDE workspaces |
@@ -123,7 +122,7 @@ flowchart TB
 - Spoke clusters: 3× `m6a.2xlarge` control plane + 3× `m6a.2xlarge` workers
 - Validated Patterns Operator installed on each cluster
 - `podman` and cluster admin `kubeconfig` for CLI install
-- Quay requires OpenShift Data Foundation (ODF) for S3 storage
+- Image builds use the OpenShift internal registry (no external Quay required)
 
 ## Quick start (hub-last install order)
 
@@ -225,22 +224,20 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/rhbk-credentials \
   admin-password="$(openssl rand -base64 16)" db-password="$(openssl rand -base64 16)"
 
 oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets \
-  session-secret="$(openssl rand -base64 32)" gitlab-token="<GITLAB_PAT>"
+  oidc-client-secret="$(openssl rand -base64 24)" \
+  session-secret="$(openssl rand -base64 32)" \
+  gitlab-token="<GITLAB_PAT>"
 
 oc exec vault-0 -n vault -- vault kv put secret/hub/maas-credentials \
   api-key="<MAAS_API_KEY>"
-
-oc exec vault-0 -n vault -- vault kv put secret/hub/quay-credentials \
-  dockerconfigjson='{"auths":{}}'
 ```
 
 | Secret | Fields | Required | Used by |
 |--------|--------|----------|---------|
 | `gitlab-credentials` | `root-password`, `runner-token` | Auto-generated | GitLab admin, CI runner |
 | `rhbk-credentials` | `admin-password`, `db-password` | Auto-generated | Keycloak admin, PostgreSQL |
-| `developer-hub-secrets` | `session-secret`, `gitlab-token` | `session-secret` auto-generated; `gitlab-token` set after GitLab deploys | RHDH session, scaffolder |
+| `developer-hub-secrets` | `oidc-client-secret`, `session-secret`, `gitlab-token` | `oidc-client-secret` and `session-secret` auto-generated; `gitlab-token` set after GitLab deploys | RHDH OIDC, session, scaffolder |
 | `maas-credentials` | `api-key` | Optional — only for MaaS LLM chat | OpenShift AI dashboard, NeuroFace chat |
-| `quay-credentials` | `dockerconfigjson` | Optional — only for Quay push | Quay registry push |
 | `spoke-credentials` | `east-token`, `east-api-url`, `west-token`, `west-api-url` | Via Pattern CR `extraParameters` (inline mode) | ACM auto-import |
 
 See [Validated Patterns secrets management](https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/).

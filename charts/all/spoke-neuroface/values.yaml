@@ -44,3 +44,12 @@ neuroface:
       samplingRate: 1.0
   route:
     enabled: false
+
+hubClusterDomain: ""
+
+applicationSet:
+  enabled: true
+  gitlabGroup: ws-workshop
+  repositoryMatch: "^neuroface-"
+  secretStoreName: vault-backend
+  vaultKey: secret/data/hub/developer-hub-secrets

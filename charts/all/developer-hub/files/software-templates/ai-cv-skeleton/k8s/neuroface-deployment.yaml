@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuroface-config
+  namespace: ${{ values.namespace }}
+data:
+  NEUROFACE_AI_MODEL: "lbph"
+  NEUROFACE_DATA_DIR: "/data"
+  NEUROFACE_DLIB_ENABLED: "false"
+  NEUROFACE_CHAT_ENABLED: "true"
+  NEUROFACE_CHAT_MODEL_ENDPOINT: "${{ values.maasEndpoint }}"
+  NEUROFACE_CHAT_MODEL_NAME: "llama-scout-17b"
+  NEUROFACE_CHAT_MAX_TOKENS: "512"
+  NEUROFACE_OVMS_ENABLED: "true"
+  NEUROFACE_OVMS_REST_URL: "http://modelmesh-serving.redhat-ods-applications.svc.cluster.local:8008"
+  NEUROFACE_OVMS_MODEL_NAME: "face-detection-retail-0005"
+  NEUROFACE_OVMS_CONFIDENCE_THRESHOLD: "0.5"
+  NEUROFACE_DETECTION_METHOD: "opencv"
+  NEUROFACE_PPE_ENABLED: "true"
+  NEUROFACE_PPE_ENDPOINT: "http://yolo-ppe-serving.neuroface-cv.svc:8080"
+  NEUROFACE_PPE_CLASSES: "hardhat,safety-vest,goggles"
+  NEUROFACE_PPE_CONFIDENCE: "0.15"
+  NEUROFACE_CLUSTER_NAME: "${{ values.spoke }}"
+  {% if values.spoke == "east" %}
+  NEUROFACE_PPE_KAFKA_ENABLED: "true"
+  NEUROFACE_PPE_KAFKA_BOOTSTRAP: "kafka-east-tst.service-interconnect.svc:9092"
+  NEUROFACE_PPE_KAFKA_TOPIC: "cv.ppe.detections"
+  {% else %}
+  NEUROFACE_PPE_KAFKA_ENABLED: "false"
+  {% endif %}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neuroface-backend
+  namespace: ${{ values.namespace }}
+  labels:
+    app: neuroface-backend
+    app.kubernetes.io/name: neuroface-backend
+    app.kubernetes.io/part-of: neuroface
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neuroface-backend
+  template:
+    metadata:
+      labels:
+        app: neuroface-backend
+        app.kubernetes.io/name: neuroface-backend
+        app.kubernetes.io/part-of: neuroface
+    spec:
+      containers:
+        - name: backend
+          image: quay.io/maximilianopizarro/neuroface-backend:v1.5.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: neuroface-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: neuroface-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neuroface-frontend
+  namespace: ${{ values.namespace }}
+  labels:
+    app: neuroface-frontend
+    app.kubernetes.io/name: neuroface-frontend
+    app.kubernetes.io/part-of: neuroface
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neuroface-frontend
+  template:
+    metadata:
+      labels:
+        app: neuroface-frontend
+        app.kubernetes.io/name: neuroface-frontend
+        app.kubernetes.io/part-of: neuroface
+    spec:
+      containers:
+        - name: frontend
+          image: quay.io/maximilianopizarro/neuroface-frontend:v1.5.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10

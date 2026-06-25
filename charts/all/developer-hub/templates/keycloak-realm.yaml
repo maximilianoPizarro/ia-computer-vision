@@ -1,8 +1,8 @@
 {{- /*
-  Backstage realm on the cluster Keycloak instance (namespace keycloak).
-  Client secret must match Secret developer-hub-oidc-auth key OIDC_CLIENT_SECRET.
-  Set via: helm --set keycloakOidcClientSecret='<value>' (do not commit real secrets).
-  Workshop users user1..userN share password with htpasswd/GitLab (default Welcome123!).
+  Backstage realm on the cluster Keycloak instance (namespace keycloak-system).
+  OIDC client secret is injected via KeycloakRealmImport placeholders from
+  developer-hub-oidc-client (Vault/ESO). Workshop users user1..userN share
+  password with htpasswd/GitLab (default Welcome123!).
 */ -}}
 {{- $count := int (.Values.userCount | default 50) }}
 {{- $password := .Values.defaultPassword | default "Welcome123!" }}
@@ -10,11 +10,16 @@ apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakRealmImport
 metadata:
   name: backstage-realm
-  namespace: keycloak
+  namespace: {{ include "developer-hub.keycloakNamespace" . }}
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "5"
 spec:
-  keycloakCRName: keycloak
+  keycloakCRName: {{ include "developer-hub.keycloakCrName" . }}
+  placeholders:
+    OIDC_CLIENT_SECRET:
+      secret:
+        name: developer-hub-oidc-client
+        key: OIDC_CLIENT_SECRET
   realm:
     realm: backstage
     enabled: true
@@ -38,7 +43,7 @@ spec:
         name: Developer Hub
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ .Values.keycloakOidcClientSecret | default "CHANGEME-set-via-helm-or-sync-secret" | quote }}
+        secret: $(OIDC_CLIENT_SECRET)
         redirectUris:
           - "https://developer-hub.{{ include "developer-hub.clusterDomain" . }}/api/auth/oidc/handler/frame"
         webOrigins:
@@ -57,7 +62,7 @@ spec:
         name: Developer Hub Catalog Sync
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ .Values.keycloakOidcClientSecret | default "CHANGEME-set-via-helm-or-sync-secret" | quote }}
+        secret: $(OIDC_CLIENT_SECRET)
         serviceAccountsEnabled: true
         standardFlowEnabled: false
         directAccessGrantsEnabled: true
@@ -68,7 +73,7 @@ spec:
         name: DevSpaces
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ .Values.devspacesOidcClientSecret | default .Values.keycloakOidcClientSecret | default "CHANGEME-set-via-helm-or-sync-secret" | quote }}
+        secret: $(OIDC_CLIENT_SECRET)
         redirectUris:
           - "https://devspaces.{{ include "developer-hub.clusterDomain" . }}/api/oauth/callback"
           - "https://devspaces.{{ include "developer-hub.clusterDomain" . }}/api/oauth/che/callback"

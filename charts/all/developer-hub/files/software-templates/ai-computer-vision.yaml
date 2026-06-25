@@ -4,8 +4,9 @@ metadata:
   name: ai-computer-vision
   title: AI Computer Vision at the Edge
   description: >
-    Deploy a personal NeuroFace instance — PPE detection via shared KServe YOLO,
-    MaaS chat, and GitLab + DevSpaces developer workflow.
+    Deploy a personal NeuroFace instance on a spoke with RHBK biometric 2FA,
+    OIDC-secured RHCL Gateway routing, GitLab ApplicationSet deployment,
+    Tekton builds to the OpenShift internal registry, DevSpaces, and Swagger API docs.
   tags:
     - ai-cv
     - neuroface
@@ -13,22 +14,18 @@ metadata:
     - kserve
     - ppe
     - edge
+    - rhbk
+    - oidc
 spec:
   owner: platform-engineering
   type: service
   parameters:
     - title: AI CV instance
       required:
-        - name
         - owner
-        - clusterDomain
+        - spoke
+        - hubClusterDomain
       properties:
-        name:
-          title: Instance name
-          type: string
-          default: neuroface
-          pattern: "^[a-z0-9-]+$"
-          ui:autofocus: true
         owner:
           title: Owner
           type: string
@@ -36,26 +33,63 @@ spec:
           ui:options:
             allowedKinds:
               - User
-        clusterDomain:
+          ui:autofocus: true
+        spoke:
+          title: Target spoke
+          type: string
+          enum: [east, west]
+          enumNames: [East spoke, West spoke]
+          default: east
+        hubClusterDomain:
           title: Hub apps domain
           type: string
-          description: "e.g. apps.cluster-xyz.example.com"
-          default: apps.cluster.example.com
+          description: "Hub cluster domain without apps. prefix (e.g. cluster-m54ll.m54ll.sandbox2075.opentlc.com)"
+          default: cluster.example.com
+        maasEndpoint:
+          title: MaaS chat endpoint
+          type: string
+          description: "LiteLLM/MaaS endpoint for NeuroFace chat"
+          default: https://maas-rhdp.apps.maas.redhatworkshops.io/v1
+      dependencies:
+        spoke:
+          oneOf:
+            - properties:
+                spoke:
+                  const: east
+                spokeClusterDomain:
+                  title: East spoke apps domain
+                  type: string
+                  default: cluster-east.example.com
+                  description: "East spoke apps domain (without apps. prefix)"
+            - properties:
+                spoke:
+                  const: west
+                spokeClusterDomain:
+                  title: West spoke apps domain
+                  type: string
+                  default: cluster-west.example.com
+                  description: "West spoke apps domain (without apps. prefix)"
   steps:
     - id: fetch
       name: Fetch skeleton
       action: fetch:template
       input:
-        url: ./skeleton
+        url: ./ai-cv-skeleton
         values:
-          name: ${{ parameters.name }}
+          name: neuroface-${{ parameters.owner }}
           owner: ${{ parameters.owner }}
-          clusterDomain: ${{ parameters.clusterDomain }}
+          namespace: neuroface-${{ parameters.owner }}
+          spoke: ${{ parameters.spoke }}
+          hubClusterDomain: ${{ parameters.hubClusterDomain }}
+          spokeClusterDomain: ${{ parameters.spokeClusterDomain }}
+          maasEndpoint: ${{ parameters.maasEndpoint }}
+          repoUrl: https://gitlab.apps.${{ parameters.hubClusterDomain }}/ws-workshop/neuroface-${{ parameters.owner }}
     - id: publish
       name: Publish to GitLab
       action: publish:github
       input:
-        repoUrl: "gitlab.apps.${{ parameters.clusterDomain }}?owner=ws-${{ parameters.owner }}&repo=${{ parameters.name }}"
+        repoUrl: "gitlab.apps.${{ parameters.hubClusterDomain }}?owner=ws-workshop&repo=neuroface-${{ parameters.owner }}"
+        description: "NeuroFace ${{ parameters.owner }} on ${{ parameters.spoke }} spoke with RHBK biometric OIDC"
         defaultBranch: main
         repoVisibility: public
     - id: register
@@ -68,8 +102,12 @@ spec:
     links:
       - title: Repository
         url: ${{ steps.publish.output.remoteUrl }}
+      - title: NeuroFace (OIDC Gateway)
+        url: https://neuroface-spoke-gateway.${{ parameters.spokeClusterDomain }}/user/${{ parameters.owner }}/
+      - title: RHBK Admin
+        url: https://rhbk-neuroface-${{ parameters.owner }}.${{ parameters.spokeClusterDomain }}/admin
       - title: Open in DevSpaces
-        url: "https://devspaces.apps.${{ parameters.clusterDomain }}/#${{ steps.publish.output.remoteUrl }}"
+        url: https://devspaces.apps.${{ parameters.hubClusterDomain }}/#${{ steps.publish.output.remoteUrl }}
       - title: Catalog entity
         icon: catalog
         entityRef: ${{ steps.register.output.entityRef }}

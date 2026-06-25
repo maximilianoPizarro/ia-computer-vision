@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rhbk-${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app: rhbk-${{ values.name }}
+spec:
+  selector:
+    app: rhbk-${{ values.name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: rhbk-${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app: rhbk-${{ values.name }}
+spec:
+  host: rhbk-${{ values.name }}.${{ values.spokeClusterDomain }}
+  to:
+    kind: Service
+    name: rhbk-${{ values.name }}
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

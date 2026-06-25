@@ -19,7 +19,7 @@ data:
           production:
             clientId: developer-hub
             clientSecret: ${OIDC_CLIENT_SECRET}
-            metadataUrl: https://sso.{{ include "developer-hub.clusterDomain" . }}/realms/backstage/.well-known/openid-configuration
+            metadataUrl: {{ include "developer-hub.oidcDiscoveryUrl" . }}
             prompt: auto
             signIn:
               resolvers:

@@ -47,8 +47,6 @@ products:
     version: fast
   - name: Red Hat Build of Keycloak
     version: "26.4"
-  - name: Red Hat Quay
-    version: "3.17"
   - name: Red Hat OpenShift GitOps
     version: "1.14"
   - name: OpenShift DevSpaces

@@ -352,7 +352,7 @@ data:
             providers:
               keycloakOrg:
                 default:
-                  baseUrl: https://sso.{{ include "developer-hub.clusterDomain" . }}
+                  baseUrl: {{ include "developer-hub.ssoBaseUrl" . }}
                   loginRealm: backstage
                   realm: backstage
                   clientId: developer-hub-catalog

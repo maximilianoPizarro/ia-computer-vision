@@ -79,7 +79,6 @@ Available at https://charts.validatedpatterns.io/ -- reference by `chart:` + `ch
 | `hashicorp-vault` | 0.1.* | Vault server |
 | `openshift-external-secrets` | 0.0.* | ESO config |
 | `rhbk` | 0.1.* | Red Hat Build of Keycloak |
-| `quay` | 0.1.* | Quay Registry |
 | `servicemesh` | 0.1.* | OSSM 3.0 (but we use local for ambient control) |
 | `llm-inference-service` | 0.3.* | KServe inference |
 | `letsencrypt` | 0.1.* | TLS certificates |
@@ -139,12 +138,12 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 | `vault` | VP chart | 2 | external-secrets |
 | `openshift-external-secrets` | VP chart | 2 | external-secrets |
 | `rhbk` | VP chart | 2 | workshop |
-| `quay` | VP chart | 2 | workshop (requires ODF) |
 | `gitlab-operator` | local | 3 | workshop |
 | `developer-hub` | local | 4 | workshop |
 | `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 5 | mesh (required for neuroface-gateway Istio) |
 | `openshift-ai-hub` | local | 5 | ai |
-| `showroom` | local | 5 | workshop |
+| `mailpit` | local | 5 | workshop (Mailpit UI + PPE Kafka consumer) |
+| `hub-interconnect` | local | 5 | mesh (Skupper VAN + Kafka listener) |
 | `neuroface-gateway` | local | 6 | mesh |
 | `acm-hub-spoke` | local | 6 | hub |
 | `acs-init-bundle-sync` | local | 7 | security |
@@ -160,14 +159,15 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 | `observability` | local | 2 | observability (also deploys spoke DSC for KServe CRDs) |
 | `acs-secured-cluster` | local | 3 | security |
 | `spoke-interconnect` | local | 4 | mesh |
-| `spoke-neuroface` | local | 5 | ai |
+| `spoke-neuroface` | local | 5 | ai (includes ApplicationSet for user NeuroFace repos) |
 | `spoke-neuroface-cv` | local | 6 | ai |
 | `devspaces` | local | 7 | workshop |
 | `console-links` | local | 10 | workshop |
 
 ## Known limitations (sandbox)
 
-- **Quay** requires ODF (ObjectBucketClaim). Without ODF, the app shows `Missing`. Disable or install ODF.
+- **Image builds**: Use OpenShift internal registry for scaffolded NeuroFace Tekton pipelines (Quay removed from pattern).
+- **Per-user RHBK**: Software template deploys RHBK biometric + OIDC AuthPolicy per user on spokes via ApplicationSet.
 - **Hub sizing**: `m6a.2xlarge` workers saturate at 98-99% CPU requests. Use `m6a.4xlarge` for production or remove master taints for sandbox.
 - **Developer Hub plugins**: OCM, Tekton, Topology, Kafka, Quay community plugins do not ship in RHDH 1.10 image. Must be `disabled: true` in `dynamic-plugins-rhdh` ConfigMap.
 - **Vault secrets**: If installed via OCP console Pattern CR (not CLI), secrets are not auto-loaded. Populate Vault manually after Vault initializes (wave 2). See README "Option B — Console install".
@@ -208,7 +208,7 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/gitlab-credentials root-pass
 oc exec vault-0 -n vault -- vault kv put secret/hub/rhbk-credentials admin-password="$(openssl rand -base64 16)" db-password="$(openssl rand -base64 16)"
 oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets session-secret="$(openssl rand -base64 32)" gitlab-token="placeholder"
 oc exec vault-0 -n vault -- vault kv put secret/hub/maas-credentials api-key="placeholder"
-oc exec vault-0 -n vault -- vault kv put secret/hub/quay-credentials dockerconfigjson='{"auths":{}}'
+oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets session-secret="$(openssl rand -base64 32)" gitlab-token="<GITLAB_PAT>"
 ```
 After loading, force ESO refresh: `oc annotate externalsecret -n keycloak-system --all force-sync=$(date +%s) --overwrite`
 

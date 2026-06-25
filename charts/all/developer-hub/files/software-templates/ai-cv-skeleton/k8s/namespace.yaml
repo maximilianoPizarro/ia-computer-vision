@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: neuroface-workshop
+    workshop.redhat.com/user: ${{ values.owner }}
+    workshop.redhat.com/spoke: ${{ values.spoke }}

@@ -65,6 +65,7 @@ bootstrap:
   developerHubGroup: developer-hub
   appOfAppsGroup: app-of-apps
   workshopDemosGroup: workshop-demos
+  neurofaceGroup: ws-workshop
   platformContent:
     enabled: true
     project: platform-content

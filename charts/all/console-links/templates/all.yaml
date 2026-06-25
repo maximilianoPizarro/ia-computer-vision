@@ -1,6 +1,8 @@
 {{- $g := .Values.global | default dict -}}
-{{- $domain := .Values.clusterDomain | default $g.localClusterDomain | default $g.hubClusterDomain | default "apps.cluster.example.com" -}}
+{{- $domain := include "console-links.clusterDomain" . -}}
 {{- $hubDomain := .Values.hubClusterDomain | default $g.hubClusterDomain | default $domain -}}
+{{- $domainBase := include "console-links.domainBase" . -}}
+{{- $hubDomainBase := include "console-links.hubDomainBase" . -}}
 {{- $role := .Values.clusterRole -}}
 {{- if not $role -}}
 {{- if and $g.localClusterDomain $g.hubClusterDomain (ne $g.localClusterDomain $g.hubClusterDomain) -}}
@@ -41,7 +43,6 @@ spec:
   href: "https://kiali-openshift-cluster-observability-operator.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Kiali Service Mesh"
-{{- if ne $role "hub" }}
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
@@ -53,10 +54,9 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "skupper.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://skupper-console-service-interconnect.{{ $domain }}"
+  href: "https://skupper-network-observer-service-interconnect.{{ $domainBase }}"
   location: ApplicationMenu
   text: "Skupper Console (Network)"
-{{- end }}
 {{- if eq $role "hub" }}
 ---
 apiVersion: console.openshift.io/v1
@@ -83,7 +83,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "acs.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://central-stackrox.{{ $domain }}"
+  href: "https://central-stackrox.{{ $domainBase }}"
   location: ApplicationMenu
   text: "ACS Central (Security)"
 ---
@@ -104,6 +104,20 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
+  name: platform-devspaces
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://devspaces.{{ $domain }}"
+  location: ApplicationMenu
+  text: "DevSpaces"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
   name: platform-gitlab
   annotations:
     argocd.argoproj.io/sync-wave: "10"
@@ -111,9 +125,65 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "gitlab.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://gitlab.{{ $domain }}"
+  href: "https://gitlab.apps.{{ $hubDomainBase }}"
   location: ApplicationMenu
   text: "GitLab (SCM)"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://keycloak.{{ $domain }}"
+  location: ApplicationMenu
+  text: "Keycloak (SSO)"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-mailpit
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "mailpit.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://mailpit.{{ $domainBase }}"
+  location: ApplicationMenu
+  text: "Mailpit (PPE Alerts)"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://openshift-gitops-server-openshift-gitops.{{ $domain }}"
+  location: ApplicationMenu
+  text: "ArgoCD (GitOps)"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-openshift-ai
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://rhods-dashboard-redhat-ods-applications.{{ $domain }}"
+  location: ApplicationMenu
+  text: "OpenShift AI Dashboard"
 {{- if .Values.quay.enabled | default false }}
 ---
 apiVersion: console.openshift.io/v1
@@ -126,7 +196,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "quay.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://quay-registry.{{ $domain }}"
+  href: "https://quay-registry.{{ $domainBase }}"
   location: ApplicationMenu
   text: "Quay Registry"
 {{- end }}
@@ -141,9 +211,23 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://neuroface-gateway.{{ $hubDomain }}"
+  href: "https://neuroface.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "NeuroFace API Gateway"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-neuroface-cv
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://neuroface-cv.{{ $hubDomain }}"
+  location: ApplicationMenu
+  text: "NeuroFace CV Gateway"
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
@@ -158,4 +242,47 @@ spec:
   href: "https://showroom-showroom.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Showroom Workshop"
+{{- else }}
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-neuroface-spoke
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://neuroface-spoke-gateway.{{ $domainBase }}"
+  location: ApplicationMenu
+  text: "NeuroFace Spoke Gateway"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-devspaces
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://devspaces.{{ $domain }}"
+  location: ApplicationMenu
+  text: "DevSpaces"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-openshift-ai
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://rhods-dashboard-redhat-ods-applications.{{ $domain }}"
+  location: ApplicationMenu
+  text: "OpenShift AI Dashboard"
 {{- end }}

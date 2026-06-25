@@ -1,0 +1,56 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: NeuroFace ${{ values.owner }} (${{ values.spoke }})
+  description: |
+    Personal NeuroFace instance with RHBK biometric 2FA on the ${{ values.spoke }} spoke.
+    PPE detection, MaaS chat, OIDC-secured RHCL Gateway path /user/${{ values.owner }}/.
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/source-location: url:${{ values.repoUrl }}
+    gitlab.com/project-slug: ws-workshop/${{ values.name }}
+    argocd/app-name: ${{ values.name }}
+    tekton.dev/pipeline: neuroface-build
+    dev.azure.com/project-repo: ws-workshop/${{ values.name }}
+    openshift.io/deployment-name: neuroface-backend
+  links:
+    - url: https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}/
+      title: NeuroFace (OIDC Gateway)
+      icon: dashboard
+    - url: https://rhbk-${{ values.name }}.${{ values.spokeClusterDomain }}/admin
+      title: RHBK Admin Console
+      icon: security
+    - url: https://mailpit.${{ values.hubClusterDomain }}
+      title: Mailpit (PPE alerts)
+      icon: email
+    - url: https://devspaces.apps.${{ values.hubClusterDomain }}/#https://gitlab.apps.${{ values.hubClusterDomain }}/ws-workshop/${{ values.name }}
+      title: Open in DevSpaces
+      icon: catalog
+    - url: https://gitlab.apps.${{ values.hubClusterDomain }}/ws-workshop/${{ values.name }}
+      title: GitLab Repository
+      icon: catalog
+spec:
+  type: service
+  lifecycle: experimental
+  owner: user:${{ values.owner }}
+  system: neuroface-cv
+  providesApis:
+    - ${{ values.name }}-api
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}-api
+  title: NeuroFace Backend API
+  description: PPE detection, chat, and health endpoints for ${{ values.owner }} NeuroFace instance.
+  annotations:
+    backstage.io/definition-at-location: docs/openapi.yaml
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: user:${{ values.owner }}
+  system: neuroface-cv
+  definition:
+    $text: ./docs/openapi.yaml

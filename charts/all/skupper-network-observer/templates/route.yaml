@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: skupper-network-observer
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  host: skupper-network-observer-service-interconnect.{{ include "skupper-network-observer.domainBase" . }}
+  to:
+    kind: Service
+    name: skupper-network-observer
+  port:
+    targetPort: https
+  tls:
+    termination: passthrough
+    insecureEdgeTerminationPolicy: Redirect

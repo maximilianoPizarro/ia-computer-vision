@@ -121,7 +121,10 @@ spec:
                 git checkout -B main origin/main
               fi
               mkdir -p "${WORK}/docs"
-              cp -a "${ROOT_DIR}/docs/assets/backstage/software-templates" "${WORK}/"
+              cp -a "${ROOT_DIR}/charts/all/developer-hub/files/software-templates/ai-cv-skeleton" "${WORK}/ai-computer-vision/"
+              cp "${ROOT_DIR}/charts/all/developer-hub/files/software-templates/ai-computer-vision.yaml" "${WORK}/ai-computer-vision.yaml"
+              mkdir -p "${WORK}/docs/assets/backstage/software-templates"
+              cp -a "${ROOT_DIR}/charts/all/developer-hub/files/software-templates/ai-cv-skeleton" "${WORK}/docs/assets/backstage/software-templates/ai-computer-vision/"
               cp -a "${ROOT_DIR}/charts/all/developer-hub/files/onboarding" "${WORK}/docs/"
               cp -a "${ROOT_DIR}/charts/all/developer-hub/files/techdocs/industrial-edge" "${WORK}/docs/industrial-edge"
               printf '%s\n' "# Platform content" "" "Seeded from pattern repo." > "${WORK}/README.md"

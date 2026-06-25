@@ -1,26 +1,22 @@
-# Pipelines and Quay
+# Pipelines and internal registry
 
-## Tekton
-
-After your component syncs on the spoke:
-
-1. Open the entity in Developer Hub.
-2. Go to the **CI** tab (Tekton plugin).
-3. Watch `PipelineRun` for the build.
-
-Pipelines use **buildah** to push images to the internal registry:
+Scaffolded NeuroFace projects include a Tekton Pipeline that builds the backend image to the OpenShift internal registry:
 
 ```text
-quay-registry.<hub-apps-domain>/workshop/<your-unique-name>:latest
+image-registry.openshift-image-registry.svc:5000/neuroface-<user>/neuroface-backend:latest
 ```
 
-## Quay UI
+## Developer Hub CI tab
 
-- Console menu: **Quay Registry** (hub).
-- Or Developer Hub **Quay** tab on the entity (when `quay.io/repository-slug: workshop/<name>` is set).
+When the Tekton plugin is enabled, open your catalog entity → tab **CI** to see pipeline run status. Otherwise use the Kubernetes tab for pod logs.
 
-Images are stored in the shared **`workshop`** organization — one robot account is used for all workshop pushes (simplifies permissions).
+## Push credentials
 
-## Credentials
+Each scaffolded namespace includes a `pipeline` ServiceAccount with `edit` role. OpenShift grants push access to the namespace's internal registry path automatically — no external Quay credentials required.
 
-The platform creates `quay-workshop-push` in your deployment namespace (from the scaffold manifests). Pipelines reference this secret for push and pull.
+## Verify a build
+
+```bash
+oc get pipelinerun -n neuroface-user1
+oc get imagestream -n neuroface-user1
+```

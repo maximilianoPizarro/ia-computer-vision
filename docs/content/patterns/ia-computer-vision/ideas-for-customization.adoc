@@ -9,6 +9,30 @@ weight: 40
 
 This document describes actionable ways to extend the AI Computer Vision pattern for production or proof-of-concept environments. Each scenario includes context, the exact files and values to change, and a validation command.
 
+== Per-user OIDC Gateway routing (ApplicationSet)
+
+=== Context
+
+Workshop users scaffold personal NeuroFace instances via Developer Hub. Each instance gets a unique HTTPRoute path (`/user/userN/`) on the shared spoke Gateway and an RHCL `AuthPolicy` with OIDC pointing to the user's RHBK biometric realm.
+
+=== What to change
+
+. Scaffolding template: `charts/all/developer-hub/files/software-templates/ai-computer-vision.yaml`
+. Skeleton manifests: `charts/all/developer-hub/files/software-templates/ai-cv-skeleton/k8s/`
+. ApplicationSet: `charts/all/spoke-neuroface/templates/applicationset-user-neuroface.yaml`
+. Gateway cross-namespace routes: `charts/all/spoke-neuroface/templates/gateway.yaml` (`allowedRoutes.namespaces.from: All`)
+
+=== Validation
+
+[source,bash]
+----
+$ oc get applicationset -n vp-gitops user-neuroface-apps
+$ oc get application -n vp-gitops | grep neuroface-user
+$ oc get httproute,authpolicy -n neuroface-user1
+----
+
+.Expected: ApplicationSet generates one Argo CD Application per `neuroface-*` GitLab repo; HTTPRoute and AuthPolicy exist in the user namespace.
+
 == Adding a third spoke (south) for a new region
 
 === Context
@@ -382,7 +406,7 @@ Your supply chain policy requires signed container images before deployment to e
 
 . Add corresponding namespaces and ArgoCD applications for RHTAS configuration charts.
 
-. Configure GitLab CI/CD pipelines in the Developer Hub software templates to sign images with `cosign` before pushing to Quay.
+. Configure GitLab CI/CD pipelines in the Developer Hub software templates to sign images with `cosign` before pushing to the OpenShift internal registry.
 
 === Files affected
 
@@ -403,7 +427,7 @@ $ oc get csv -n openshift-operators | grep rhtas
 ----
 $ cosign verify --certificate-identity-regexp=.* \
   --certificate-oidc-issuer-regexp=.* \
-  quay.apps.<hub_domain>/<org>/<image>:<tag>
+  image-registry.openshift-image-registry.svc:5000/neuroface-user1/neuroface-backend:latest
 ----
 
 .Expected: `Verification succeeded`

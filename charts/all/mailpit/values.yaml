@@ -1,0 +1,15 @@
+clusterDomain: ""
+
+mailpit:
+  image: docker.io/axllent/mailpit:v1.21
+
+ppeKafkaMailpit:
+  enabled: true
+  kafkaBootstrap: kafka-east-tst.service-interconnect.svc:9092
+  kafkaTopic: cv.ppe.detections
+  kafkaGroup: ppe-mailpit-consumer
+  smtpHost: mailpit.mailpit.svc
+  smtpPort: "1025"
+  mailFrom: ppe-alerts@neuroface.local
+  mailTo: safety-team@workshop.local
+  neurofaceUrl: ""

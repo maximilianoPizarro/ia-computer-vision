@@ -107,7 +107,7 @@ Use `syncWave` in applications or `argocd.argoproj.io/sync-wave` annotation in t
 |------|---------|-------------|
 | 0 | Platform base | openshift-gitops, platform-users |
 | 1 | Operators + ACM | observability, acm |
-| 2 | Secrets infrastructure | vault, openshift-external-secrets, rhbk, quay |
+| 2 | Secrets infrastructure | vault, openshift-external-secrets, rhbk |
 | 3 | Developer tools | gitlab-operator |
 | 4 | Developer portal | developer-hub |
 | 5 | AI + workshop | openshift-ai-hub, showroom |
@@ -269,7 +269,7 @@ The Vault path follows the convention `secret/data/hub/{secret-name}` where `{se
 
 When porting charts from hybrid-mesh-platform:
 1. Strip Industrial Edge components (disabled in ia-computer-vision)
-2. Use VP published charts where available (rhbk, quay, acm, vault, openshift-external-secrets, servicemesh)
+2. Use VP published charts where available (rhbk, acm, vault, openshift-external-secrets, servicemesh)
 3. Use VP `servicemesh` chart with `profile: ambient` on both hub and spokes (not local chart)
 4. Keep Skupper spoke interconnect configuration
 5. Keep NeuroFace + OVMS/YOLO CV inference charts

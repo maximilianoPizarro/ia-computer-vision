@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mailpit
+description: Mailpit email testing server and PPE Kafka alert consumer for NeuroFace
+type: application
+version: 0.1.0
+appVersion: "1.21"

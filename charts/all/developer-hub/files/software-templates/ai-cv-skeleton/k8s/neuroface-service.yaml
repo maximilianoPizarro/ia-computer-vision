@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuroface-backend
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/name: neuroface-backend
+    app.kubernetes.io/part-of: neuroface
+spec:
+  selector:
+    app.kubernetes.io/name: neuroface-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuroface-frontend
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/name: neuroface-frontend
+    app.kubernetes.io/part-of: neuroface
+spec:
+  selector:
+    app.kubernetes.io/name: neuroface-frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

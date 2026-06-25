@@ -1,0 +1,60 @@
+{{- if .Values.pluginReadiness.enabled | default true }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: developer-hub-keycloak-readiness
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      serviceAccountName: developer-hub
+      restartPolicy: OnFailure
+      containers:
+        - name: wait
+          image: {{ .Values.pluginReadiness.image | default "registry.redhat.io/ubi9/ubi-minimal:latest" | quote }}
+          env:
+            - name: KEYCLOAK_NS
+              value: {{ include "developer-hub.keycloakNamespace" . | quote }}
+            - name: SSO_URL
+              value: {{ include "developer-hub.ssoBaseUrl" . | quote }}
+            - name: OIDC_DISCOVERY
+              value: {{ include "developer-hub.oidcDiscoveryUrl" . | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              echo "Waiting for SSO route ${SSO_URL}..."
+              for i in $(seq 1 90); do
+                CODE=$(curl -sk -o /dev/null -w "%{http_code}" "${SSO_URL}/" || echo "000")
+                if [ "${CODE}" = "200" ] || [ "${CODE}" = "302" ] || [ "${CODE}" = "303" ]; then
+                  echo "SSO route reachable (HTTP ${CODE})"
+                  break
+                fi
+                if [ "$i" -eq 90 ]; then
+                  echo "SSO route not reachable (last HTTP ${CODE})"
+                  exit 1
+                fi
+                sleep 10
+              done
+
+              echo "Waiting for backstage realm OIDC discovery..."
+              for i in $(seq 1 60); do
+                CODE=$(curl -sk -o /dev/null -w "%{http_code}" "${OIDC_DISCOVERY}" || echo "000")
+                if [ "${CODE}" = "200" ]; then
+                  echo "OIDC discovery OK"
+                  exit 0
+                fi
+                if [ "$i" -eq 60 ]; then
+                  echo "OIDC discovery not ready (last HTTP ${CODE})"
+                  exit 1
+                fi
+                sleep 10
+              done
+{{- end }}

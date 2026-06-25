@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rhbk-${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app: rhbk-${{ values.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rhbk-${{ values.name }}
+  template:
+    metadata:
+      labels:
+        app: rhbk-${{ values.name }}
+    spec:
+      initContainers:
+        - name: copy-spi
+          image: quay.io/maximilianopizarro/rhbk-neuroface-spi:latest
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "cp /opt/spi/*.jar /providers/"]
+          volumeMounts:
+            - name: providers
+              mountPath: /providers
+      containers:
+        - name: keycloak
+          image: registry.redhat.io/rhbk/keycloak-rhel9:26.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - start-dev
+            - --import-realm
+          env:
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HOSTNAME
+              value: rhbk-${{ values.name }}.${{ values.spokeClusterDomain }}
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+          envFrom:
+            - secretRef:
+                name: rhbk-admin
+            - configMapRef:
+                name: rhbk-env
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: providers
+              mountPath: /opt/keycloak/providers
+            - name: realm-config
+              mountPath: /opt/keycloak/data/import
+      volumes:
+        - name: providers
+          emptyDir: {}
+        - name: realm-config
+          configMap:
+            name: rhbk-realm

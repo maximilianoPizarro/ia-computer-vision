@@ -1,0 +1,68 @@
+{{- $argoNs := "vp-gitops" -}}
+{{- if .Values.global -}}
+{{- $argoNs = .Values.global.argoNamespace | default $argoNs -}}
+{{- end -}}
+{{- if .Values.applicationSet.enabled }}
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: gitlab-scm-token
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: {{ .Values.applicationSet.secretStoreName | default "vault-backend" }}
+  target:
+    name: gitlab-scm-token
+    creationPolicy: Owner
+  data:
+    - secretKey: token
+      remoteRef:
+        key: {{ .Values.applicationSet.vaultKey | default "secret/data/hub/developer-hub-secrets" }}
+        property: gitlab-token
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: user-neuroface-apps
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - scmProvider:
+        gitlab:
+          group: {{ .Values.applicationSet.gitlabGroup | default "ws-workshop" | quote }}
+          cloneProtocol: https
+          api: {{ include "spoke-neuroface.gitlabApiUrl" . | quote }}
+          tokenRef:
+            secretName: gitlab-scm-token
+            key: token
+        filters:
+          - repositoryMatch: {{ .Values.applicationSet.repositoryMatch | default "^neuroface-" | quote }}
+  template:
+    metadata:
+      name: "{{`{{ .repository }}`}}"
+      labels:
+        app.kubernetes.io/part-of: neuroface-workshop
+    spec:
+      project: ai
+      source:
+        repoURL: "{{`{{ .url }}`}}"
+        targetRevision: main
+        path: k8s
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{`{{ .repository }}`}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+{{- end }}

@@ -2,6 +2,16 @@ clusterDomain: ""
 dynamicPluginsStorage: 10Gi
 userCount: 1
 defaultPassword: "Welcome123!"
+keycloak:
+  namespace: keycloak-system
+  crName: keycloak
+  serviceName: keycloak-service-trusted
+oidcAuth:
+  useVault: true
+  vaultKey: secret/data/hub/developer-hub-secrets
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
 keycloakOidcClientSecret: ""
 devspacesOidcClientSecret: ""
 gitlabToken: ""
@@ -41,7 +51,7 @@ plugins:
   techInsights:
     enabled: false
   quay:
-    enabled: true
+    enabled: false
   acsSecurityInsights:
     enabled: false
   argocd:

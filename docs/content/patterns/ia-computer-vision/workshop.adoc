@@ -53,6 +53,28 @@ neuroface-cv-status
 neuroface-cv-traffic
 ----
 
+== Module 02 — Scaffold NeuroFace with RHBK biometric OIDC
+
+Showroom module 02 walks through the AI Computer Vision software template journey:
+
+. Log in to Developer Hub as `userN` / `Welcome123!`
+. Open **Create** → **AI Computer Vision at the Edge**
+. Select target spoke (east or west) and confirm hub/spoke apps domains
+. Submit — the scaffolder creates a GitLab repo in `ws-workshop/neuroface-userN`
+. Argo CD ApplicationSet on the spoke discovers the repo and deploys `k8s/` manifests
+. Verify ApplicationSet: `oc get applicationset -n vp-gitops user-neuroface-apps`
+. Open your catalog entity → tab **API** → NeuroFace OpenAPI spec with **Try It Out**
+. Click **Open in DevSpaces** to edit NeuroFace source
+. Tab **CI** shows Tekton pipeline run status (when Tekton plugin is enabled)
+. Access NeuroFace: `https://neuroface-spoke-gateway.<spoke_domain>/user/userN/`
+. RHCL redirects to RHBK OIDC — login `userN` / `Welcome123!`
+. First login: complete biometric enrollment (webcam, 3–5 images)
+. Subsequent logins: password + facial 2FA verification
+. Test PPE detection and MaaS chat in the NeuroFace UI
+. Trigger a PPE violation (remove hardhat in webcam) — NeuroFace publishes to Kafka topic `cv.ppe.detections`
+. Open **Mailpit** from the OCP console menu → verify alert email arrived
+. Verify Kafka consumer: `oc logs -n mailpit deploy/ppe-kafka-mailpit -f`
+
 == Scaling workshop users
 
 Update `userCount` consistently in these application overrides:

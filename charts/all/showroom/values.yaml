@@ -28,7 +28,7 @@ showroom:
       - vault
       - openshift-gitops
       - gitlab-system
-      - quay-enterprise
+      - mailpit
       - redhat-connectivity-link-operator
       - service-interconnect
       - neuroface

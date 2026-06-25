@@ -1,0 +1,9 @@
+apiVersion: v2
+name: skupper-network-observer
+description: Skupper network observer with OpenShift Route for the Service Interconnect console
+type: application
+version: 0.1.0
+dependencies:
+  - name: network-observer
+    version: 2.1.3
+    repository: oci://quay.io/skupper/helm

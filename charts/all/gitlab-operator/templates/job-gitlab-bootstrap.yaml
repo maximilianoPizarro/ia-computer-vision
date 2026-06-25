@@ -108,6 +108,8 @@ spec:
               value: {{ .Values.bootstrap.developerHubGroup | quote }}
             - name: APP_OF_APPS_GROUP
               value: {{ .Values.bootstrap.appOfAppsGroup | quote }}
+            - name: NEUROFACE_GROUP
+              value: {{ .Values.bootstrap.neurofaceGroup | quote }}
           command:
             - /bin/bash
             - -c
@@ -170,6 +172,7 @@ spec:
                   ['{{ .Values.bootstrap.workshopDemosGroup }}', '{{ .Values.bootstrap.workshopDemosGroup }}', 'Hybrid Mesh AI shared Plan B repos'],
                   ['{{ .Values.bootstrap.developerHubGroup }}', 'Developer Hub', 'Developer Hub scaffolder repos'],
                   ['{{ .Values.bootstrap.appOfAppsGroup }}', 'App of Apps', 'ApplicationSet GitOps repos'],
+                  ['{{ .Values.bootstrap.neurofaceGroup }}', 'Workshop', 'Shared NeuroFace scaffolding repos (ApplicationSet)'],
                   ['ws-admin', 'ws-admin', 'DevSpaces Camel Kaoto repos for admin'],
                   ['ws-platformadmin', 'ws-platformadmin', 'Workshop repos for platformadmin'],
                 ].each do |path, name, desc|

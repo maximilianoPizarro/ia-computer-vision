@@ -1,0 +1,55 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: neuroface-build
+  namespace: ${{ values.namespace }}
+spec:
+  params:
+    - name: image-tag
+      type: string
+      default: latest
+  workspaces:
+    - name: source
+    - name: dockerconfig
+  tasks:
+    - name: build-backend
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      params:
+        - name: IMAGE
+          value: image-registry.openshift-image-registry.svc:5000/${{ values.namespace }}/neuroface-backend:$(params.image-tag)
+        - name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: neuroface-build-initial
+  namespace: ${{ values.namespace }}
+  labels:
+    tekton.dev/pipeline: neuroface-build
+spec:
+  pipelineRef:
+    name: neuroface-build
+  params:
+    - name: image-tag
+      value: latest
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    - name: dockerconfig
+      emptyDir: {}
+  taskRunTemplate:
+    serviceAccountName: pipeline

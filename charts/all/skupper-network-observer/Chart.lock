@@ -1,0 +1,6 @@
+dependencies:
+- name: network-observer
+  repository: oci://quay.io/skupper/helm
+  version: 2.1.3
+digest: sha256:a6555868840a5ece84bb49006e0c594c4d2cb9a14ec648e6b5c5b59d66153f1d
+generated: "2026-06-25T18:07:22.8120874-03:00"

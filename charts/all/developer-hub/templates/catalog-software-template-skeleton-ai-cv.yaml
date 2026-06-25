@@ -1,0 +1,15 @@
+{{- $root := "files/software-templates/ai-cv-skeleton" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-software-template-skeleton-ai-cv
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+{{- range $path, $_ := .Files.Glob (printf "%s/**" $root) }}
+  {{ $path | trimPrefix (printf "%s/" $root) }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

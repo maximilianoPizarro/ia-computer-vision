@@ -17,3 +17,35 @@
 {{- end -}}
 {{- $key -}}
 {{- end -}}
+
+{{- define "spoke-neuroface.hubClusterDomain" -}}
+{{- $g := .Values.global | default dict -}}
+{{- .Values.hubClusterDomain | default $g.hubClusterDomain | default $g.localClusterDomain | default "cluster.example.com" -}}
+{{- end -}}
+
+{{- define "spoke-neuroface.hubClusterDomainBase" -}}
+{{- $d := include "spoke-neuroface.hubClusterDomain" . -}}
+{{- if hasPrefix "apps." $d -}}
+{{- trimPrefix "apps." $d -}}
+{{- else -}}
+{{- $d -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "spoke-neuroface.gitlabApiUrl" -}}
+{{- printf "https://gitlab.apps.%s/api/v4" (include "spoke-neuroface.hubClusterDomainBase" .) -}}
+{{- end -}}
+
+{{- define "spoke-neuroface.clusterDomain" -}}
+{{- $g := .Values.global | default dict -}}
+{{- .Values.clusterDomain | default $g.localClusterDomain | default "apps.cluster.example.com" -}}
+{{- end -}}
+
+{{- define "spoke-neuroface.clusterDomainBase" -}}
+{{- $d := include "spoke-neuroface.clusterDomain" . -}}
+{{- if hasPrefix "apps." $d -}}
+{{- trimPrefix "apps." $d -}}
+{{- else -}}
+{{- $d -}}
+{{- end -}}
+{{- end -}}

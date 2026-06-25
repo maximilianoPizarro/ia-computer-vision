@@ -1,0 +1,35 @@
+schemaVersion: 2.2.0
+metadata:
+  name: ${{ values.name }}
+  displayName: NeuroFace ${{ values.owner }}
+  description: DevSpaces workspace for NeuroFace backend (Python) and frontend (Node/Angular).
+  tags:
+    - neuroface
+    - ai-cv
+    - python
+    - nodejs
+components:
+  - name: tools
+    container:
+      image: quay.io/devfile/universal-developer-image:ubi9-latest
+      memoryLimit: 4Gi
+      cpuLimit: 2000m
+      mountSources: true
+      env:
+        - name: NEUROFACE_NAMESPACE
+          value: ${{ values.namespace }}
+        - name: SPOKE_CLUSTER
+          value: ${{ values.spoke }}
+commands:
+  - id: backend-dev
+    exec:
+      label: Run NeuroFace backend (dev)
+      commandLine: cd backend && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+  - id: frontend-dev
+    exec:
+      label: Run NeuroFace frontend (dev)
+      commandLine: cd frontend && npm install && npm start
+      component: tools
+      workingDir: ${PROJECT_SOURCE}

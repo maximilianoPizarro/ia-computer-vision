@@ -64,13 +64,13 @@ The hub cluster hosts fleet management, the developer platform, centralized secu
 | DataScienceCluster, KServe model serving, workbenches for model training and experimentation
 | Supported enterprise AI platform with integrated model management. Provides the DSCInitialization and DataScienceCluster CRs that enable KServe and model serving pipelines.
 
-| Red Hat Quay 3.17
-| Private container registry for pattern and application images
-| Secure image storage with integrated vulnerability scanning (Clair) and geo-replication for edge scenarios. Requires OpenShift Data Foundation (ODF) for ObjectBucketClaim S3-compatible storage.
+| OpenShift internal registry
+| Container image storage for scaffolded NeuroFace Tekton builds
+| Built-in registry on each cluster avoids ODF/Quay dependency. Scaffolding templates push to `image-registry.openshift-image-registry.svc:5000/neuroface-<user>/`.
 
 | Red Hat Build of Keycloak (RHBK) 26.4
-| OIDC identity provider for Developer Hub and workshop users
-| Enterprise-grade identity management. The `backstage` realm provides SSO across Developer Hub, GitLab, and workshop services.
+| OIDC identity provider for Developer Hub, workshop users, and per-user NeuroFace biometric flows
+| Enterprise-grade identity management. Hub Keycloak serves Developer Hub SSO; each scaffolded NeuroFace instance gets its own RHBK with biometric SPI for 2FA facial verification.
 
 | OpenShift GitOps (Argo CD)
 | Reconciles `values-hub.yaml` applications from the pattern Git repository
@@ -125,6 +125,19 @@ East and west spokes run identical software stacks. Helm overrides set `clusterN
 | HTPasswd workshop users and namespace view RBAC on spokes
 | Consistent lab credentials across hub and edge clusters for workshop and demo events.
 |===
+
+=== Per-user NeuroFace scaffolding (workshop)
+
+Developer Hub software template `ai-computer-vision` scaffolds a GitLab repo in the shared `ws-workshop` group. An Argo CD ApplicationSet on each spoke watches for repos matching `neuroface-*` and deploys manifests from the `k8s/` directory.
+
+Each user namespace (`neuroface-userN`) contains:
+
+* NeuroFace frontend and backend (shared images v1.5.1; Tekton builds to internal registry)
+* Per-user RHBK with biometric SPI (facial enrollment + 2FA login)
+* HTTPRoute on the shared spoke Gateway with path `/user/userN/`
+* RHCL `AuthPolicy` with OIDC issuer pointing to the user's RHBK realm
+
+Workshop credentials remain consistent: `userN` / `Welcome123!` (same as HTPasswd). First RHBK login triggers biometric enrollment via webcam.
 
 == Traffic flow: inference request end-to-end
 
@@ -302,7 +315,7 @@ The Validated Patterns Operator installs OpenShift GitOps and creates a Pattern 
 | `openshift-gitops`, `platform-users`
 
 | 1–2
-| Observability, ACM, Vault, ESO, RHBK, Quay
+| Observability, ACM, Vault, ESO, RHBK
 
 | 3–4
 | GitLab, Developer Hub, Service Mesh, Skupper

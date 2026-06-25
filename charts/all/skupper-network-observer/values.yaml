@@ -1,0 +1,12 @@
+clusterDomain: ""
+
+network-observer:
+  fullnameOverride: skupper-network-observer
+  route:
+    enabled: false
+  tls:
+    skupperIssued: true
+  auth:
+    strategy: none
+  basic:
+    create: false

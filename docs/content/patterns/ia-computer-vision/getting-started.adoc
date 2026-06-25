@@ -98,10 +98,6 @@ The following table explains each secret and whether you need to provide a value
 | `api-key`
 | **Optional.** Required only if you enable MaaS/LiteLLM model endpoints on OpenShift AI. Leave the placeholder if you do not use external model APIs.
 
-| `quay-credentials`
-| `dockerconfigjson`
-| **Optional.** Required only if you push images to the pattern Quay registry. Leave the placeholder for read-only usage.
-
 | `spoke-credentials`
 | `east-token`, `east-api-url`, `west-token`, `west-api-url`
 | **Required for hub install.** Set after east and west spokes are running. Use a cluster-admin token from each spoke and its API server URL. The `acm-hub-spoke` chart (wave 6) reads these from Vault and auto-imports both clusters into RHACM.
@@ -372,7 +368,6 @@ openshift-ai-hub             Synced        Healthy
 openshift-external-secrets   Synced        Healthy
 openshift-gitops             Synced        Healthy
 platform-users               Synced        Healthy
-quay                         Synced        Healthy
 rhbk                         Synced        Healthy
 showroom                     Synced        Healthy
 vault                        Synced        Healthy
@@ -385,7 +380,7 @@ If any application shows `Degraded` or `Missing`, do not proceed. Check the link
 * **OutOfSync + Healthy**: Normal during initial install. OpenShift GitOps reconciles automatically; wait 5–10 minutes and recheck.
 * **Progressing**: An operator is still installing its operand. Wait for the CSV to reach `Succeeded`.
 * **Degraded**: A resource failed to apply. Run `oc describe application <app_name> -n vp-gitops` and check the `Message` field for the specific error.
-* **Missing**: A CRD required by the application is not yet installed (for example, `ObjectBucketClaim` for Quay requires OpenShift Data Foundation). Check operator prerequisites.
+* **Missing**: A CRD required by the application is not yet installed. Check operator prerequisites and sync wave ordering.
 ====
 
 === Step 2: Verify all operator CSVs are Succeeded

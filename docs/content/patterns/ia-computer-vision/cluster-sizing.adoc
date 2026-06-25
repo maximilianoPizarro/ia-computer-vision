@@ -43,14 +43,14 @@ In a tested sandbox deployment with `m6a.2xlarge` workers (3 control + 3 worker 
 
 [IMPORTANT]
 ====
-For production deployments, use `m6a.4xlarge` or larger workers on the hub. The hub runs RHACM, ACS Central (scanner, scanner-v4), GitLab, Developer Hub, OpenShift AI, Keycloak, Quay, and Vault — each operator contributes significant CPU requests even when idle.
+For production deployments, use `m6a.4xlarge` or larger workers on the hub. The hub runs RHACM, ACS Central (scanner, scanner-v4), GitLab, Developer Hub, OpenShift AI, Keycloak, and Vault — each operator contributes significant CPU requests even when idle.
 ====
 
 == Minimum requirements
 
 * OCP 4.20 or later on all clusters
 * Three worker nodes per cluster (minimum); hub recommended `m6a.4xlarge` or equivalent
-* Sufficient persistent storage for Vault, Quay, GitLab, and OpenShift AI on the hub
+* Sufficient persistent storage for Vault, GitLab, and OpenShift AI on the hub
 * Default StorageClass configured and provisioning PVCs
 * Hub total CPU capacity: minimum 32 vCPU allocatable across workers (with operator defaults)
 
@@ -175,12 +175,7 @@ The following versions are tested with this pattern. The `Channel` column maps t
 | Red Hat Build of Keycloak
 | 26.4
 | `stable-v26.4`
-| Hub
-
-| Red Hat Quay
-| 3.17
-| `stable-3.17`
-| Hub (requires ODF for ObjectBucketClaim)
+| Hub (platform) + per-user instances on spokes (scaffolding)
 
 | GitLab Operator
 | 3.1
@@ -232,6 +227,10 @@ The following versions are tested with this pattern. The `Channel` column maps t
 | `stable`
 | East, West
 |===
+
+=== Per-user NeuroFace scaffolding (30 users)
+
+Each scaffolded user deploys NeuroFace + RHBK biometric on a spoke (~650m CPU, 896Mi memory per user). With 15 users per spoke, plan for ~10 vCPU and ~13 GiB additional capacity beyond the base spoke stack. Tekton builds push to the OpenShift internal registry (`image-registry.openshift-image-registry.svc:5000`).
 
 [NOTE]
 ====

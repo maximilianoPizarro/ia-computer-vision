@@ -173,6 +173,13 @@ clusterGroup:
         - name: clusterName
           value: east
 
+    skupper-network-observer:
+      name: skupper-network-observer
+      namespace: service-interconnect
+      argoProject: mesh
+      path: charts/all/skupper-network-observer
+      syncWave: "5"
+
     spoke-neuroface:
       name: spoke-neuroface
       namespace: neuroface

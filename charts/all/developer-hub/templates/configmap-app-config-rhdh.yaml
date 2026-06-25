@@ -171,7 +171,7 @@ data:
               timeout: { minutes: 10 }
         keycloakOrg:
           default:
-            baseUrl: https://keycloak.{{ include "developer-hub.clusterDomain" . }}
+            baseUrl: {{ include "developer-hub.ssoBaseUrl" . }}
             loginRealm: backstage
             clientId: developer-hub-catalog
             clientSecret: ${OIDC_CLIENT_SECRET}
@@ -185,6 +185,7 @@ data:
             - name: default
               url: https://openshift-gitops-server-openshift-gitops.{{ include "developer-hub.clusterDomain" . }}
               token: ${K8S_SA_TOKEN}
+{{- if .Values.plugins.quay.enabled | default false }}
     quay:
       baseUrl: https://quay-registry.{{ include "developer-hub.clusterDomain" . }}
       dangerouslyAllowInsecureConnections: true
@@ -196,6 +197,7 @@ data:
       allowedRegistries: ['quay-registry.{{ include "developer-hub.clusterDomain" . }}']
       allowedRepositories: ['workshop/*']
       allowedTags: ['latest', 'stable']
+{{- end }}
     techdocs:
       builder: local
       publisher:
@@ -251,10 +253,12 @@ data:
           allowedMethods: ['GET', 'POST', 'PUT', 'DELETE']
           headers:
             PRIVATE-TOKEN: ${GITLAB_TOKEN}
+{{- if .Values.plugins.quay.enabled | default false }}
         '/quay':
           target: https://quay-registry.{{ include "developer-hub.clusterDomain" . }}/api/v1
           allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
           changeOrigin: true
+{{- end }}
         '/k8s-api':
           target: https://kubernetes.default.svc
           allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']

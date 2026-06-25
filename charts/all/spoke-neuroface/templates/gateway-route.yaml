@@ -1,0 +1,18 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: neuroface-spoke-gateway
+  namespace: neuroface
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  host: neuroface-spoke-gateway.{{ include "spoke-neuroface.clusterDomainBase" . }}
+  to:
+    kind: Service
+    name: neuroface-spoke-gateway-istio
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
