@@ -62,7 +62,7 @@
 {{- end -}}
 
 {{- define "developer-hub.keycloakServiceName" -}}
-{{- .Values.keycloak.serviceName | default "keycloak-service-trusted" -}}
+{{- .Values.keycloak.serviceName | default "keycloak-service-serving" -}}
 {{- end -}}
 
 {{- define "developer-hub.ssoHost" -}}
