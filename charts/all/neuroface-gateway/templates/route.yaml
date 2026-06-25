@@ -9,7 +9,7 @@ metadata:
 spec:
   host: neuroface.{{ include "neuroface-gateway.clusterDomain" . }}
   port:
-    targetPort: 8080
+    targetPort: neuroface-app-east
   to:
     kind: Service
     name: neuroface-app-east
