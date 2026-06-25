@@ -1,0 +1,327 @@
+{{- if .Values.accessTokenSync.enabled | default true }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: skupper-accesstoken-sync
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: skupper-accesstoken-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+rules:
+  - apiGroups: ["skupper.io"]
+    resources: ["accessgrants"]
+    verbs: ["get", "list"]
+  - apiGroups: ["action.open-cluster-management.io"]
+    resources: ["managedclusteractions"]
+    verbs: ["get", "list", "create", "delete", "watch"]
+  - apiGroups: ["view.open-cluster-management.io"]
+    resources: ["managedclusterviews"]
+    verbs: ["get", "list", "create", "delete", "watch"]
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclusters"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: skupper-accesstoken-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: skupper-accesstoken-sync
+subjects:
+  - kind: ServiceAccount
+    name: skupper-accesstoken-sync
+    namespace: service-interconnect
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: skupper-accesstoken-sync-script
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  sync.py: |
+    #!/usr/bin/env python3
+    """Push Skupper AccessTokens to spokes via ManagedClusterAction (never stored in Git)."""
+    import json
+    import os
+    import ssl
+    import sys
+    import time
+    import urllib.error
+    import urllib.request
+    from pathlib import Path
+
+    HUB_NS = os.environ.get("SKUPPER_NAMESPACE", "service-interconnect")
+    GRANT_NAME = os.environ.get("GRANT_NAME", "spoke-link")
+    TOKEN_NAME = os.environ.get("TOKEN_NAME", "hub-link")
+    MCA_NAME = os.environ.get("MCA_NAME", "skupper-hub-link-token")
+    CLUSTERS = [c.strip() for c in os.environ.get("CLUSTERS", "east,west").split(",") if c.strip()]
+    MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "12"))
+    RETRY_INTERVAL = int(os.environ.get("RETRY_INTERVAL", "30"))
+    LINK_VIEW = os.environ.get("LINK_VIEW", "skupper-hub-link-status")
+
+    SA_TOKEN_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    SA_CA_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
+    API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
+    API_BASE = f"https://{API_HOST}:{API_PORT}"
+
+    def api_request(method, path, body=None, content_type="application/json"):
+        token = SA_TOKEN_PATH.read_text().strip()
+        ctx = ssl.create_default_context(cafile=str(SA_CA_PATH))
+        headers = {"Authorization": f"Bearer {token}"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode() if isinstance(body, dict) else body
+            headers["Content-Type"] = content_type
+        req = urllib.request.Request(f"{API_BASE}{path}", data=data, method=method, headers=headers)
+        with urllib.request.urlopen(req, context=ctx, timeout=120) as resp:
+            raw = resp.read().decode()
+            return json.loads(raw) if raw else {}
+
+    def get_grant():
+        path = f"/apis/skupper.io/v2alpha1/namespaces/{HUB_NS}/accessgrants/{GRANT_NAME}"
+        grant = api_request("GET", path)
+        status = grant.get("status") or {}
+        code = (status.get("code") or "").strip()
+        url = (status.get("url") or "").strip()
+        ca = (status.get("ca") or "").strip()
+        if not code or not url or not ca:
+            raise RuntimeError(f"AccessGrant {GRANT_NAME} status not ready (code/url/ca)")
+        return code, url, ca
+
+    def delete_mcv(cluster):
+        path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{LINK_VIEW}"
+        try:
+            api_request("DELETE", path)
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+
+    def fetch_link(cluster):
+        delete_mcv(cluster)
+        body = {
+            "apiVersion": "view.open-cluster-management.io/v1beta1",
+            "kind": "ManagedClusterView",
+            "metadata": {"name": LINK_VIEW},
+            "spec": {
+                "scope": {
+                    "apiGroup": "skupper.io",
+                    "version": "v2alpha1",
+                    "resource": "links",
+                    "kind": "Link",
+                    "name": TOKEN_NAME,
+                    "namespace": HUB_NS,
+                }
+            },
+        }
+        api_request(
+            "POST",
+            f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews",
+            body,
+        )
+        view_path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{LINK_VIEW}"
+        for _ in range(30):
+            view = api_request("GET", view_path)
+            result = view.get("status", {}).get("result") or {}
+            if result:
+                return result.get("status", {})
+            time.sleep(2)
+        return {}
+
+    def link_is_healthy(link_status):
+        if not link_status:
+            return False
+        return link_status.get("status") == "Ready"
+
+    def delete_mca(cluster):
+        path = f"/apis/action.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusteractions/{MCA_NAME}"
+        try:
+            api_request("DELETE", path)
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+
+    def wait_mca(cluster):
+        path = f"/apis/action.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusteractions/{MCA_NAME}"
+        for _ in range(60):
+            mca = api_request("GET", path)
+            conds = mca.get("status", {}).get("conditions") or []
+            for c in conds:
+                if c.get("type") == "Complete" and c.get("status") == "True":
+                    return True
+                if c.get("type") == "Complete" and c.get("reason") == "Failed":
+                    msg = c.get("message", "MCA failed")
+                    raise RuntimeError(f"ManagedClusterAction on {cluster}: {msg}")
+            time.sleep(2)
+        raise RuntimeError(f"timeout waiting for ManagedClusterAction on {cluster}")
+
+    def apply_accesstoken(cluster, code, url, ca):
+        delete_mca(cluster)
+        body = {
+            "apiVersion": "action.open-cluster-management.io/v1beta1",
+            "kind": "ManagedClusterAction",
+            "metadata": {"name": MCA_NAME, "namespace": cluster},
+            "spec": {
+                "actionType": "Create",
+                "kube": {
+                    "resource": "accesstokens",
+                    "name": TOKEN_NAME,
+                    "namespace": HUB_NS,
+                    "template": {
+                        "apiVersion": "skupper.io/v2alpha1",
+                        "kind": "AccessToken",
+                        "metadata": {"name": TOKEN_NAME, "namespace": HUB_NS},
+                        "spec": {"code": code, "url": url, "ca": ca},
+                    },
+                },
+            },
+        }
+        api_request(
+            "POST",
+            f"/apis/action.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusteractions",
+            body,
+        )
+        wait_mca(cluster)
+
+    def sync_cluster(cluster, code, url, ca):
+        link_status = fetch_link(cluster)
+        if link_is_healthy(link_status):
+            print(f"{cluster}: link {TOKEN_NAME} already Ready", file=sys.stderr)
+            return True
+        print(f"{cluster}: applying AccessToken via ManagedClusterAction", file=sys.stderr)
+        apply_accesstoken(cluster, code, url, ca)
+        link_status = fetch_link(cluster)
+        if link_is_healthy(link_status):
+            print(f"{cluster}: link Ready after token apply", file=sys.stderr)
+            return True
+        print(f"{cluster}: link not Ready yet (status={link_status.get('status')})", file=sys.stderr)
+        return False
+
+    def main():
+        pending = CLUSTERS
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                code, url, ca = get_grant()
+            except Exception as exc:
+                print(f"Attempt {attempt}/{MAX_RETRIES}: grant not ready: {exc}", file=sys.stderr)
+                if attempt < MAX_RETRIES:
+                    time.sleep(RETRY_INTERVAL)
+                    continue
+                sys.exit(1)
+
+            pending = []
+            for cluster in CLUSTERS:
+                try:
+                    if not sync_cluster(cluster, code, url, ca):
+                        pending.append(cluster)
+                except Exception as exc:
+                    print(f"{cluster}: {exc}", file=sys.stderr)
+                    pending.append(cluster)
+
+            if not pending:
+                print("All spoke Skupper links Ready", file=sys.stderr)
+                return
+
+            if attempt < MAX_RETRIES:
+                print(f"Pending {pending}; retry in {RETRY_INTERVAL}s", file=sys.stderr)
+                time.sleep(RETRY_INTERVAL)
+
+        print(f"FAILED: links not Ready for {pending}", file=sys.stderr)
+        sys.exit(1)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: skupper-accesstoken-sync-hook
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: skupper-accesstoken-sync
+      restartPolicy: OnFailure
+      containers:
+        - name: sync
+          image: {{ .Values.accessTokenSync.image | quote }}
+          command: ["python3", "/scripts/sync.py"]
+          env:
+            - name: SKUPPER_NAMESPACE
+              value: service-interconnect
+            - name: GRANT_NAME
+              value: {{ .Values.accessTokenSync.grantName | default "spoke-link" | quote }}
+            - name: TOKEN_NAME
+              value: {{ .Values.accessTokenSync.tokenName | default "hub-link" | quote }}
+            - name: CLUSTERS
+              value: {{ .Values.accessTokenSync.clusters | default "east,west" | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: skupper-accesstoken-sync-script
+            defaultMode: 0555
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: skupper-accesstoken-sync
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  schedule: {{ .Values.accessTokenSync.schedule | default "*/30 * * * *" | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          serviceAccountName: skupper-accesstoken-sync
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: {{ .Values.accessTokenSync.image | quote }}
+              command: ["python3", "/scripts/sync.py"]
+              env:
+                - name: SKUPPER_NAMESPACE
+                  value: service-interconnect
+                - name: GRANT_NAME
+                  value: {{ .Values.accessTokenSync.grantName | default "spoke-link" | quote }}
+                - name: TOKEN_NAME
+                  value: {{ .Values.accessTokenSync.tokenName | default "hub-link" | quote }}
+                - name: CLUSTERS
+                  value: {{ .Values.accessTokenSync.clusters | default "east,west" | quote }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: skupper-accesstoken-sync-script
+                defaultMode: 0555
+{{- end }}

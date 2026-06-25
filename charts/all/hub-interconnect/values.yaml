@@ -1,1 +1,11 @@
 clusterName: hub
+
+# Push Skupper AccessTokens to spokes via ACM ManagedClusterAction.
+# Grant code/url/ca are read from AccessGrant status at runtime (never in Git).
+accessTokenSync:
+  enabled: true
+  grantName: spoke-link
+  tokenName: hub-link
+  clusters: "east,west"
+  schedule: "*/30 * * * *"
+  image: registry.redhat.io/ubi9/python-311:latest

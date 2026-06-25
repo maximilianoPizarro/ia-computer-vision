@@ -171,9 +171,9 @@ $ oc label managedcluster <east_cluster_name> clusterGroup=east --overwrite
 
 === Probable cause
 
-* Spoke not yet registered in RHACM (Skupper requires RHACM-propagated metadata for automatic link establishment)
+* Spoke not yet registered in RHACM (the `hub-interconnect` chart pushes `AccessToken` resources to spokes only after ACM imports `east` and `west`)
 * Network firewall blocking Skupper protocol (port 8443 by default for inter-router links, port 45671 for data)
-* Link secret or token not exchanged between sites
+* `skupper-accesstoken-sync` PostSync job or CronJob failed before spokes were imported
 * `spoke-interconnect` ArgoCD application not synced
 
 === Diagnosis
@@ -184,17 +184,29 @@ $ oc get site -n service-interconnect -o yaml
 $ oc get listener,connector -n service-interconnect
 $ oc get pods -n service-interconnect
 $ oc logs deployment/skupper-router -n service-interconnect --tail=50 2>/dev/null
+$ oc get accessgrant spoke-link -n service-interconnect
+$ oc get job,cronjob -n service-interconnect | grep accesstoken
+$ oc logs job/skupper-accesstoken-sync-hook -n service-interconnect --tail=50 2>/dev/null
+$ oc get managedclusteraction -A | grep skupper
 ----
 
 Check on both hub and spoke clusters.
 
 === Solution
 
-. Verify `spoke-interconnect` app is `Synced`:
+. Verify `hub-interconnect` and `spoke-interconnect` apps are `Synced`:
 
 [source,bash]
 ----
 $ oc get application -n vp-gitops | grep interconnect
+----
+
+. On the hub, confirm the `AccessGrant` is ready and the sync job ran after RHACM imported spokes (`acm-hub-spoke` sync wave 6 runs after `hub-interconnect` wave 5; the CronJob retries every 30 minutes until links are `Ready`):
+
+[source,bash]
+----
+$ oc get accessgrant spoke-link -n service-interconnect -o jsonpath='{.status.code}{"\n"}'
+$ oc get cronjob skupper-accesstoken-sync -n service-interconnect
 ----
 
 . If sites show `Not Connected`, verify the spoke can reach the hub on port 8443:
@@ -204,7 +216,12 @@ $ oc get application -n vp-gitops | grep interconnect
 $ curl -sk https://skupper-inter-router-service-interconnect.apps.<hub_domain>:443
 ----
 
-. Regenerate Skupper link tokens if the initial exchange failed. See the link:https://skupper.io/docs/[Skupper documentation] for token generation commands.
+. To re-run link registration without storing tokens in Git, delete the PostSync job so Argo CD recreates it on the next sync, or wait for the next CronJob run:
+
+[source,bash]
+----
+$ oc delete job skupper-accesstoken-sync-hook -n service-interconnect --ignore-not-found
+----
 
 . Verify RHACM has provided the spoke domain metadata to the hub. The RHCL and Skupper charts use `global.localClusterDomain` injected by the Validated Patterns Operator.
 
@@ -386,11 +403,15 @@ $ oc delete subscription.operators.coreos.com gitlab-operator-kubernetes -n gitl
 $ oc annotate application ia-computer-vision-hub -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
 ----
 
-== ExternalSecret shows RemoteRef key empty (RHBK, Quay)
+== Quay removed (use OpenShift internal registry)
+
+Quay is no longer part of this pattern. Scaffolded NeuroFace instances build images with Tekton to the OpenShift internal registry (`image-registry.openshift-image-registry.svc:5000/neuroface-<user>/`). If you see a legacy `quay` Argo CD application from an older install, delete it from `values-hub.yaml` and remove the `quay-enterprise` namespace subscription.
+
+== ExternalSecret shows RemoteRef key empty (RHBK)
 
 === Symptom
 
-`ExternalSecret` resources in `keycloak-system` or `quay-enterprise` show `spec.data[0].remoteRef.key: Required value`. The RHBK or Quay application shows `Progressing` indefinitely.
+`ExternalSecret` resources in `keycloak-system` show `spec.data[0].remoteRef.key: Required value`. The RHBK application shows `Progressing` indefinitely.
 
 === Probable cause
 
@@ -401,7 +422,6 @@ Vault has not been initialized or the unseal cronjob has not populated the secre
 [source,bash]
 ----
 $ oc get externalsecret -n keycloak-system
-$ oc get externalsecret -n quay-enterprise
 $ oc exec vault-0 -n vault -- vault kv list secret/ 2>/dev/null
 ----
 
@@ -505,24 +525,19 @@ After patching, delete the pod to restart with the corrected config:
 $ oc delete pod -n developer-hub -l app.kubernetes.io/name=backstage
 ----
 
-== Quay Missing (ObjectBucketClaim CRD not found)
+== Quay Missing (legacy installs)
 
 === Symptom
 
-The `quay` ArgoCD application shows `Missing` status with the error:
-
-[source,text]
-----
-The Kubernetes API could not find objectbucket.io/ObjectBucketClaim
-----
+The `quay` ArgoCD application shows `Missing` status with `ObjectBucketClaim` CRD not found.
 
 === Cause
 
-The Quay VP chart uses `ObjectBucketClaim` to provision S3-compatible storage via NooBaa (part of OpenShift Data Foundation). Without ODF installed, the CRD does not exist.
+Quay was removed from this pattern. Legacy installs may still reference the Quay VP chart, which requires OpenShift Data Foundation.
 
 === Solution
 
-Install **OpenShift Data Foundation** on the hub cluster, or disable Quay in `values-hub.yaml` by adding `disabled: true` to the application entry if you do not need a private container registry.
+Remove the `quay` subscription, namespace, and application from `values-hub.yaml`. Scaffolded NeuroFace builds use the OpenShift internal registry instead.
 
 == Vault secrets empty after install
 

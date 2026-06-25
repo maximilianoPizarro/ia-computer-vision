@@ -1,7 +1,7 @@
 apiVersion: skupper.io/v2alpha1
 kind: AccessGrant
 metadata:
-  name: spoke-link-grant
+  name: spoke-link
   namespace: service-interconnect
   annotations:
     argocd.argoproj.io/sync-wave: "2"
