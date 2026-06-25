@@ -19,13 +19,17 @@ clusterGroup:
     neuroface: {}
     neuroface-cv: {}
     service-interconnect: {}
-    redhat-connectivity-link-operator: {}
+    redhat-connectivity-link-operator:
+      operatorGroup: true
+      targetNamespaces: []
     redhat-ods-operator:
       operatorGroup: true
       targetNamespaces: []
     redhat-ods-applications: {}
     devspaces: {}
-    openshift-cluster-observability-operator: {}
+    openshift-cluster-observability-operator:
+      operatorGroup: true
+      targetNamespaces: []
     openshift-opentelemetry: {}
     istio-system: {}
     istio-cni: {}
