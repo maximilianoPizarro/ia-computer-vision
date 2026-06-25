@@ -1,4 +1,4 @@
-{{- $root := "files/software-templates/ai-cv-skeleton" }}
+{{- $root := "files/software-templates/ai-cv-skeleton/" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,7 +9,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 data:
-{{- range $path, $_ := .Files.Glob (printf "%s/**" $root) }}
-  {{ $path | trimPrefix (printf "%s/" $root) }}: |
+{{- range $pattern := list "*" "docs/*" "k8s/*" }}
+{{- range $path, $_ := $.Files.Glob (printf "%s%s" $root $pattern) }}
+  {{ $path | trimPrefix $root | replace "/" "__" }}: |
 {{ $.Files.Get $path | indent 4 }}
+{{- end }}
 {{- end }}
