@@ -31,45 +31,139 @@ links:
 :imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: ASSEMBLY
 
-= AI Computer Vision
+++++
+<div class="vp-hero">
+  <span class="vp-tier">Validated Pattern &middot; Sandbox</span>
+  <h1>AI Computer Vision<br>at the Edge</h1>
+  <p class="vp-tagline">
+    Deploy secure, observable YOLO-based PPE detection across a hub cluster and
+    edge spokes. GitOps-driven. Multi-cluster. Zero-trust by default.
+  </p>
+  <div class="vp-actions">
+    <a href="../getting-started/" class="vp-primary">Get started &rarr;</a>
+    <a href="../architecture/" class="vp-secondary">Architecture</a>
+    <a href="https://github.com/maximilianoPizarro/ia-computer-vision" class="vp-secondary">GitHub</a>
+  </div>
+</div>
+++++
 
-The **AI Computer Vision** Validated Pattern deploys secure, observable computer vision inference across a hub cluster and two edge spoke clusters using Red Hat OpenShift Container Platform (OCP) 4.20 or later.
+++++
+<div class="vp-stats">
+  <div class="vp-stat"><strong>3</strong><span>Clusters</span></div>
+  <div class="vp-stat"><strong>15+</strong><span>Operators</span></div>
+  <div class="vp-stat"><strong>50/50</strong><span>Load balance</span></div>
+  <div class="vp-stat"><strong>&lt;200ms</strong><span>Cross-cluster RTT</span></div>
+  <div class="vp-stat"><strong>30</strong><span>Workshop users</span></div>
+</div>
+++++
 
-== About this pattern
+== What it does
 
-The AI Computer Vision Validated Pattern addresses the challenge of running secure, observable AI inference workloads across geographically distributed edge clusters while maintaining centralized GitOps control.
+This pattern solves the challenge of running *secure, observable AI inference at the edge* while maintaining centralized control through GitOps.
 
-=== Problem
+++++
+<div class="vp-features">
+  <div class="vp-feature">
+    <div class="vp-icon">&#x1F916;</div>
+    <h3>NeuroFace + YOLO Inference</h3>
+    <p>Real-time PPE detection via OVMS serving YOLO models on OpenShift AI. Each spoke cluster runs an independent inference pipeline.</p>
+  </div>
+  <div class="vp-feature">
+    <div class="vp-icon">&#x1F310;</div>
+    <h3>Multi-cluster Gateway</h3>
+    <p>RHCL (Kuadrant) gateway on the hub load-balances inference traffic 50/50 across east and west spokes via Skupper tunnels.</p>
+  </div>
+  <div class="vp-feature">
+    <div class="vp-icon">&#x1F512;</div>
+    <h3>Zero-trust Security</h3>
+    <p>Istio ambient mesh with mTLS, RHACS vulnerability scanning, Kuadrant AuthPolicy with OIDC, and Vault-managed secrets via ESO.</p>
+  </div>
+  <div class="vp-feature">
+    <div class="vp-icon">&#x1F4CA;</div>
+    <h3>Full-stack Observability</h3>
+    <p>OpenTelemetry collectors, Thanos multi-cluster federation, Grafana dashboards, and Kiali service mesh visualization.</p>
+  </div>
+  <div class="vp-feature">
+    <div class="vp-icon">&#x1F6E0;</div>
+    <h3>Developer Self-service</h3>
+    <p>Red Hat Developer Hub scaffolds per-user NeuroFace instances with RHBK, HTTPRoute, and Tekton pipelines on spokes.</p>
+  </div>
+  <div class="vp-feature">
+    <div class="vp-icon">&#x1F504;</div>
+    <h3>Fully GitOps</h3>
+    <p>ArgoCD + RHACM drive all 3 clusters from a single Git repo. Spoke registration, Skupper linking, and operator installs are automated.</p>
+  </div>
+</div>
+++++
 
-Organizations deploying computer vision at the edge face several challenges:
+== Architecture
 
-* *Distributed operations*: Inference must run close to data sources with low latency.
-* *Security*: Edge clusters need consistent policy enforcement and vulnerability scanning.
-* *Connectivity*: Applications span hub and spoke clusters without exposing internal networks.
-* *Developer experience*: Teams need self-service scaffolding for AI workloads.
-* *Observability*: Metrics and traces must be aggregated across clusters.
+++++
+<figure class="vp-arch">
+  <img src="/ia-computer-vision/images/ia-computer-vision/hub-spoke-architecture.png"
+       alt="Hub-spoke architecture: hub with ACM, Vault, RHDH, RHCL gateway; east and west spokes with NeuroFace, OVMS, Skupper, ambient mesh" />
+  <figcaption>Hub-spoke topology with Skupper VAN, RHCL gateway, and GitOps fleet management</figcaption>
+</figure>
+++++
 
-=== Solution
+The hub cluster orchestrates fleet management, secrets, developer experience, and the external API gateway. East and west spokes run the actual inference workloads behind Istio ambient mesh.
 
-This pattern provides a hub-spoke Validated Pattern deployment:
+link:../architecture/[Read the full architecture document &rarr;]
 
-* **Hub cluster** runs ACM, Vault, Developer Hub, OpenShift AI, and the RHCL gateway.
-* **East and west spokes** run NeuroFace, OVMS/YOLO inference, Skupper interconnect, and ambient Service Mesh.
-* **GitOps** via OpenShift GitOps ensures declarative, auditable deployments on all clusters.
-* **Load balancing** via RHCL HTTPRoute splits external traffic 50/50 between spokes.
+== Technology stack
 
-Install each cluster role independently using `clusterGroupName: hub`, `east`, or `west`.
+++++
+<div class="vp-stack">
+  <span class="vp-pill">OCP 4.20+</span>
+  <span class="vp-pill">RHACM 2.16</span>
+  <span class="vp-pill">OpenShift AI 3.4</span>
+  <span class="vp-pill">RHCL / Kuadrant</span>
+  <span class="vp-pill">Skupper 2.x</span>
+  <span class="vp-pill">OSSM 3.x Ambient</span>
+  <span class="vp-pill">RHACS 4.x</span>
+  <span class="vp-pill">Vault + ESO</span>
+  <span class="vp-pill">Developer Hub</span>
+  <span class="vp-pill">RHBK 26</span>
+  <span class="vp-pill">OpenTelemetry</span>
+  <span class="vp-pill">Grafana</span>
+  <span class="vp-pill">Tekton</span>
+  <span class="vp-pill">AMQ Streams (Kafka)</span>
+  <span class="vp-pill">GitLab</span>
+</div>
+++++
 
-== Documentation map
+== Industry use cases
 
-* link:../getting-started/[Getting started] — install and verify hub, east, and west clusters
-* link:../architecture/[Architecture] — topology, traffic flow, security, and GitOps
-* link:../cluster-sizing/[Cluster sizing] — AWS instance types and resource requirements
-* link:../workshop/[Workshop mode] — lab users and Showroom lab guide
-* link:../ideas-for-customization/[Ideas for customization] — extend the pattern for your environment
-* link:../troubleshooting/[Troubleshooting] — diagnose common installation issues
+* **Manufacturing** — PPE compliance monitoring on factory floors with real-time alerts via Kafka and Mailpit
+* **Retail** — In-store inventory and safety monitoring across geographically distributed locations
+* **Energy** — Remote site safety compliance with edge inference and centralized oversight
+
+== Documentation
+
+[cols="1,2", options="header"]
+|===
+| Guide | Description
+
+| link:../getting-started/[Getting started]
+| Install and verify hub, east, and west clusters
+
+| link:../architecture/[Architecture]
+| Topology, traffic flow, security, and GitOps design decisions
+
+| link:../cluster-sizing/[Cluster sizing]
+| AWS instance types, resource requirements, and network ports
+
+| link:../workshop/[Workshop mode]
+| Enable 30 lab users with Showroom guide
+
+| link:../ideas-for-customization/[Ideas for customization]
+| Extend the pattern for your environment
+
+| link:../troubleshooting/[Troubleshooting]
+| Diagnose common installation and runtime issues
+|===
 
 [NOTE]
 ====
-Workshop mode is enabled by default with 30 pre-provisioned users. See the pattern repository README for Showroom and user provisioning details.
+Workshop mode is enabled by default with 30 pre-provisioned users. See the link:https://github.com/maximilianoPizarro/ia-computer-vision[pattern repository README] for Showroom and user provisioning details.
 ====
