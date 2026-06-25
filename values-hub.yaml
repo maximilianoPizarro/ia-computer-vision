@@ -315,6 +315,10 @@ clusterGroup:
           value: "east"
         - name: clusters.west.domain
           value: "west"
+        - name: gateway.weights.east
+          value: "100"
+        - name: gateway.weights.west
+          value: "0"
         - name: kuadrant.enabled
           value: "true"
 
