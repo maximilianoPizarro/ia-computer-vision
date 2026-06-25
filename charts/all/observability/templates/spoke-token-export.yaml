@@ -2,6 +2,7 @@
   Spoke-only: export kiali-service-account token to a ConfigMap for hub Kiali multi-cluster sync.
   Includes a PostSync hook Job (runs on every Argo sync) and a CronJob (periodic refresh).
 */ -}}
+{{- if ne (.Values.clusterRole | default "hub") "hub" }}
 {{- if .Values.exportTokenForHub }}
 apiVersion: v1
 kind: ServiceAccount
@@ -155,4 +156,5 @@ spec:
                 limits:
                   cpu: 100m
                   memory: 128Mi
+{{- end }}
 {{- end }}

@@ -67,6 +67,21 @@ clusterGroup:
       namespace: openshift-cluster-observability-operator
       channel: stable
       source: redhat-operators
+    grafana:
+      name: grafana-operator
+      namespace: openshift-operators
+      channel: v5
+      source: community-operators
+    kiali:
+      name: kiali-ossm
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    opentelemetry:
+      name: opentelemetry-product
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
     gitlab:
       name: gitlab-operator-kubernetes
       namespace: gitlab-system

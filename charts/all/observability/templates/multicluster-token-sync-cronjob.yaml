@@ -1,3 +1,4 @@
+{{- if eq (.Values.clusterRole | default "hub") "hub" }}
 {{- if and .Values.multiCluster.enabled .Values.multiCluster.automateTokens }}
 apiVersion: v1
 kind: ServiceAccount
@@ -367,4 +368,5 @@ spec:
               configMap:
                 name: kiali-multicluster-token-sync-script
                 defaultMode: 0755
+{{- end }}
 {{- end }}

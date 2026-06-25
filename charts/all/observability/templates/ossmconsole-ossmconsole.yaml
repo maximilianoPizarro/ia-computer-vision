@@ -1,3 +1,4 @@
+{{- if eq (.Values.clusterRole | default "hub") "hub" }}
 apiVersion: kiali.io/v1alpha1
 kind: OSSMConsole
 metadata:
@@ -10,3 +11,4 @@ spec:
   kiali:
     serviceName: kiali
     serviceNamespace: openshift-cluster-observability-operator
+{{- end }}

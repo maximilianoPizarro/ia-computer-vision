@@ -1,3 +1,4 @@
+{{- if eq (.Values.clusterRole | default "hub") "hub" }}
 apiVersion: kiali.io/v1alpha1
 kind: Kiali
 metadata:
@@ -51,3 +52,4 @@ spec:
       thanos_proxy:
         enabled: true
       url: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091
+{{- end }}

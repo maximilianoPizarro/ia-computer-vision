@@ -38,7 +38,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kiali.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://kiali-openshift-cluster-observability-operator.{{ $domain }}"
+  href: "https://kiali-openshift-cluster-observability-operator.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Kiali Service Mesh"
 ---

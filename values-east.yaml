@@ -61,16 +61,6 @@ clusterGroup:
       namespace: redhat-ods-operator
       channel: stable-3.4
       source: redhat-operators
-    grafana:
-      name: grafana-operator
-      namespace: openshift-operators
-      channel: v5
-      source: community-operators
-    kiali:
-      name: kiali-ossm
-      namespace: openshift-operators
-      channel: stable
-      source: redhat-operators
     opentelemetry:
       name: opentelemetry-product
       namespace: openshift-operators
