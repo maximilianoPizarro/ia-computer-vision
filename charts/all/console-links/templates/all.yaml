@@ -41,6 +41,7 @@ spec:
   href: "https://kiali-openshift-cluster-observability-operator.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Kiali Service Mesh"
+{{- if ne $role "hub" }}
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
@@ -55,6 +56,7 @@ spec:
   href: "https://skupper-console-service-interconnect.{{ $domain }}"
   location: ApplicationMenu
   text: "Skupper Console (Network)"
+{{- end }}
 {{- if eq $role "hub" }}
 ---
 apiVersion: console.openshift.io/v1
@@ -112,6 +114,7 @@ spec:
   href: "https://gitlab.{{ $domain }}"
   location: ApplicationMenu
   text: "GitLab (SCM)"
+{{- if .Values.quay.enabled | default false }}
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
@@ -126,6 +129,7 @@ spec:
   href: "https://quay-registry.{{ $domain }}"
   location: ApplicationMenu
   text: "Quay Registry"
+{{- end }}
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink

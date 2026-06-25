@@ -1,3 +1,5 @@
 clusterDomain: ""
 hubClusterDomain: ""
 clusterRole: ""
+quay:
+  enabled: false
