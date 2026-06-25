@@ -307,6 +307,11 @@ clusterGroup:
       argoProject: mesh
       path: charts/all/neuroface-gateway
       syncWave: "6"
+      overrides:
+        - name: clusters.east.domain
+          value: "east"
+        - name: clusters.west.domain
+          value: "west"
 
     acm-hub-spoke:
       name: acm-hub-spoke
