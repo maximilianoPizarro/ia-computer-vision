@@ -54,7 +54,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "skupper.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://skupper-network-observer-service-interconnect.{{ $domainBase }}"
+  href: "https://skupper-network-observer-service-interconnect.{{ $domain }}"
   location: ApplicationMenu
   text: "Skupper Console (Network)"
 {{- if eq $role "hub" }}
@@ -83,7 +83,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "acs.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://central-stackrox.{{ $domainBase }}"
+  href: "https://central-stackrox.{{ $domain }}"
   location: ApplicationMenu
   text: "ACS Central (Security)"
 ---
@@ -153,23 +153,9 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "mailpit.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://mailpit.{{ $domainBase }}"
+  href: "https://mailpit.{{ $domain }}"
   location: ApplicationMenu
   text: "Mailpit (PPE Alerts)"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
-  name: platform-argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://openshift-gitops-server-openshift-gitops.{{ $domain }}"
-  location: ApplicationMenu
-  text: "ArgoCD (GitOps)"
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
@@ -242,6 +228,34 @@ spec:
   href: "https://showroom-showroom.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Showroom Workshop"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-kafka-east
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://console-openshift-console.{{ $hubDomain }}/multicloud/infrastructure/clusters/east/neuroface-cv/strimzi.io~v1beta2~Kafka"
+  location: ApplicationMenu
+  text: "Kafka Cluster (east)"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-kafka-west
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://console-openshift-console.{{ $hubDomain }}/multicloud/infrastructure/clusters/west/neuroface-cv/strimzi.io~v1beta2~Kafka"
+  location: ApplicationMenu
+  text: "Kafka Cluster (west)"
 {{- else }}
 ---
 apiVersion: console.openshift.io/v1
@@ -254,7 +268,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://neuroface-spoke-gateway.{{ $domainBase }}"
+  href: "https://neuroface-spoke-gateway.{{ $domain }}"
   location: ApplicationMenu
   text: "NeuroFace Spoke Gateway"
 ---

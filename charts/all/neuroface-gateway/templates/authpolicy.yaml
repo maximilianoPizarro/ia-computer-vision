@@ -1,0 +1,57 @@
+{{- if .Values.kuadrant.enabled | default false }}
+{{- $ssoHost := .Values.kuadrant.ssoHost | default (printf "sso.%s" (include "neuroface-gateway.clusterDomain" .)) -}}
+{{- $realm := .Values.kuadrant.realm | default "backstage" -}}
+{{- $clientId := .Values.kuadrant.clientId | default "neuroface" -}}
+{{- $appHost := printf "neuroface.%s" (include "neuroface-gateway.clusterDomain" .) -}}
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: neuroface-oidc
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: neuroface-app-lb
+  overrides:
+    strategy: merge
+    rules:
+      authentication:
+        oidc:
+          credentials:
+            authorizationHeader:
+              prefix: Bearer
+          jwt:
+            issuerUrl: "https://{{ $ssoHost }}/realms/{{ $realm }}"
+          metrics: false
+          priority: 0
+      response:
+        success: {}
+        unauthenticated:
+          code: 302
+          headers:
+            location:
+              value: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/auth?client_id={{ $clientId }}&redirect_uri=https%3A%2F%2F{{ $appHost }}%2F&response_type=code&scope=openid"
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: neuroface-cv-anonymous
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: neuroface-cv-lb
+  overrides:
+    strategy: merge
+    rules:
+      authentication:
+        anonymous:
+          anonymous: {}
+          priority: 0
+{{- end }}

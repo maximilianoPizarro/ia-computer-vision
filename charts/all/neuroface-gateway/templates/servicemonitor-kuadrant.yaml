@@ -1,0 +1,32 @@
+{{- if .Values.kuadrant.enabled | default false }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kuadrant-neuroface
+  namespace: neuroface-gateway-system
+  labels:
+    app.kubernetes.io/name: kuadrant
+    connectivity-link.redhat.com/monitor: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  namespaceSelector:
+    matchNames:
+      - redhat-connectivity-link-operator
+  selector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - kuadrant-controller-manager
+          - kuadrant
+          - authorino
+  endpoints:
+    - port: metrics
+      interval: 30s
+    - port: https
+      interval: 30s
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: true
+{{- end }}

@@ -313,6 +313,8 @@ clusterGroup:
           value: "east"
         - name: clusters.west.domain
           value: "west"
+        - name: kuadrant.enabled
+          value: "true"
 
     acm-hub-spoke:
       name: acm-hub-spoke

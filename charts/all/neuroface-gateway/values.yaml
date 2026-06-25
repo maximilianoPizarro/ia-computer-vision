@@ -21,3 +21,10 @@ gateway:
       interval: 10s
       baseEjectionTime: 30s
       maxEjectionPercent: 100
+
+kuadrant:
+  enabled: false
+  realm: backstage
+  clientId: neuroface
+  rateLimit:
+    predictPerMinute: 30

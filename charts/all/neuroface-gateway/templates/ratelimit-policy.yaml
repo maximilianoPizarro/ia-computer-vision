@@ -1,0 +1,25 @@
+{{- if .Values.kuadrant.enabled | default false }}
+apiVersion: kuadrant.io/v1
+kind: RateLimitPolicy
+metadata:
+  name: neuroface-cv-ratelimit
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: neuroface-cv-lb
+  limits:
+    predict-per-ip:
+      conditions:
+        - operator: matches
+          selector: request.path
+          value: "/v1/predict*"
+      counters:
+        - expression: request.headers["x-forwarded-for"]
+      rates:
+        - limit: {{ .Values.kuadrant.rateLimit.predictPerMinute | default 30 }}
+          window: 1m
+{{- end }}
