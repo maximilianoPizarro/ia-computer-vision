@@ -259,6 +259,11 @@ clusterGroup:
       argoProject: hub
       path: charts/all/acm-hub-spoke
       syncWave: "6"
+      ignoreDifferences:
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .status
 
     acs-init-bundle-sync:
       name: acs-init-bundle-sync
