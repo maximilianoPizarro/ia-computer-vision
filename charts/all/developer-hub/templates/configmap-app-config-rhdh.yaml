@@ -152,11 +152,13 @@ data:
           rules:
             - allow: [System, Component, API, Resource]
       providers:
-        ocm:
+        gitlab:
           default:
-            name: hub
-            kubernetesPluginRef: hub
-            url: https://kubernetes.default.svc.cluster.local:443
+            host: gitlab.{{ include "developer-hub.clusterDomain" . }}
+            orgEnabled: false
+            schedule:
+              frequency: { minutes: 30 }
+              timeout: { minutes: 3 }
             skipTLSVerify: true
             owner: group:platform-engineering
             schedule:
