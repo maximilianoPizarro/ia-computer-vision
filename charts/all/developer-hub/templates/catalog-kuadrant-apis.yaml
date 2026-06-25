@@ -1,0 +1,22 @@
+{{- $hub := include "developer-hub.clusterDomain" . }}
+{{- $catalog := .Files.Get "files/catalog/workshop-kuadrant-apis.yaml" | replace "__HUB_APPS_DOMAIN__" $hub }}
+{{- $httpbinSpec := .Files.Get "files/catalog/openapi/workshop-httpbin-openapi.yaml" }}
+{{- $restcountriesSpec := .Files.Get "files/catalog/openapi/workshop-restcountries-openapi.yaml" }}
+{{- $maasSpec := .Files.Get "files/catalog/openapi/workshop-maas-openapi.yaml" }}
+{{- $mcpSpec := .Files.Get "files/catalog/openapi/workshop-mcp-openapi.yaml" }}
+{{- $catalog = $catalog | replace "__WORKSHOP_HTTPBIN_OPENAPI_SPEC__" $httpbinSpec }}
+{{- $catalog = $catalog | replace "__WORKSHOP_RESTCOUNTRIES_OPENAPI_SPEC__" $restcountriesSpec }}
+{{- $catalog = $catalog | replace "__WORKSHOP_MAAS_OPENAPI_SPEC__" $maasSpec }}
+{{- $catalog = $catalog | replace "__WORKSHOP_MCP_OPENAPI_SPEC__" $mcpSpec }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-kuadrant-apis
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  workshop-kuadrant-apis.yaml: |
+{{ $catalog | nindent 4 }}

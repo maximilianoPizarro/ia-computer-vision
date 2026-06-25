@@ -1,0 +1,21 @@
+{{- $catalog := .Files.Get "files/catalog/public-apis.yaml" }}
+{{- $httpbinSpec := .Files.Get "files/catalog/openapi/httpbin-public.yaml" }}
+{{- $restcountriesSpec := .Files.Get "files/catalog/openapi/restcountries-public.yaml" }}
+{{- $jsonSpec := .Files.Get "files/catalog/openapi/jsonplaceholder-public.yaml" }}
+{{- $catSpec := .Files.Get "files/catalog/openapi/cat-facts-public.yaml" }}
+{{- $catalog = $catalog | replace "__PUBLIC_HTTPBIN_OPENAPI_SPEC__" $httpbinSpec }}
+{{- $catalog = $catalog | replace "__PUBLIC_RESTCOUNTRIES_OPENAPI_SPEC__" $restcountriesSpec }}
+{{- $catalog = $catalog | replace "__PUBLIC_JSONPLACEHOLDER_OPENAPI_SPEC__" $jsonSpec }}
+{{- $catalog = $catalog | replace "__PUBLIC_CATFACTS_OPENAPI_SPEC__" $catSpec }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-public-apis
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  public-apis.yaml: |
+{{ $catalog | nindent 4 }}

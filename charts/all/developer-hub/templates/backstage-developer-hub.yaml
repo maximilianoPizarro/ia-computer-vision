@@ -39,6 +39,16 @@ spec:
             - "*"
         - name: developer-hub-catalog-software-template-manifests
           mountPath: /opt/app-root/src/catalog-data/software-templates/manifests
+        - name: developer-hub-catalog-kuadrant-apis
+          key: workshop-kuadrant-apis.yaml
+          mountPath: /opt/app-root/src/catalog-data/kuadrant-apis
+          containers:
+            - "*"
+        - name: developer-hub-catalog-public-apis
+          key: public-apis.yaml
+          mountPath: /opt/app-root/src/catalog-data/public-apis
+          containers:
+            - "*"
           containers:
             - "*"
     route:

@@ -151,6 +151,14 @@ data:
           target: /opt/app-root/src/catalog-data/neuroface/neuroface-system.yaml
           rules:
             - allow: [System, Component, API, Resource]
+        - type: file
+          target: /opt/app-root/src/catalog-data/kuadrant-apis/workshop-kuadrant-apis.yaml
+          rules:
+            - allow: [System, Component, API]
+        - type: file
+          target: /opt/app-root/src/catalog-data/public-apis/public-apis.yaml
+          rules:
+            - allow: [System, Component, API]
       providers:
         gitlab:
           default:
