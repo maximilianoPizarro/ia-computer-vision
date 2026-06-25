@@ -2,6 +2,13 @@ clusterName: hub
 
 # Push Skupper AccessTokens to spokes via ACM ManagedClusterAction.
 # Grant code/url/ca are read from AccessGrant status at runtime (never in Git).
+modelSeed:
+  enabled: true
+  bucket: models
+  objectKey: ppe-detection/model/best.pt
+  modelUrl: "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt"
+  image: registry.redhat.io/ubi9/python-311:latest
+
 accessTokenSync:
   enabled: true
   grantName: spoke-link
