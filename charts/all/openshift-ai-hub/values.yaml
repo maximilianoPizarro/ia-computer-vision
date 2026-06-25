@@ -1,9 +1,9 @@
 clusterDomain: ""
 userCount: 30
 userProjects:
-  enabled: true
+  enabled: false
   notebook:
-    enabled: true
+    enabled: false
     deployCr: false
     image: quay.io/opendatahub-contrib/workbench-images:jupyter-minimal-elyra-py311-ubi9
     cpu: "250m"
