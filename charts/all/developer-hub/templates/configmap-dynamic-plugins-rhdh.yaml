@@ -91,7 +91,7 @@ data:
                           - isKind: resource
                           - isType: kubernetes-cluster
       - package: ./dynamic-plugins/dist/backstage-community-plugin-rbac
-        disabled: {{ not (.Values.plugins.rbac.enabled | default false) }}
+        disabled: true
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes
@@ -153,7 +153,7 @@ data:
                           - hasAnnotation: backstage.io/kubernetes-id
                           - hasAnnotation: backstage.io/kubernetes-namespace
       - package: ./dynamic-plugins/dist/backstage-community-plugin-scaffolder-backend-module-kubernetes-dynamic
-        disabled: false
+        disabled: true
       # Kafka — NOT in RHDH 1.9 image and no ghcr.io OCI package available; hardcode disabled
       - package: ./dynamic-plugins/dist/backstage-community-plugin-kafka-backend-dynamic
         disabled: true
@@ -264,9 +264,9 @@ data:
                           - isTektonCIAvailable
 {{- if .Values.plugins.techRadar.enabled | default true }}
       - package: ./dynamic-plugins/dist/backstage-community-plugin-tech-radar-backend-dynamic
-        disabled: false
+        disabled: true
       - package: ./dynamic-plugins/dist/backstage-community-plugin-tech-radar
-        disabled: false
+        disabled: true
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -308,7 +308,7 @@ data:
       - package: ./dynamic-plugins/dist/backstage-community-plugin-acr
         disabled: true
       - package: ./dynamic-plugins/dist/backstage-community-plugin-quay
-        disabled: {{ not (.Values.plugins.quay.enabled | default true) }}
+        disabled: true
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -346,7 +346,7 @@ data:
       - package: ./dynamic-plugins/dist/roadiehq-scaffolder-backend-module-http-request-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-community-plugin-catalog-backend-module-keycloak-dynamic
-        disabled: false
+        disabled: true
         pluginConfig:
           catalog:
             providers:
