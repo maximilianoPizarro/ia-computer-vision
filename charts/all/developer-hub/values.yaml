@@ -5,7 +5,7 @@ defaultPassword: "Welcome123!"
 keycloak:
   namespace: keycloak-system
   crName: keycloak
-  serviceName: keycloak-service-trusted
+  serviceName: keycloak-service-serving
 oidcAuth:
   useVault: true
   vaultKey: secret/data/hub/developer-hub-secrets
