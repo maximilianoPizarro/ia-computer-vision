@@ -201,11 +201,13 @@ Both namespaces should show pods in `Running` state with `READY` columns showing
 
 === Collect the east spoke API token
 
-Generate a long-lived token for RHACM auto-import on the hub:
+Generate a long-lived token for RHACM auto-import on the hub. The token **must** come from a ServiceAccount with `cluster-admin` permissions — the default SA in `kube-system` does not have them:
 
 [source,bash]
 ----
-$ oc create token -n kube-system default --duration=87600h
+$ oc create sa acm-import -n kube-system
+$ oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:kube-system:acm-import
+$ oc create token -n kube-system acm-import --duration=87600h
 $ oc whoami --show-server
 ----
 
@@ -250,7 +252,7 @@ $ ./pattern.sh make install
 
 . Verify using the same commands as the east spoke section above.
 
-. Collect the west spoke API token and API URL and add them to `spoke-credentials` as `west-token` and `west-api-url` in `~/values-secret-ia-computer-vision.yaml`.
+. Collect the west spoke API token (using the same `acm-import` SA procedure as east) and API URL. Add them to `spoke-credentials` as `west-token` and `west-api-url` in `~/values-secret-ia-computer-vision.yaml`.
 
 == Installing the hub cluster
 
@@ -333,7 +335,7 @@ spec:
     - name: spokeCredentials.clusters.west.apiUrl
       value: "https://api.<WEST_DOMAIN>:6443"   # <4>
 ----
-<1> Long-lived token from east: `oc create token -n kube-system default --duration=87600h`
+<1> Long-lived cluster-admin token from east: `oc create token -n kube-system acm-import --duration=87600h`
 <2> East API server URL from `oc whoami --show-server`
 <3> Long-lived token from west
 <4> West API server URL

@@ -145,9 +145,13 @@ export TARGET_CLUSTERGROUP=west
 
 ### 3. Collect spoke tokens
 
+The token **must** come from a ServiceAccount with `cluster-admin` permissions. The default SA in `kube-system` does not have them.
+
 ```bash
-# On each spoke
-oc create token -n kube-system default --duration=87600h
+# On each spoke — create a cluster-admin SA and generate a long-lived token
+oc create sa acm-import -n kube-system
+oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:kube-system:acm-import
+oc create token -n kube-system acm-import --duration=87600h
 oc whoami --show-server
 ```
 
