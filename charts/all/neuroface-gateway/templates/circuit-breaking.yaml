@@ -27,7 +27,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:
-  host: {{ $svc }}.neuroface-gateway-system.svc.cluster.local
+  host: {{ $svc }}.service-interconnect.svc.cluster.local
   trafficPolicy:
     tls:
       mode: DISABLE
