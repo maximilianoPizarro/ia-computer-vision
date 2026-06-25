@@ -13,109 +13,134 @@ This reference lists common problems during pattern installation and operation. 
 
 === Symptom
 
-An application in the `vp-gitops` namespace shows `Degraded` or `Unknown` health in the OpenShift GitOps UI or CLI.
+One or more applications in `vp-gitops` show `Degraded`, `Unknown`, or `Missing` health status. The `ia-computer-vision-hub` parent application may show `Degraded` even though individual apps appear healthy.
 
 === Probable cause
 
-* Dependent operator CSV not yet `Succeeded`
-* Missing namespace or OperatorGroup conflict
-* Invalid Helm values or override syntax
-* Resource sync wave ordering — downstream app synced before prerequisite
+* Operator CSV not yet `Succeeded` — the application synced before the operator was ready
+* Duplicate `OperatorGroup` in the target namespace (`TooManyOperatorGroups`)
+* Stale subscription referencing a deleted or renamed package
+* Sync wave ordering — downstream app synced before its prerequisite
+* A custom resource requires a CRD that is not yet installed (for example, `ObjectBucketClaim` for Quay requires OpenShift Data Foundation)
 
 === Diagnosis
 
 [source,bash]
 ----
 $ oc get applications.argoproj.io -n vp-gitops
-$ oc describe application <app_name> -n vp-gitops
+$ oc describe application <app_name> -n vp-gitops | grep -A10 "Message:"
+$ oc get csv -A | grep -v Succeeded
 $ oc get events -n <target_namespace> --sort-by='.lastTimestamp' | tail -20
 ----
 
 === Solution
 
-. Wait for operator CSVs to reach `Succeeded`:
+. **Wait**: Many `OutOfSync + Healthy` states resolve within 5–10 minutes as OpenShift GitOps auto-reconciles.
 
-+
+. **TooManyOperatorGroups**: List OperatorGroups in the affected namespace. The pattern creates one per namespace via `clustergroup`. If a chart also creates one, delete the duplicate:
+
 [source,bash]
 ----
-$ oc get csv -A | grep -v Succeeded
+$ oc get operatorgroups -n <namespace>
+$ oc delete operatorgroup <duplicate_name> -n <namespace>
 ----
 
-. If the error references `TooManyOperatorGroups`, delete duplicate OperatorGroups and let OpenShift GitOps resync. The pattern creates one OperatorGroup per namespace through `clustergroup` namespace definitions.
+. **Stale subscription**: If `oc describe application` shows `ResolutionFailed` for a subscription, delete the subscription and let OpenShift GitOps recreate it:
 
-. Use *Refresh* and *Sync* on the affected application in the OpenShift GitOps UI, or:
-
-+
 [source,bash]
 ----
-$ oc patch application <app_name> -n vp-gitops \
-  --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+$ oc delete subscription.operators.coreos.com <sub_name> -n <namespace>
+$ oc annotate application <app_name> -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
 ----
 
-== Vault pods stuck in Init state
+. **Force resync**:
+
+[source,bash]
+----
+$ oc annotate application <app_name> -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+----
+
+== Vault pods stuck in Init or Pending state
 
 === Symptom
 
-Vault pods in the `vault` namespace remain `Init:0/1` or `Pending` for more than 15 minutes.
+`vault-0` pod in the `vault` namespace remains `Init:0/1`, `Pending`, or `CrashLoopBackOff` for more than 15 minutes. Applications that depend on Vault-managed secrets show `Progressing` or `Missing`.
 
 === Probable cause
 
-* Vault not initialized or unsealed
-* PVC provisioning failure on the storage class
-* Missing service account permissions
+* PVC not bound — default StorageClass missing or not provisioning
+* Vault not initialized (first install)
+* Vault sealed after pod restart
+* `unsealvault-cronjob` in `imperative` namespace not running
 
 === Diagnosis
 
 [source,bash]
 ----
 $ oc get pods -n vault
-$ oc logs vault-0 -n vault -c vault-init 2>/dev/null || oc logs vault-0 -n vault
 $ oc get pvc -n vault
-$ oc describe pod vault-0 -n vault
+$ oc exec vault-0 -n vault -- vault status 2>/dev/null
+$ oc get cronjob -n imperative | grep unsealvault
+$ oc logs -n imperative $(oc get pods -n imperative -l job-name -o name | tail -1) 2>/dev/null
 ----
 
 === Solution
 
-. Confirm PVCs are bound:
+. **PVC not bound**: Verify a default StorageClass exists:
 
-+
 [source,bash]
 ----
-$ oc get pvc -n vault
+$ oc get sc | grep default
 ----
 
-. If Vault requires manual initialization in your environment, follow the HashiCorp Vault operator documentation for the `Vault` CR installed by the pattern.
+If no default exists, set one:
 
-. Delete stuck init jobs only after confirming the root cause; OpenShift GitOps recreates them on sync:
-
-+
 [source,bash]
 ----
-$ oc delete job -n vault --all
+$ oc patch sc <storage_class_name> -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 ----
+
+. **Vault sealed**: The Validated Patterns framework uses a `unsealvault-cronjob` that runs every 5 minutes. Check its logs:
+
+[source,bash]
+----
+$ oc logs -n imperative -l job-name --tail=20
+----
+
+. **Manual unseal** (if cronjob is not working):
+
+[source,bash]
+----
+$ oc exec vault-0 -n vault -- vault operator unseal <unseal_key>
+----
+
+The unseal key is stored in the `vaultkeys` secret in the `imperative` namespace during first initialization.
 
 == RHACM does not propagate to spokes
 
 === Symptom
 
-East or west clusters appear in RHACM as `Offline` or lack the `clusterGroup` label. Hub applications that depend on managed clusters fail to deploy policies.
+East or west clusters appear as `Offline`, `Pending`, or `Unknown` in RHACM. The `clusterGroup` label is missing. Hub applications that depend on managed cluster metadata (spoke domains for RHCL, Skupper) do not receive values.
 
 === Probable cause
 
 * Spoke not imported into RHACM
 * Missing or incorrect `clusterGroup=east|west` label
-* Klusterlet not healthy on spoke
+* Klusterlet agent pods not running on the spoke
+* Network connectivity issue between hub RHACM and spoke API server
 
 === Diagnosis
+
+On the hub:
 
 [source,bash]
 ----
 $ oc get managedcluster
-$ oc get managedcluster <spoke_name> -o yaml | grep -A5 labels
-$ oc get pods -n open-cluster-management-agent
+$ oc get managedcluster <spoke_name> -o jsonpath='{.metadata.labels}{"\n"}'
+$ oc get managedcluster <spoke_name> -o jsonpath='{.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status}{"\n"}'
 ----
 
-(On the spoke cluster:)
+On the spoke:
 
 [source,bash]
 ----
@@ -125,152 +150,278 @@ $ oc get klusterlet
 
 === Solution
 
-. Import the spoke through RHACM console or confirm auto-import credentials.
+. Import the spoke via RHACM console (*Infrastructure* -> *Clusters* -> *Import cluster*) or CLI.
 
-. Apply the correct label from the hub:
+. Apply the required label:
 
-+
 [source,bash]
 ----
 $ oc label managedcluster <east_cluster_name> clusterGroup=east --overwrite
-$ oc label managedcluster <west_cluster_name> clusterGroup=west --overwrite
 ----
 
-. Verify klusterlet pods are running on the spoke and restart if needed:
+. If klusterlet pods are not running on the spoke, re-run the import command generated by RHACM.
 
-+
-[source,bash]
-----
-$ oc delete pod -n open-cluster-management-agent --all
-----
+. Verify connectivity: the spoke must reach the hub API server on port 6443.
 
 == Skupper VAN does not establish cross-cluster connection
 
 === Symptom
 
-`listener` or `connector` resources in `service-interconnect` remain `Pending` or `Error`. Cross-cluster inference returns connection timeouts.
+`oc get site -n service-interconnect` shows `Not Connected` or no remote sites. Listeners and connectors remain `Pending`. Cross-cluster inference requests time out.
 
 === Probable cause
 
-* Skupper site not linked across clusters
-* Token or link secret not exchanged
-* Network firewall blocking Skupper protocol ports
-* Spoke interconnect chart not synced
+* Spoke not yet registered in RHACM (Skupper requires RHACM-propagated metadata for automatic link establishment)
+* Network firewall blocking Skupper protocol (port 8443 by default for inter-router links, port 45671 for data)
+* Link secret or token not exchanged between sites
+* `spoke-interconnect` ArgoCD application not synced
 
 === Diagnosis
 
 [source,bash]
 ----
-$ oc get site -n service-interconnect
+$ oc get site -n service-interconnect -o yaml
 $ oc get listener,connector -n service-interconnect
-$ oc describe site -n service-interconnect
-$ oc logs deployment/skupper-router -n service-interconnect --tail=50
+$ oc get pods -n service-interconnect
+$ oc logs deployment/skupper-router -n service-interconnect --tail=50 2>/dev/null
 ----
 
-Repeat on hub and spoke clusters.
+Check on both hub and spoke clusters.
 
 === Solution
 
-. Confirm `spoke-interconnect` application is `Synced` and `Healthy` on each spoke:
+. Verify `spoke-interconnect` app is `Synced`:
 
-+
 [source,bash]
 ----
 $ oc get application -n vp-gitops | grep interconnect
 ----
 
-. Regenerate Skupper link tokens per Skupper operator documentation if sites show `Not Connected`.
+. If sites show `Not Connected`, verify the spoke can reach the hub on port 8443:
 
-. Verify firewall rules allow Skupper data and control connections between cluster networks.
+[source,bash]
+----
+$ curl -sk https://skupper-inter-router-service-interconnect.apps.<hub_domain>:443
+----
 
-== OVMS pod in CrashLoopBackOff (YOLO model not loaded)
+. Regenerate Skupper link tokens if the initial exchange failed. See the link:https://skupper.io/docs/[Skupper documentation] for token generation commands.
+
+. Verify RHACM has provided the spoke domain metadata to the hub. The RHCL and Skupper charts use `global.localClusterDomain` injected by the Validated Patterns Operator.
+
+== Service Mesh ambient mode not applying mTLS
 
 === Symptom
 
-Pods in `neuroface-cv` namespace restart repeatedly. Inference endpoints return `503` or connection refused.
+Traffic between pods in mesh-enrolled namespaces is not encrypted. Kiali shows connections without the lock icon. `oc get ztunnel` shows no DaemonSet pods.
+
+=== Probable cause
+
+* `servicemeshoperator3` CSV not `Succeeded`
+* `servicemesh-config` ArgoCD application not synced
+* Namespace not labeled for mesh enrollment
+* `istio-cni` or `ztunnel` namespace missing
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get csv -A | grep servicemeshoperator3
+$ oc get pods -n istio-system
+$ oc get pods -n ztunnel
+$ oc get namespace <namespace> -o jsonpath='{.metadata.labels.istio\.io/dataplane-mode}{"\n"}'
+----
+
+=== Solution
+
+. Verify the Service Mesh operator is `Succeeded`:
+
+[source,bash]
+----
+$ oc get csv -A | grep servicemeshoperator3
+----
+
+. Verify the `servicemesh-config` application deployed the Istio CR:
+
+[source,bash]
+----
+$ oc get istio -n istio-system
+----
+
+. Verify the ztunnel DaemonSet is running on each node:
+
+[source,bash]
+----
+$ oc get pods -n ztunnel -o wide
+----
+
+. If a namespace is not enrolled in the mesh, the `servicemesh-config` chart labels namespaces automatically. Check:
+
+[source,bash]
+----
+$ oc get namespace neuroface -o jsonpath='{.metadata.labels}{"\n"}'
+----
+
+== OVMS pod in CrashLoopBackOff (model not loaded)
+
+=== Symptom
+
+Pods in the `neuroface-cv` namespace restart repeatedly. Inference endpoints return `503` or connection refused.
 
 === Probable cause
 
 * Model artifact missing or wrong mount path
-* Insufficient memory for model load
-* Init container failed to download weights
-* GPU requested on CPU-only nodes
+* Insufficient memory for model load (OOMKilled)
+* Init container failed to download YOLO weights
+* GPU requested but not available on worker nodes
 
 === Diagnosis
 
 [source,bash]
 ----
 $ oc get pods -n neuroface-cv
-$ oc logs deploy/ovms -n neuroface-cv --previous
-$ oc describe pod -n neuroface-cv -l app=ovms
-$ oc get events -n neuroface-cv --sort-by='.lastTimestamp'
+$ oc logs deploy/ovms -n neuroface-cv --previous 2>/dev/null
+$ oc describe pod -n neuroface-cv -l app=ovms | grep -E "State:|Reason:|Exit Code:"
+$ oc get events -n neuroface-cv --sort-by='.lastTimestamp' | tail -10
 ----
 
 === Solution
 
-. Inspect logs for model path errors and correct `charts/all/spoke-neuroface-cv/values.yaml` model configuration.
+. **OOMKilled**: Increase memory limits in `charts/all/spoke-neuroface-cv/values.yaml`.
 
-. Increase memory limits if logs show OOMKilled:
+. **Model path error**: Check the model mount configuration. The OVMS pod expects models at the path defined in the chart values.
 
-+
+. **GPU not available**: If the chart requests `nvidia.com/gpu` but no GPU nodes exist, remove the GPU resource request.
+
+. After fixing, resync the application:
+
 [source,bash]
 ----
-$ oc describe pod -n neuroface-cv -l app=ovms | grep -A3 Last State
-----
-
-. After fixing values, sync the application:
-
-+
-[source,bash]
-----
-$ oc patch application east-spoke-neuroface-cv -n vp-gitops \
-  --type merge -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{}}}'
+$ oc annotate application east-spoke-neuroface-cv -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
 ----
 
 == RHCL HTTPRoute does not balance 50/50 between spokes
 
 === Symptom
 
-All inference traffic routes to east or west only. Grafana or access logs show no west (or east) backend hits.
+All inference traffic routes to one spoke only. Grafana or access logs show no hits on the other spoke.
 
 === Probable cause
 
-* Missing `clusters.west.domain` or `clusters.east.domain` in neuroface-gateway values
-* One spoke backend unhealthy — gateway removes it from rotation
-* HTTPRoute weights misconfigured
+* Missing `clusters.east.domain` or `clusters.west.domain` in `neuroface-gateway` values
+* One spoke is not registered in RHACM, so its domain metadata is not injected
+* One spoke NeuroFace deployment is unhealthy — the gateway removes it from rotation
+* HTTPRoute weights are misconfigured
+* RHCL Gateway CR shows `Waiting for controller` — operator not yet reconciled
 
 === Diagnosis
 
 [source,bash]
 ----
-$ oc get httproute -n neuroface-gateway-system -o yaml
-$ oc get gateway -n neuroface-gateway-system
+$ oc get gateway -n neuroface-gateway-system -o yaml | grep -A5 "conditions:"
+$ oc get httproute -n neuroface-gateway-system -o yaml | grep -A20 "backendRefs:"
 $ oc get svc -n neuroface-gateway-system
 ----
 
-(On each spoke, verify NeuroFace is reachable:)
+On each spoke, verify NeuroFace is reachable:
 
 [source,bash]
 ----
-$ oc get route -n neuroface
 $ curl -sk -o /dev/null -w '%{http_code}\n' https://neuroface.apps.<east_domain>/health
 ----
 
 === Solution
 
-. Confirm both spoke domains are set in hub `neuroface-gateway` overrides or populated by the Validated Patterns Operator from managed cluster metadata.
+. Confirm both spokes are imported in RHACM and their domains are populated in the Helm values.
 
-. Verify both spoke NeuroFace deployments are healthy.
+. Verify the RHCL operator CSV is `Succeeded`:
 
-. Inspect HTTPRoute `backendRefs` weights in `charts/all/neuroface-gateway/templates/httproute.yaml` — default is 50/50 when both domains are present.
-
-. Resync the gateway application after spoke domains are available:
-
-+
 [source,bash]
 ----
-$ oc annotate application hub-neuroface-gateway -n vp-gitops \
-  argocd.argoproj.io/refresh=hard --overwrite
+$ oc get csv -n redhat-connectivity-link-operator | grep rhcl
+----
+
+. If the Gateway shows `Waiting for controller`, the RHCL operator may have been recently reinstalled. Wait 2–3 minutes for the controller to reconcile.
+
+. Inspect HTTPRoute weights in `charts/all/neuroface-gateway/templates/httproute.yaml` — default is 50/50 when both spoke domains are set.
+
+== GitLab operator fails with TooManyOperatorGroups
+
+=== Symptom
+
+GitLab CSV shows `Failed` with reason `TooManyOperatorGroups`. The `gitlab-operator` ArgoCD application is `Healthy` but `OutOfSync`.
+
+=== Probable cause
+
+The `gitlab-system` namespace has two OperatorGroups: one created by the `clustergroup` chart (via `operatorGroup: true` in `values-hub.yaml`) and one created by a previous chart revision.
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get operatorgroups -n gitlab-system
+$ oc get csv -n gitlab-system | grep gitlab
+----
+
+=== Solution
+
+. Delete the duplicate OperatorGroup (keep only the one created by `clustergroup`):
+
+[source,bash]
+----
+$ oc delete operatorgroup <duplicate_name> -n gitlab-system
+----
+
+. Delete the failed CSV and subscription to force a clean reinstall:
+
+[source,bash]
+----
+$ oc delete csv <gitlab_csv_name> -n gitlab-system
+$ oc delete subscription.operators.coreos.com gitlab-operator-kubernetes -n gitlab-system
+----
+
+. Force ArgoCD to resync:
+
+[source,bash]
+----
+$ oc annotate application ia-computer-vision-hub -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+----
+
+== ExternalSecret shows RemoteRef key empty (RHBK, Quay)
+
+=== Symptom
+
+`ExternalSecret` resources in `keycloak-system` or `quay-enterprise` show `spec.data[0].remoteRef.key: Required value`. The RHBK or Quay application shows `Progressing` indefinitely.
+
+=== Probable cause
+
+Vault has not been initialized or the unseal cronjob has not populated the secrets yet. The ExternalSecret references a Vault path that does not exist.
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get externalsecret -n keycloak-system
+$ oc get externalsecret -n quay-enterprise
+$ oc exec vault-0 -n vault -- vault kv list secret/ 2>/dev/null
+----
+
+=== Solution
+
+. Verify Vault is initialized and unsealed (see the Vault troubleshooting section above).
+
+. Check if the `unsealvault-cronjob` has run and populated secrets:
+
+[source,bash]
+----
+$ oc get cronjob -n imperative
+$ oc logs -n imperative $(oc get pods -n imperative -o name | tail -1) --tail=20
+----
+
+. If secrets are not populated after Vault is healthy, trigger the imperative job manually:
+
+[source,bash]
+----
+$ oc create job manual-unseal --from=cronjob/unsealvault-cronjob -n imperative
 ----
 
 == Getting additional help
@@ -279,4 +430,4 @@ $ oc annotate application hub-neuroface-gateway -n vp-gitops \
 * Validated Patterns framework: link:https://validatedpatterns.io/[validatedpatterns.io]
 * Support policy: see `SUPPORT.md` in the pattern repository (Sandbox tier)
 
-For preventive guidance during installation, follow xref:getting-started.adoc[Getting started] verification steps after each cluster deploy.
+For preventive guidance during installation, follow the verification steps in xref:getting-started.adoc[Getting started] after each cluster deploy.

@@ -7,7 +7,7 @@ weight: 40
 
 = Ideas for customization
 
-This document describes actionable ways to extend the AI Computer Vision pattern for production or proof-of-concept environments. Each scenario includes context, files to change, and a validation command.
+This document describes actionable ways to extend the AI Computer Vision pattern for production or proof-of-concept environments. Each scenario includes context, the exact files and values to change, and a validation command.
 
 == Adding a third spoke (south) for a new region
 
@@ -17,35 +17,93 @@ You operate inference in three geographic regions and want a third edge cluster 
 
 === What to change
 
-. Create `values-south.yaml` by copying `values-east.yaml` and replacing cluster group references:
+. Create `values-south.yaml` by copying `values-east.yaml`:
 
-* `clusterGroupName: south`
-* `clusterGroup.name: south`
-* All `clusterName` overrides: `south`
-* `clusterSuffix: "-south"` in observability overrides
+[source,bash]
+----
+$ cp values-east.yaml values-south.yaml
+----
 
-. Add a `managedClusterGroups.south` entry in `values-hub.yaml`:
+. Edit `values-south.yaml` and replace all east-specific references:
 
 [source,yaml]
 ----
-managedClusterGroups:
-  south:
-    name: south
-    acmlabels:
-      - name: clusterGroup
-        value: south
+main:
+  clusterGroupName: south          # <1>
+
+clusterGroup:
+  name: south                      # <2>
+
+  applications:
+    servicemesh-config:
+      overrides:
+        - name: clusterName
+          value: south             # <3>
+        - name: clusterRole
+          value: spoke
+
+    observability:
+      overrides:
+        - name: clusterName
+          value: south
+        - name: clusterSuffix
+          value: "-south"          # <4>
+
+    spoke-neuroface:
+      overrides:
+        - name: clusterName
+          value: south
+----
+<1> Sets the cluster group for the VP Operator Pattern CR
+<2> Sets the ArgoCD project and namespace prefix
+<3> All `clusterName` overrides must be `south`
+<4> Observability uses the suffix for Thanos and Grafana datasource labels
+
+. Add the south managed cluster group in `values-hub.yaml`:
+
+[source,yaml]
+----
+  managedClusterGroups:
+    east:
+      name: east
+      acmlabels:
+        - name: clusterGroup
+          value: east
+    west:
+      name: west
+      acmlabels:
+        - name: clusterGroup
+          value: west
+    south:                         # <-- add this block
+      name: south
+      acmlabels:
+        - name: clusterGroup
+          value: south
 ----
 
-. Update `charts/all/neuroface-gateway/values.yaml` or hub overrides to include `clusters.south.domain`.
+. Update `charts/all/neuroface-gateway/values.yaml` to add a south backend:
 
-. Copy spoke charts application entries from `values-east.yaml` into the new values file.
+[source,yaml]
+----
+clusters:
+  east:
+    domain: ""
+  west:
+    domain: ""
+  south:                           # <-- add
+    domain: ""
+----
+
+. Update `charts/all/neuroface-gateway/templates/httproute.yaml` to include the south backend with appropriate weight (for example, 33/33/34).
+
+. Update `charts/all/observability/values.yaml` to include south cluster token sync.
 
 === Files affected
 
 * `values-south.yaml` (new)
-* `values-hub.yaml`
-* `charts/all/neuroface-gateway/values.yaml`
-* `charts/all/observability/values.yaml` (multi-cluster tokens)
+* `values-hub.yaml` (add `managedClusterGroups.south`)
+* `charts/all/neuroface-gateway/values.yaml` and `templates/httproute.yaml`
+* `charts/all/observability/values.yaml` and `templates/multi-cluster-secret.yaml`
 
 === Validation
 
@@ -61,6 +119,8 @@ $ oc get applications.argoproj.io -n vp-gitops | grep south
 ----
 south
 south-spoke-neuroface          Synced        Healthy
+south-spoke-neuroface-cv       Synced        Healthy
+south-spoke-interconnect       Synced        Healthy
 ----
 
 == Replacing YOLO with a custom model served by OVMS
@@ -71,20 +131,41 @@ Your organization trained a proprietary object-detection model and wants to serv
 
 === What to change
 
-. Store your model artifacts in a PVC or S3-compatible bucket accessible from the spoke.
+. Store your model artifacts in an S3-compatible bucket or PVC accessible from the spoke. OVMS expects the following directory structure:
 
-. Edit `charts/all/spoke-neuroface-cv/values.yaml`:
+[source,text]
+----
+<model_name>/
+  1/
+    model.xml
+    model.bin
+----
 
-* Update `ovms.modelPath` or model server configuration to reference your model directory
-* Change container image or init container logic if your model requires a custom conversion step
+. Edit `charts/all/spoke-neuroface-cv/values.yaml` to point to your model:
 
-. Update ConfigMap or InferenceService templates if you use KServe instead of standalone OVMS.
+[source,yaml]
+----
+ovms:
+  modelName: my-custom-model       # <-- your model name
+  modelPath: my-custom-model/      # <-- path in S3 bucket or PVC
+  targetDevice: CPU                # or GPU if available
+  resources:
+    requests:
+      memory: 2Gi                  # adjust based on model size
+    limits:
+      memory: 4Gi
+----
+
+. If your model uses a different input/output format than YOLO, update the NeuroFace application configuration in `charts/all/spoke-neuroface/values.yaml` to match the new inference API contract.
+
+. If you use KServe `InferenceService` instead of standalone OVMS, create a new template in `charts/all/spoke-neuroface-cv/templates/` using the `serving.kserve.io/v1beta1` API.
 
 === Files affected
 
-* `charts/all/spoke-neuroface-cv/values.yaml`
+* `charts/all/spoke-neuroface-cv/values.yaml` (model path, name, resources)
 * `charts/all/spoke-neuroface-cv/templates/` (model mount and environment variables)
-* Optional: `values-east.yaml` and `values-west.yaml` overrides for model URL
+* `charts/all/spoke-neuroface/values.yaml` (inference endpoint URL if changed)
+* Optional: `values-east.yaml` and `values-west.yaml` overrides for per-spoke model URLs
 
 === Validation
 
@@ -92,61 +173,183 @@ Your organization trained a proprietary object-detection model and wants to serv
 ----
 $ oc get pods -n neuroface-cv
 $ oc logs deploy/ovms -n neuroface-cv --tail=20
+----
+
+.Expected: OVMS log shows `Model loaded successfully`
+
+[source,bash]
+----
 $ curl -sk -X POST https://neuroface-cv.apps.<hub_domain>/v2/models/<model_name>/infer \
   -H 'Content-Type: application/json' -d @sample-request.json
 ----
 
-.Expected output
-[source,text]
-----
-NAME                     READY   STATUS    RESTARTS   AGE
-ovms-xxxxxxxxxx-xxxxx    2/2     Running   0          5m
-{"detections":[...]}
-----
+.Expected: JSON response with detections array
 
 == Enabling GPU workers on spokes
 
 === Context
 
-CPU inference meets functional requirements but latency exceeds your SLA. You add GPU worker nodes on east and west spokes.
+CPU inference meets functional requirements but latency exceeds your SLA. You add GPU worker nodes on east and west spokes for accelerated model serving.
 
 === What to change
 
-. Provision GPU worker nodes (for example, AWS `g4dn.xlarge` with NVIDIA T4 or `g5.2xlarge` with A10G).
+. **Provision GPU worker nodes.** On AWS, create a MachineSet with GPU instances:
 
-. Install the NVIDIA GPU Operator on each spoke (not included by default in this pattern).
+[source,bash]
+----
+$ oc get machinesets -n openshift-machine-api
+----
 
-. Edit `charts/all/spoke-neuroface-cv/values.yaml`:
+Create a new MachineSet (or edit an existing one) with instance type `g4dn.xlarge` (NVIDIA T4) or `g5.2xlarge` (NVIDIA A10G). See the link:https://docs.openshift.com/container-platform/4.20/machine_management/creating_machinesets/creating-machineset-aws.html[OpenShift documentation for AWS MachineSets].
 
-* Set resource limits requesting `nvidia.com/gpu: 1`
-* Select a GPU-enabled OVMS or ModelMesh runtime
+. **Install the NVIDIA GPU Operator.** Add subscriptions to `values-east.yaml` and `values-west.yaml`:
 
-. Document sizing changes in `docs/content/patterns/ia-computer-vision/cluster-sizing.adoc`.
+[source,yaml]
+----
+  subscriptions:
+    nfd:
+      name: nfd
+      namespace: openshift-nfd
+      channel: stable
+      source: redhat-operators
+    gpu-operator:
+      name: gpu-operator-certified
+      namespace: nvidia-gpu-operator
+      channel: v24.9
+      source: certified-operators
+----
+
+Add the corresponding namespaces:
+
+[source,yaml]
+----
+  namespaces:
+    openshift-nfd:
+      operatorGroup: true
+      targetNamespaces: []
+    nvidia-gpu-operator:
+      operatorGroup: true
+      targetNamespaces: []
+----
+
+. **Update OVMS resource requests** in `charts/all/spoke-neuroface-cv/values.yaml`:
+
+[source,yaml]
+----
+ovms:
+  targetDevice: GPU
+  resources:
+    limits:
+      nvidia.com/gpu: 1            # <-- request one GPU
+      memory: 4Gi
+    requests:
+      memory: 2Gi
+----
+
+. **Update cluster sizing documentation** in `pattern-metadata.yaml`:
+
+[source,yaml]
+----
+external_requirements:
+  cluster_sizing_note: >
+    GPU workers: g4dn.xlarge (T4) or g5.2xlarge (A10G) on spokes.
+----
 
 === Files affected
 
-* Spoke cluster machine sets or worker node pools (platform-specific)
-* `charts/all/spoke-neuroface-cv/values.yaml`
-* `pattern-metadata.yaml` (`external_requirements.cluster_sizing_note`)
-* `overrides/values-AWS.yaml` (optional GPU node selectors)
+* `values-east.yaml` and `values-west.yaml` (subscriptions + namespaces for NFD and GPU Operator)
+* `charts/all/spoke-neuroface-cv/values.yaml` (GPU resource requests)
+* `pattern-metadata.yaml` (sizing note)
+* Spoke cluster MachineSet (platform-specific)
 
 === Validation
 
 [source,bash]
 ----
 $ oc get nodes -l nvidia.com/gpu.present=true
-$ oc describe pod -n neuroface-cv -l app=ovms | grep -A2 Limits
-$ curl -sk https://neuroface-cv.apps.<hub_domain>/api/ppe/status
+----
+
+.Expected: GPU worker nodes show `Ready`
+
+[source,bash]
+----
+$ oc describe pod -n neuroface-cv -l app=ovms | grep -A2 "Limits:"
 ----
 
 .Expected output
 [source,text]
 ----
-gpu-worker-east-xxx   Ready   30m
   Limits:
     nvidia.com/gpu:  1
-200
+    memory:          4Gi
 ----
+
+[source,bash]
+----
+$ curl -sk -o /dev/null -w '%{http_code}\n' https://neuroface-cv.apps.<hub_domain>/api/ppe/status
+----
+
+.Expected: `200`
+
+== Single spoke deployment (proof of concept)
+
+=== Context
+
+For a proof-of-concept environment, you want to deploy only the hub and one spoke (east), omitting the west cluster entirely.
+
+=== What to change
+
+. **Remove the west managed cluster group** from `values-hub.yaml`:
+
+[source,yaml]
+----
+  managedClusterGroups:
+    east:
+      name: east
+      acmlabels:
+        - name: clusterGroup
+          value: east
+    # west:                        # <-- comment out or delete
+    #   name: west
+    #   acmlabels:
+    #     - name: clusterGroup
+    #       value: west
+----
+
+. **Update RHCL HTTPRoute weights** to send all traffic to east. In `charts/all/neuroface-gateway/values.yaml`:
+
+[source,yaml]
+----
+gateway:
+  weights:
+    east: 100
+    west: 0
+----
+
+. **Skip the west spoke installation** entirely. Do not create a Pattern CR on the west cluster.
+
+. The pattern still functions: inference traffic goes 100% to east, Grafana shows only east metrics, and Skupper operates with a single spoke link.
+
+=== Files affected
+
+* `values-hub.yaml` (remove west managedClusterGroup)
+* `charts/all/neuroface-gateway/values.yaml` (weights)
+
+=== Validation
+
+[source,bash]
+----
+$ oc get managedcluster
+----
+
+.Expected: Only `local-cluster` and east spoke listed.
+
+[source,bash]
+----
+$ oc get httproute -n neuroface-gateway-system -o yaml | grep -A5 "backendRefs"
+----
+
+.Expected: Only one backendRef with weight 100.
 
 == Integrating Red Hat Trusted Artifact Signer (RHTAS) for image signing
 
@@ -156,47 +359,54 @@ Your supply chain policy requires signed container images before deployment to e
 
 === What to change
 
-. Uncomment the RHTAS, RHTPA, and cert-manager subscription entries in `values-hub.yaml`:
+. Uncomment the RHTAS, RHTPA, and cert-manager subscription entries in `values-hub.yaml` (lines 105–120):
 
 [source,yaml]
 ----
-# rhtas:
-#   name: rhtas-operator
-#   channel: alpha
-# rhtpa:
-#   name: rhtpa-operator
-#   channel: alpha
-# cert-manager:
-#   name: openshift-cert-manager-operator
-#   channel: stable-v1
+    rhtas:
+      name: rhtas-operator
+      namespace: openshift-operators
+      channel: alpha
+      source: redhat-operators
+    rhtpa:
+      name: rhtpa-operator
+      namespace: openshift-operators
+      channel: alpha
+      source: redhat-operators
+    cert-manager:
+      name: openshift-cert-manager-operator
+      namespace: cert-manager-operator
+      channel: stable-v1
+      source: redhat-operators
 ----
 
-. Add Argo CD applications for TSSC charts under `charts/all/` or VP published charts.
+. Add corresponding namespaces and ArgoCD applications for RHTAS configuration charts.
 
-. Configure GitLab CI/CD pipelines in `charts/all/gitlab-operator/` to sign images with RHTAS before push to Quay.
+. Configure GitLab CI/CD pipelines in the Developer Hub software templates to sign images with `cosign` before pushing to Quay.
 
 === Files affected
 
-* `values-hub.yaml` (subscriptions and applications)
-* `charts/all/gitlab-operator/templates/` (CI pipeline ConfigMaps)
-* `values-secret.yaml.template` (signing credentials if not Vault-generated)
+* `values-hub.yaml` (subscriptions)
+* `charts/all/` (new RHTAS configuration chart if needed)
+* `values-secret.yaml.template` (signing credentials)
 
 === Validation
 
 [source,bash]
 ----
 $ oc get csv -n openshift-operators | grep rhtas
+----
+
+.Expected: RHTAS operator CSV `Succeeded`
+
+[source,bash]
+----
 $ cosign verify --certificate-identity-regexp=.* \
   --certificate-oidc-issuer-regexp=.* \
   quay.apps.<hub_domain>/<org>/<image>:<tag>
 ----
 
-.Expected output
-[source,text]
-----
-rhtas-operator.vx.x.x   Red Hat Trusted Artifact Signer   Succeeded
-Verification succeeded
-----
+.Expected: `Verification succeeded`
 
 == Configuring Grafana alerts for inference latency SLA
 
@@ -206,45 +416,94 @@ Your SLA requires inference p95 latency below 500 ms. You create Grafana alerts 
 
 === What to change
 
-. Edit `charts/all/observability/templates/` or values to add a GrafanaAlertRuleGroup:
+. Create a `GrafanaAlertRuleGroup` resource in `charts/all/observability/templates/`:
 
-* Query: histogram quantile over NeuroFace or OVMS request duration metrics
-* Threshold: `> 0.5` seconds for 5 minutes
-* Notification channel: your PagerDuty, Slack, or email receiver
+[source,yaml]
+----
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaAlertRuleGroup
+metadata:
+  name: neuroface-inference-sla
+  namespace: openshift-cluster-observability-operator
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  folderRef: "AI Computer Vision"
+  interval: 60s
+  rules:
+    - title: "NeuroFace inference p95 > 500ms"
+      condition: C
+      for: 5m
+      data:
+        - refId: A
+          datasourceUid: prometheus
+          model:
+            expr: histogram_quantile(0.95, rate(neuroface_request_duration_seconds_bucket[5m]))
+        - refId: C
+          datasourceUid: __expr__
+          model:
+            type: threshold
+            conditions:
+              - evaluator:
+                  type: gt
+                  params: [0.5]
+----
 
-. Ensure OpenTelemetry collectors export the required metrics from NeuroFace and gateway namespaces.
+. Configure a notification channel (Slack, PagerDuty, email) in the Grafana instance.
 
-. On spokes, confirm `observability` chart scrapes inference ServiceMonitor endpoints.
+. Ensure OpenTelemetry collectors on spokes export `neuroface_request_duration_seconds` histogram metrics.
 
 === Files affected
 
-* `charts/all/observability/values.yaml`
-* `charts/all/observability/templates/` (alert rule manifests)
-* Optional: Thanos Ruler configuration for multi-cluster alert evaluation
+* `charts/all/observability/templates/` (alert rule manifest)
+* `charts/all/observability/values.yaml` (notification channel configuration)
 
 === Validation
 
 [source,bash]
 ----
-$ oc get grafanadashboards -n openshift-cluster-observability-operator
-$ oc get prometheusrules -A | grep neuroface
-$ curl -sk -u <grafana_user>:<password> \
-  https://grafana.apps.<hub_domain>/api/v1/provisioning/alert-rules
+$ oc get grafanaalertrulegroups -n openshift-cluster-observability-operator
 ----
 
-.Expected output
-[source,text]
-----
-neuroface-inference-latency-sla   openshift-cluster-observability-operator
-[{"title":"NeuroFace inference p95 > 500ms",...}]
-----
+.Expected: `neuroface-inference-sla` resource present.
 
 == Scaling workshop users
 
-Workshop mode defaults to 30 users. Update `userCount` consistently in `platform-users`, `developer-hub`, `gitlab-operator`, `openshift-ai-hub`, `devspaces`, and `showroom` application overrides. See the pattern README for details.
+Workshop mode defaults to 30 users. To scale to a different count (for example, 50), update `userCount` in these application overrides consistently across all three values files:
 
-== Optional Trusted Software Supply Chain
+In `values-hub.yaml`:
 
-The pattern includes commented subscription stubs for RHTAS in `values-hub.yaml`. Enable them when your organization requires artifact signing as part of CI/CD.
+[source,yaml]
+----
+    platform-users:
+      overrides:
+        - name: userCount
+          value: "50"
+    developer-hub:
+      overrides:
+        - name: userCount
+          value: "50"
+    gitlab-operator:
+      overrides:
+        - name: userCount
+          value: "50"
+    openshift-ai-hub:
+      overrides:
+        - name: userCount
+          value: "50"
+    devspaces:
+      overrides:
+        - name: userCount
+          value: "50"
+    showroom:
+      overrides:
+        - name: showroom.terminal.userCount
+          value: "50"
+----
+
+Apply the same `userCount: "50"` to `platform-users` in `values-east.yaml` and `values-west.yaml`.
+
+See xref:workshop.adoc[Workshop mode] for details on what each chart provisions per user.
 
 For installation issues during customization, see xref:troubleshooting.adoc[Troubleshooting].

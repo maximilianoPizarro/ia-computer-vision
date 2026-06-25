@@ -7,26 +7,26 @@ weight: 20
 
 = AI Computer Vision architecture
 
-This document describes the hub-spoke topology, component placement, traffic flow, security model, connectivity, and GitOps workflow for the AI Computer Vision Validated Pattern.
+This document describes the hub-spoke topology, component placement, traffic flow, security model, connectivity, and GitOps workflow for the AI Computer Vision pattern. It also explains why specific Red Hat products were chosen over alternatives.
 
 == Overview
 
-The AI Computer Vision pattern uses a **hub-spoke** model with one central control plane cluster and two symmetric edge clusters. This design separates fleet management and developer platform services from latency-sensitive inference workloads.
+The AI Computer Vision pattern uses a **hub-spoke** model with one central control plane cluster and two symmetric edge inference clusters. This architecture separates fleet management and developer platform services from latency-sensitive inference workloads.
 
-You deploy the pattern on three independent OCP clusters:
+You deploy the pattern on three independent OCP 4.20 or later clusters:
 
-* **Hub** — fleet control, secrets, centralized security, developer platform, and external ingress
-* **East spoke** — edge inference and observability
+* **Hub** — fleet control, secrets, centralized security, developer platform, and external ingress gateway
+* **East spoke** — edge inference, observability, and service mesh
 * **West spoke** — identical edge stack for geographic redundancy and load distribution
 
-This model fits computer vision at the edge because inference runs close to cameras and sensors while policy, GitOps, and observability remain centralized. RHACM registers spokes as managed clusters. OpenShift GitOps reconciles the same Git repository on each cluster with role-specific Helm values (`values-hub.yaml`, `values-east.yaml`, `values-west.yaml`).
+=== Why hub-spoke
+
+Computer vision inference runs close to cameras and sensors for low-latency response. Centralizing policy, secrets, and observability on the hub means edge clusters remain lightweight and recoverable. If a spoke goes offline, the hub retains the full audit trail and can redeploy the spoke from Git state alone. RHACM provides the fleet management layer, and OpenShift GitOps provides the reconciliation engine.
 
 .Hub-spoke topology diagram
 image::architecture-hub-spoke.png[Hub-spoke architecture showing hub cluster connected to east and west spoke clusters with RHCL gateway load balancing,align=center,width=100%]
 
-The SVG version of this diagram is also available for print documentation:
-
-image::architecture.svg[Hub-spoke architecture SVG diagram,align=center,width=100%]
+image::architecture.svg[Hub-spoke architecture SVG,align=center,width=100%]
 
 == Hub cluster components
 
@@ -34,156 +34,227 @@ The hub cluster hosts fleet management, the developer platform, centralized secu
 
 [cols="2,3,4",options="header"]
 |===
-| Component | Role | Why this Red Hat product
+| Component | Role | Why this product
 
 | Red Hat Advanced Cluster Management (RHACM) 2.16
-| Imports and manages east and west spokes; applies `managedClusterGroups` labels
-| Provides a single control point for multi-cluster policy and cluster lifecycle without custom automation
+| Imports and manages east and west spokes; applies `managedClusterGroups` labels for GitOps propagation
+| Provides a single API for multi-cluster lifecycle, policy, and observability. The alternative (manual `kubeconfig` management per cluster) does not scale and lacks audit capabilities.
 
 | HashiCorp Vault + External Secrets Operator (ESO)
-| Central secrets store; ESO syncs secrets into namespaces for GitOps-managed apps
-| Keeps credentials out of Git while allowing declarative application configuration
+| Central secrets store; ESO syncs secrets into Kubernetes namespaces for GitOps-managed applications
+| Keeps credentials out of Git while allowing fully declarative application configuration. The Validated Patterns framework provides a VP-specific Vault chart with auto-initialization.
 
 | Red Hat Advanced Cluster Security (RHACS) Central
-| Centralized vulnerability management and policy for hub and spokes
-| Unified security posture across distributed inference clusters
+| Centralized vulnerability scanning, runtime policy enforcement, and compliance reporting across hub and spokes
+| Unified security posture across distributed inference clusters. The alternative (per-cluster scanning) lacks correlation and central policy management.
 
-| Red Hat Connectivity Link (RHCL) operator
-| Gateway API ingress with HTTPRoute to east/west NeuroFace backends
-| Native OpenShift ingress with Kuadrant policies for auth and rate limiting at the gateway
+| Red Hat Connectivity Link (RHCL) / Kuadrant
+| Gateway API ingress with HTTPRoute rules for 50/50 east/west backend load balancing
+| RHCL provides native Gateway API support on OpenShift with built-in auth policies (`AuthPolicy`), rate limiting (`RateLimitPolicy`), and DNS management (`DNSPolicy`). The alternative (OpenShift Route with HAProxy) lacks weighted backend distribution and policy-as-code.
 
 | GitLab (GitLab Operator)
-| Source control and CI/CD for Developer Hub scaffolder workflows
-| Self-hosted SCM integrated with the developer platform on OpenShift
+| Source control, CI/CD pipelines, and integration with Developer Hub scaffolder
+| Self-hosted SCM running on OpenShift. Developer Hub software templates create GitLab repos and CI pipelines for new AI applications.
 
 | Red Hat Developer Hub (RHDH)
-| Developer portal with AI Computer Vision software template and catalog
-| Standardized self-service for AI application onboarding
+| Developer portal with AI Computer Vision software template and Backstage catalog
+| Standardized self-service for AI application onboarding. Developers create projects, workspaces, and CI/CD pipelines from the portal without cluster admin access.
 
 | Red Hat OpenShift AI (RHOAI) 3.4
-| Model serving platform (DataScienceCluster, KServe) on the hub
-| Supported enterprise AI platform for training and serving workflows
+| DataScienceCluster, KServe model serving, workbenches for model training and experimentation
+| Supported enterprise AI platform with integrated model management. Provides the DSCInitialization and DataScienceCluster CRs that enable KServe and model serving pipelines.
 
 | Red Hat Quay 3.17
 | Private container registry for pattern and application images
-| Secure image storage with vulnerability scanning integration
+| Secure image storage with integrated vulnerability scanning (Clair) and geo-replication for edge scenarios.
 
-| Red Hat Build of Keycloak (RHBK)
+| Red Hat Build of Keycloak (RHBK) 26.4
 | OIDC identity provider for Developer Hub and workshop users
-| Enterprise-grade identity management aligned with Red Hat portfolio
+| Enterprise-grade identity management. The `backstage` realm provides SSO across Developer Hub, GitLab, and workshop services.
 
-| OpenShift GitOps
+| OpenShift GitOps (Argo CD)
 | Reconciles `values-hub.yaml` applications from the pattern Git repository
-| Declarative, auditable cluster configuration with drift detection
+| Declarative, auditable cluster configuration with drift detection. The Validated Patterns Operator manages the OpenShift GitOps instance.
 
 | Observability (Grafana, OpenTelemetry, Kiali, Thanos)
-| Multi-cluster metrics, traces, and service mesh visualization
-| Operational visibility across hub and registered spokes
+| Multi-cluster metrics federation, distributed tracing, and service mesh visualization
+| Operational visibility across hub and spokes. Thanos federates Prometheus metrics from spokes; Kiali visualizes Service Mesh traffic.
 
 | Showroom + platform-users
-| Workshop lab guide and HTPasswd user provisioning (default: 30 users)
-| Hands-on enablement for demos and training events
+| Workshop lab guide (Antora) with embedded `oc` terminal; HTPasswd user provisioning (default: 30 users)
+| Hands-on enablement for demos and training events.
 |===
 
 == Spoke cluster components
 
-East and west spokes run identical software stacks. Helm overrides set `clusterName` to `east` or `west`.
+East and west spokes run identical software stacks. Helm overrides set `clusterName` to `east` or `west` and `clusterSuffix` for observability labeling.
 
 [cols="2,3,4",options="header"]
 |===
-| Component | Role | Why this Red Hat product
+| Component | Role | Why this product
 
 | NeuroFace
-| Edge AI application with event streaming for computer vision scenarios
-| Reference workload demonstrating multi-cluster inference patterns
+| Edge AI application with Kafka event streaming for computer vision scenarios
+| Reference workload demonstrating multi-cluster inference. Receives images, runs detection, streams events.
 
 | OpenVINO Model Server (OVMS) / YOLO CV
-| PPE detection inference in `neuroface-cv` namespace
-| CPU-efficient model serving suitable for edge nodes
+| PPE (Personal Protective Equipment) detection inference in `neuroface-cv` namespace
+| CPU-efficient model serving using Intel OpenVINO runtime. Suitable for edge nodes without GPU. YOLO provides real-time object detection.
 
-| Skupper (Service Interconnect)
-| Application-layer connectivity between spokes and hub without VPN complexity
-| Secure cross-cluster service exposure for inference backends
+| Skupper 2.x (Service Interconnect)
+| Application-layer connectivity between spokes and hub without VPN or network peering
+| Skupper creates encrypted TLS links at the application layer, tolerating NAT, firewalls, and heterogeneous network topologies common at edge sites. The alternative (VPN or VPC peering) requires network team involvement and exposes entire cluster networks rather than individual services.
 
 | Red Hat OpenShift Service Mesh 3.2 (ambient mode)
-| mTLS, telemetry, and L4 metrics without sidecar injection
-| Lower operational overhead than traditional sidecar mesh at the edge
+| Mutual TLS (mTLS), L4 telemetry, and authorization policies without sidecar injection
+| Ambient mode eliminates the resource and operational overhead of sidecar proxies on edge nodes where CPU and memory are constrained. Each node runs a ztunnel DaemonSet that intercepts traffic transparently. The alternative (sidecar mode) doubles container count per pod and complicates debugging.
 
 | RHACS Secured Cluster
-| Registers spoke with hub ACS Central; enforces runtime policies locally
-| Consistent security enforcement at the edge
+| Registers spoke with hub ACS Central; enforces runtime security policies locally
+| Consistent vulnerability scanning and policy enforcement at the edge, correlated with the hub Central dashboard.
 
-| RHCL operator (spoke)
-| Local Gateway API resources supporting cross-cluster routing
-| Aligns spoke ingress configuration with hub gateway policies
-
-| Observability stack
-| Grafana, OpenTelemetry Collector, Kiali on each spoke
-| Local and federated visibility for edge inference latency and errors
+| Observability stack (Grafana, OpenTelemetry, Kiali)
+| Local metrics collection and federation to hub Thanos; distributed tracing
+| Each spoke exports metrics via Thanos sidecar. OpenTelemetry collectors emit traces that appear in the hub Grafana and Kiali dashboards.
 
 | OpenShift DevSpaces
 | Cloud IDE workspaces with per-user GitLab credentials
-| Remote development for edge AI application teams
+| Remote development for edge AI application teams without local environment setup.
 
 | platform-users
 | HTPasswd workshop users and namespace view RBAC on spokes
-| Consistent lab credentials across hub and edge clusters
+| Consistent lab credentials across hub and edge clusters for workshop and demo events.
 |===
 
-== Traffic flow
+== Traffic flow: inference request end-to-end
 
-This section describes the path of an inference request from an external client through the hub gateway to edge model serving and back.
+This section describes each hop of an inference request from an external client through the hub gateway to edge model serving and back.
 
-.Inference request sequence
-image::inference-traffic-flow.png[Sequence diagram showing client request through RHCL gateway to NeuroFace and OVMS YOLO inference and back,align=center,width=100%]
+.Inference request traffic flow
+image::inference-traffic-flow.png[Sequence diagram showing inference request flow through RHCL gateway to NeuroFace and OVMS,align=center,width=100%]
 
-. An external client sends an HTTPS request to the RHCL Gateway HTTPRoute host (for example, `neuroface.apps.<hub_domain>` or `neuroface-cv.apps.<hub_domain>`).
-. The RHCL Gateway on the hub evaluates HTTPRoute rules and load-balances traffic **50/50** between east and west NeuroFace backend references.
-. The selected spoke NeuroFace application processes the request. For computer vision inference, NeuroFace forwards image data to the OVMS serving endpoint in the `neuroface-cv` namespace.
-. OVMS loads the YOLO model and returns detection results (JSON) to NeuroFace.
-. NeuroFace aggregates the response and returns it through the gateway path to the client.
-. OpenShift Service Mesh ambient mode and Skupper provide encrypted transport between services that span cluster boundaries. OpenTelemetry collectors emit traces at each hop for Grafana and Kiali analysis.
+=== Step-by-step flow
+
+[cols="1,2,5",options="header"]
+|===
+| Step | Component | What happens
+
+| 1
+| External client
+| Sends an HTTPS POST request to the RHCL Gateway HTTPRoute host (for example, `https://neuroface.apps.<hub_domain>/api/detect`). The request contains an image payload for PPE detection.
+
+| 2
+| RHCL Gateway (hub)
+| The Kuadrant-managed Gateway evaluates HTTPRoute rules. If `AuthPolicy` is configured, the gateway validates API keys or JWT tokens. If `RateLimitPolicy` is configured, Limitador enforces per-client rate limits. The request passes to the backend selector.
+
+| 3
+| HTTPRoute backend selection
+| The HTTPRoute defines two `backendRefs` with weight 50 each — one pointing to the east spoke NeuroFace service and one to the west spoke service. The gateway selects one backend based on the weighted round-robin algorithm.
+
+| 4
+| Skupper VAN tunnel
+| The selected backend reference resolves to a Skupper listener on the hub. Skupper tunnels the request over a TLS-encrypted AMQP link to the corresponding spoke `service-interconnect` namespace, where a connector forwards it to the NeuroFace `ClusterIP` service.
+
+| 5
+| Service Mesh ambient (spoke)
+| On the spoke, the ztunnel DaemonSet intercepts the request at the node level and applies mTLS transparently. No sidecar proxy is involved. L4 metrics (connection count, bytes transferred, latency) are emitted to OpenTelemetry collectors.
+
+| 6
+| NeuroFace application (spoke)
+| The NeuroFace pod receives the image, applies preprocessing, and forwards it to the OVMS inference endpoint in the `neuroface-cv` namespace via an internal `ClusterIP` service call.
+
+| 7
+| OVMS / YOLO CV (spoke)
+| OVMS loads the YOLO model from the configured model store (PVC or S3) and runs object detection. It returns a JSON response with detection bounding boxes, classes, and confidence scores.
+
+| 8
+| Response path
+| The detection JSON returns through NeuroFace -> Skupper tunnel -> RHCL Gateway -> client. OpenTelemetry trace context propagates across all hops, allowing end-to-end latency analysis in Grafana and Kiali.
+|===
+
+=== Protocols used
+
+* **Client -> RHCL Gateway**: HTTPS (TLS terminated at OpenShift Route/Gateway)
+* **RHCL Gateway -> Skupper**: Internal cluster networking + Skupper AMQP over TLS
+* **Skupper -> spoke service**: TLS-encrypted application-layer tunnel (no VPN)
+* **Intra-spoke (NeuroFace -> OVMS)**: HTTP/gRPC over mTLS (Service Mesh ambient ztunnel)
+* **Metrics/traces**: OpenTelemetry Protocol (OTLP) over gRPC to collectors
+
+== Design decisions
+
+This section explains why specific products and architectures were chosen. These are the questions a Validated Patterns architecture reviewer asks during informal review.
+
+=== Why RHCL for the gateway instead of native OCP Routes?
+
+OCP Routes use HAProxy for ingress and support only basic round-robin across multiple backends. RHCL provides:
+
+* **Gateway API HTTPRoute** with weighted backend references (50/50 split by default, configurable per-backend)
+* **Kuadrant policy integration**: `AuthPolicy` for API key and JWT validation, `RateLimitPolicy` for per-client throttling, `DNSPolicy` for multi-cluster DNS
+* **Standards-based**: Gateway API is the Kubernetes standard for ingress, replacing Ingress resources
+
+An OCP Route cannot split traffic between two external backends by weight; it always round-robins to endpoints within a single service. RHCL HTTPRoute treats east and west as independent backends with configurable weights.
+
+=== Why Skupper instead of VPN or network peering?
+
+Skupper operates at the application layer (Layer 7), not the network layer:
+
+* **No VPN configuration**: Skupper does not require IPsec tunnels, VPC peering, or Transit Gateway setup. It initiates outbound TLS connections from each spoke, which works through NAT and firewalls without opening inbound ports.
+* **Selective service exposure**: Only the services you configure as listeners and connectors are reachable across clusters. With a VPN, entire cluster networks are exposed.
+* **Portable across providers**: The same Skupper configuration works on AWS, Azure, GCP, bare metal, and disconnected environments. VPN configurations are provider-specific.
+
+=== Why Service Mesh ambient mode instead of sidecar mode?
+
+Red Hat OpenShift Service Mesh 3.x supports both sidecar and ambient mode. This pattern uses ambient mode because:
+
+* **Lower resource overhead**: Ambient mode runs a single ztunnel DaemonSet per node instead of injecting an Envoy sidecar into every pod. On edge nodes with limited CPU and memory, this reduces the per-pod resource footprint.
+* **No application restart required**: Enabling mesh for a namespace does not require pod restarts. The ztunnel transparently intercepts traffic at the node level.
+* **L4 mTLS by default**: All pod-to-pod traffic within mesh-enrolled namespaces gets mTLS encryption without application changes.
+* **Trade-off**: Ambient mode provides L4 (transport) features only. L7 features (HTTP routing, retries, header manipulation) require waypoint proxies, which this pattern does not deploy. For this inference workload, L4 mTLS and telemetry are sufficient.
 
 == Security architecture
 
-The pattern implements defense in depth across identity, secrets, runtime policy, and network encryption.
+The pattern implements defense in depth across four layers.
 
 === Identity and access
 
-* **Keycloak (RHBK)** provides OIDC for Developer Hub
-* **platform-users** provisions HTPasswd accounts for OCP Console and workshop access
-* **RHACM RBAC** restricts fleet operations to cluster administrators
+* **RHBK (Keycloak)** provides OIDC SSO for Developer Hub. The `backstage` realm contains workshop users and the `developer-hub` OIDC client.
+* **platform-users** provisions `user1` through `user30` with HTPasswd accounts on all clusters. Each user gets `cluster-reader` ClusterRoleBinding and `view` RoleBindings in pattern namespaces.
+* **RHACM RBAC** restricts fleet operations (cluster import, policy enforcement) to cluster administrators.
 
 === Secrets management
 
-* **Vault** stores generated credentials (GitLab, Keycloak, application secrets)
-* **ESO** projects Vault secrets into Kubernetes `Secret` objects consumed by operators and applications
-* Secrets never appear in the Git repository; only ExternalSecret references are Git-managed
+* **Vault** stores auto-generated credentials (GitLab root password, Keycloak admin password, Developer Hub session secret) and user-provided secrets (GitLab PAT, MaaS API key).
+* **ESO** projects Vault secrets into Kubernetes `Secret` objects consumed by operators and applications. The mapping is defined in `ExternalSecret` CRs within each chart.
+* **No secrets in Git**: Only `ExternalSecret` references are committed. Actual secret values live in Vault and are synced at deploy time.
 
 === Runtime security
 
-* **RHACS Central** on the hub collects policy violations and vulnerability data from **Secured Cluster** sensors on spokes
-* **ACS init bundle sync** distributes SecuredCluster registration material to spokes via GitOps
+* **RHACS Central** on the hub collects policy violations and CVE data from **Secured Cluster** sensors on spokes.
+* **ACS init bundle sync** chart distributes `SecuredCluster` registration material (certificates, endpoint) to spokes via GitOps, eliminating manual bundle exchange.
 
 === Network security
 
-* **OpenShift Service Mesh ambient mode** enforces mTLS and L4 telemetry between workloads in mesh-enabled namespaces (`istio-system`, `istio-cni`, `ztunnel`)
-* **Skupper** encrypts cross-cluster application traffic over TLS without exposing cluster networks
-* **RHCL/Kuadrant** applies auth and rate-limit policies at the gateway layer
+* **Service Mesh ambient mode** enforces mTLS between all workloads in mesh-enrolled namespaces (`istio-system`, `istio-cni`, `ztunnel` DaemonSet per node).
+* **Skupper** encrypts all cross-cluster application traffic over TLS without exposing cluster SDN networks.
+* **RHCL/Kuadrant** applies authentication and rate-limiting policies at the gateway layer before requests reach backend services.
 
-== Connectivity
+== Connectivity: Skupper Service Interconnect
 
-=== Skupper Service Interconnect
+Skupper creates a **virtual application network (VAN)** that links services across clusters at the application layer.
 
-Skupper creates a **virtual application network (VAN)** that links services across clusters at the application layer. On each spoke, the `spoke-interconnect` chart deploys listeners and connectors in the `service-interconnect` namespace.
+On each spoke, the `spoke-interconnect` chart deploys:
+
+* A **Site** resource that identifies the cluster as a Skupper participant
+* **Listener** resources that expose remote services locally (for example, exposing hub services on the spoke)
+* **Connector** resources that expose local services to the VAN (for example, making spoke NeuroFace reachable from the hub)
 
 Skupper enables:
 
-* Hub gateway routes to reach NeuroFace and OVMS endpoints on spokes
-* Cross-spoke service visibility without flat network routing between cluster SDNs
-* Encrypted links that tolerate NAT and firewall boundaries common at edge sites
+* Hub RHCL Gateway to reach NeuroFace and OVMS endpoints on spokes without VPN
+* Cross-spoke service visibility for inference backends
+* Encrypted links that tolerate NAT and firewall boundaries at edge sites
 
-Verify Skupper resources after installation:
+Verify Skupper resources:
 
 [source,bash]
 ----
@@ -191,37 +262,53 @@ $ oc get site -n service-interconnect
 $ oc get listener,connector -n service-interconnect
 ----
 
-=== RHACM managed clusters
+== Connectivity: RHACM managed clusters
 
-RHACM imports east and west clusters when you apply the `clusterGroup=east` and `clusterGroup=west` labels. The hub `managedClusterGroups` section in `values-hub.yaml` defines these labels for Policy and GitOps propagation patterns.
+RHACM imports east and west clusters when you apply the `clusterGroup=east` and `clusterGroup=west` labels. The `managedClusterGroups` section in `values-hub.yaml` declares these groups:
+
+[source,yaml]
+----
+managedClusterGroups:
+  east:
+    name: east
+    acmlabels:
+      - name: clusterGroup
+        value: east
+  west:
+    name: west
+    acmlabels:
+      - name: clusterGroup
+        value: west
+----
+
+RHACM uses these labels for policy propagation and to populate managed cluster metadata that the Validated Patterns Operator injects into Helm values (for example, spoke `apps.<domain>` used by Skupper and RHCL).
 
 == GitOps flow
 
-The Validated Patterns Operator installs OpenShift GitOps and creates a Pattern custom resource that points to this repository.
+The Validated Patterns Operator installs OpenShift GitOps and creates a Pattern custom resource that points to this Git repository.
 
-. You commit changes to `values-hub.yaml`, `values-east.yaml`, or `values-west.yaml` in Git.
-. OpenShift GitOps on each cluster watches the branch configured in the Pattern CR.
-. The `clustergroup` chart from `charts.validatedpatterns.io` renders Argo CD Applications with sync waves ordering operators before workloads.
-. On the hub, RHACM observes managed cluster labels and can propagate policies or application sets to spokes (depending on your ACM configuration).
-. Spoke clusters reconcile their own `values-east.yaml` or `values-west.yaml` independently, ensuring edge workloads remain available even if hub connectivity is intermittent.
+. You commit changes to `values-hub.yaml`, `values-east.yaml`, or `values-west.yaml`.
+. OpenShift GitOps on each cluster watches the `main` branch (configurable in the Pattern CR).
+. The `clustergroup` chart (version `0.9.*` from `charts.validatedpatterns.io`) renders Argo CD Applications according to sync waves.
+. Sync waves ensure operators install before their operands: wave 0 (platform base) through wave 10 (console links).
+. On the hub, RHACM observes managed cluster labels and propagates policies.
+. Spoke clusters reconcile their own values files independently, ensuring edge workloads remain available even if hub connectivity is temporarily interrupted.
 
-Sync wave ordering (summary):
-
-[cols="1,3",options="header"]
+[cols="1,4",options="header"]
 |===
-| Wave | Examples
+| Wave | Applications
 
 | 0
 | `openshift-gitops`, `platform-users`
 
 | 1–2
-| Observability, ESO, Vault
+| Observability, ACM, Vault, ESO, RHBK, Quay
 
-| 3–5
-| GitLab, Developer Hub, OpenShift AI, Showroom, NeuroFace gateway
+| 3–4
+| GitLab, Developer Hub, Service Mesh, Skupper
 
-| 4–7 (spokes)
-| Service mesh, Skupper, NeuroFace, OVMS, DevSpaces
+| 5–7
+| OpenShift AI, Showroom, NeuroFace gateway, NeuroFace, OVMS, DevSpaces
 
 | 10
 | Console links
