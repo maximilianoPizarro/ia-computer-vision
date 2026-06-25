@@ -116,13 +116,14 @@ clusterGroup:
       name: servicemesh-config
       namespace: istio-system
       argoProject: mesh
-      path: charts/all/servicemesh-config
+      chart: servicemesh
+      chartVersion: 0.1.*
       syncWave: "1"
       overrides:
-        - name: clusterName
-          value: east
-        - name: clusterRole
-          value: spoke
+        - name: servicemesh.profile
+          value: ambient
+        - name: servicemesh.istio.name
+          value: default
 
     observability:
       name: observability

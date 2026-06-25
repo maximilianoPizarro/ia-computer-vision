@@ -165,7 +165,7 @@ The following versions are tested with this pattern. The `Channel` column maps t
 | Red Hat OpenShift Service Mesh
 | 3.2 (ambient)
 | `stable-3.2`
-| East, West
+| East, West (VP `servicemesh` chart, `profile: ambient`)
 
 | Red Hat Developer Hub
 | 1.10
