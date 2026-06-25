@@ -66,7 +66,7 @@ requirements:
       platform:
         aws:
           replicas: 3
-          type: m6a.2xlarge
+          type: m6a.4xlarge
   spoke:
     controlPlane:
       platform:
