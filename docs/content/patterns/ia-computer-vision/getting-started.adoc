@@ -7,11 +7,11 @@ weight: 10
 
 = Getting started with AI Computer Vision
 
-This guide walks you through deploying the AI Computer Vision pattern from a clean environment. You install the hub cluster first, verify it, then deploy the east and west spoke clusters. Each section includes verification commands with expected output so you know whether each step succeeded.
+This guide walks you through deploying the AI Computer Vision pattern from a clean environment. Install the east and west spoke clusters first, collect their API tokens, then install the hub last so RHACM can auto-import both spokes. Each section includes verification commands with expected output so you know whether each step succeeded.
 
 [IMPORTANT]
 ====
-Complete each cluster installation and verification before moving to the next. The hub must be healthy and RHACM must import the spokes before cross-cluster features such as Skupper, multi-cluster observability, and the RHCL inference gateway become operational.
+Complete each cluster installation and verification before moving to the next. The hub imports spokes automatically when you provide spoke API tokens in `~/values-secret-ia-computer-vision.yaml`. Cross-cluster features such as Skupper, multi-cluster observability, RHACS Secured Cluster registration, and the RHCL inference gateway require imported spokes.
 ====
 
 == Prerequisites
@@ -101,22 +101,31 @@ The following table explains each secret and whether you need to provide a value
 | `quay-credentials`
 | `dockerconfigjson`
 | **Optional.** Required only if you push images to the pattern Quay registry. Leave the placeholder for read-only usage.
+
+| `spoke-credentials`
+| `east-token`, `east-api-url`, `west-token`, `west-api-url`
+| **Required for hub install.** Set after east and west spokes are running. Use a cluster-admin token from each spoke and its API server URL. The `acm-hub-spoke` chart (wave 6) reads these from Vault and auto-imports both clusters into RHACM.
 |===
+
+[IMPORTANT]
+====
+For automated spoke import, install east and west *before* the hub and fill `spoke-credentials` in `~/values-secret-ia-computer-vision.yaml` before you run `./pattern.sh make install` on the hub.
+====
 
 [TIP]
 ====
-You can skip editing `~/values-secret-ia-computer-vision.yaml` entirely for a first deployment. Vault auto-generates the critical secrets (GitLab root password, Keycloak admin password, Developer Hub session secret). You can update `gitlab-token` and optional fields after the hub is running.
+You can skip editing optional secrets for a first deployment. Vault auto-generates GitLab, Keycloak, and Developer Hub secrets. You must provide `spoke-credentials` before hub install unless you import spokes manually (see xref:#importing-spoke-clusters-into-rhACM[Importing spoke clusters into RHACM]).
 ====
 
 For details on how Vault and ESO manage secrets in Validated Patterns, see link:https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/[Validated Patterns secrets management].
 
 === Setting the active cluster context
 
-Log in to the hub cluster:
+Log in to the cluster you are installing (east, west, or hub):
 
 [source,bash]
 ----
-$ oc login --token=<hub_token> --server=https://api.<hub_domain>:6443
+$ oc login --token=<token> --server=https://api.<cluster_domain>:6443
 ----
 
 Verify you are on the correct cluster:
@@ -129,15 +138,134 @@ $ oc whoami --show-server
 .Expected output
 [source,text]
 ----
-https://api.<hub_domain>:6443
+https://api.<cluster_domain>:6443
 ----
+
+== Installing the east spoke
+
+.Prerequisites
+* Validated Patterns Operator installed on the east cluster
+* East cluster `kubeconfig` active in your shell
+
+. Log in to the east cluster:
+
+[source,bash]
+----
+$ oc login --token=<east_token> --server=https://api.<east_domain>:6443
+----
+
+. Install the east spoke:
+
+[source,bash]
+----
+$ export TARGET_CLUSTERGROUP=east
+$ ./pattern.sh make install
+----
+
+Allow 15–30 minutes for spoke applications to sync.
+
+== Verifying the east spoke
+
+=== Verify OpenShift GitOps applications
+
+[source,bash]
+----
+$ oc get applications.argoproj.io -n vp-gitops
+----
+
+.Expected output
+[source,text]
+----
+NAME                         SYNC STATUS   HEALTH STATUS
+acs-secured-cluster          Synced        Healthy
+console-links                Synced        Healthy
+devspaces                    Synced        Healthy
+observability                Synced        Healthy
+openshift-external-secrets   Synced        Healthy
+platform-users               Synced        Healthy
+servicemesh-config           Synced        Healthy
+spoke-interconnect           Synced        Healthy
+spoke-neuroface              Synced        Healthy
+spoke-neuroface-cv           Synced        Healthy
+----
+
+=== Verify NeuroFace and OVMS workloads
+
+[source,bash]
+----
+$ oc get pods -n neuroface
+$ oc get pods -n neuroface-cv
+----
+
+Both namespaces should show pods in `Running` state with `READY` columns showing all containers ready.
+
+=== Collect the east spoke API token
+
+Generate a long-lived token for RHACM auto-import on the hub:
+
+[source,bash]
+----
+$ oc create token -n kube-system default --duration=87600h
+$ oc whoami --show-server
+----
+
+Record the token and API URL (`https://api.<east_domain>:6443`) in `~/values-secret-ia-computer-vision.yaml` under `spoke-credentials` as `east-token` and `east-api-url`.
+
+=== Verify Service Mesh ambient mode
+
+[source,bash]
+----
+$ oc get pods -n istio-system
+$ oc get pods -n ztunnel
+----
+
+.Expected: `istiod` running in `istio-system`, ztunnel DaemonSet pods running on each node.
+
+=== Verify Skupper interconnect
+
+[source,bash]
+----
+$ oc get site -n service-interconnect
+$ oc get listener,connector -n service-interconnect
+----
+
+== Installing the west spoke
+
+Repeat the east spoke procedure on the west cluster:
+
+. Log in to the west cluster:
+
+[source,bash]
+----
+$ oc login --token=<west_token> --server=https://api.<west_domain>:6443
+----
+
+. Install:
+
+[source,bash]
+----
+$ export TARGET_CLUSTERGROUP=west
+$ ./pattern.sh make install
+----
+
+. Verify using the same commands as the east spoke section above.
+
+. Collect the west spoke API token and API URL and add them to `spoke-credentials` as `west-token` and `west-api-url` in `~/values-secret-ia-computer-vision.yaml`.
 
 == Installing the hub cluster
 
 .Prerequisites
 * Validated Patterns Operator installed on the hub
+* East and west spokes installed and healthy
+* `spoke-credentials` filled in `~/values-secret-ia-computer-vision.yaml`
 * Hub cluster `kubeconfig` active in your shell
-* (Optional) `~/values-secret-ia-computer-vision.yaml` customized
+
+. Log in to the hub cluster:
+
+[source,bash]
+----
+$ oc login --token=<hub_token> --server=https://api.<hub_domain>:6443
+----
 
 . Verify `values-global.yaml` sets `clusterGroupName: hub` (this is the default — do not change it for the hub).
 
@@ -171,6 +299,7 @@ $ oc get applications.argoproj.io -n vp-gitops
 ----
 NAME                         SYNC STATUS   HEALTH STATUS
 acm                          Synced        Healthy
+acm-hub-spoke                Synced        Healthy
 acs-init-bundle-sync         Synced        Healthy
 console-links                Synced        Healthy
 developer-hub                Synced        Healthy
@@ -288,29 +417,55 @@ Switch back to `kubeadmin` before continuing:
 $ oc login --token=<hub_admin_token> --server=https://api.<hub_domain>:6443
 ----
 
+[[importing-spoke-clusters-into-rhACM]]
 == Importing spoke clusters into RHACM
 
-This step is required before you install the spoke patterns. RHACM on the hub must know about the east and west clusters.
+The `acm-hub-spoke` chart (OpenShift GitOps wave 6) auto-imports east and west when `spoke-credentials` are present in Vault. No manual RHACM console steps are required when you follow the hub-last install order above.
 
-[IMPORTANT]
-====
-The Validated Patterns Operator does not auto-import spokes. You must import them into RHACM and apply the `clusterGroup` label so that RHACM policies and GitOps applications propagate correctly.
-====
+=== How auto-import works
 
-=== Option A: Import via RHACM console (recommended)
+. You store `east-token`, `east-api-url`, `west-token`, and `west-api-url` in `~/values-secret-ia-computer-vision.yaml`.
+. The Validated Patterns Operator loads them into Vault during hub install (wave 2).
+. External Secrets Operator projects them into the `spoke-credentials` Secret in `openshift-gitops`.
+. The `acm-hub-spoke` CronJob creates `ManagedCluster`, `auto-import-secret`, and `KlusterletAddonConfig` resources for each spoke.
+. RHACM installs the klusterlet agent on each spoke and registers the cluster with labels `clusterGroup=east|west`.
+. The existing `acs-init-bundle-sync` chart (wave 7) pushes ACS init bundles to imported spokes via `ManagedClusterAction`.
+
+=== Verify auto-import status
+
+[source,bash]
+----
+$ oc get managedcluster
+$ oc get cronjob acm-spoke-auto-import -n openshift-gitops
+$ oc logs -n openshift-gitops -l job-name --tail=50 2>/dev/null | tail -20
+----
+
+.Expected output
+[source,text]
+----
+NAME            HUB ACCEPTED   MANAGED CLUSTER URLS                     JOINED   AVAILABLE   AGE
+local-cluster   true           https://api.<hub_domain>:6443            True     True        60m
+east            true           https://api.<east_domain>:6443           True     True        10m
+west            true           https://api.<west_domain>:6443           True     True        10m
+----
+
+=== Option A: Manual import via RHACM console
+
+Use this only if you cannot provide spoke tokens in Vault (for example, a sandbox without the hub-last workflow).
 
 . On the hub, open the RHACM console: `https://multicloud-console.apps.<hub_domain>`
 . Navigate to *Infrastructure* -> *Clusters* -> *Import cluster*.
-. Provide the spoke cluster name (for example, `east-cluster`) and select *Import*.
+. Provide the spoke cluster name (`east` or `west`) and select *Import*.
 . RHACM generates an import command. Run it on the spoke cluster as `kubeadmin`.
 . After import succeeds, apply the cluster group label:
 
 [source,bash]
 ----
-$ oc label managedcluster <east_cluster_name> clusterGroup=east --overwrite
+$ oc label managedcluster east clusterGroup=east --overwrite
+$ oc label managedcluster west clusterGroup=west --overwrite
 ----
 
-=== Option B: Import via CLI
+=== Option B: Manual import via CLI
 
 [source,bash]
 ----
@@ -318,7 +473,7 @@ $ cat <<EOF | oc apply -f -
 apiVersion: cluster.open-cluster-management.io/v1
 kind: ManagedCluster
 metadata:
-  name: <east_cluster_name>
+  name: east
   labels:
     clusterGroup: east
 spec:
@@ -326,102 +481,11 @@ spec:
 EOF
 ----
 
-=== Verify import status
+Repeat for `west` with `clusterGroup=west`.
 
-[source,bash]
-----
-$ oc get managedcluster
-----
+=== Verify ACS Secured Cluster on spokes
 
-.Expected output
-[source,text]
-----
-NAME                  HUB ACCEPTED   MANAGED CLUSTER URLS                                           JOINED   AVAILABLE   AGE
-local-cluster         true           https://api.<hub_domain>:6443                                   True     True        60m
-<east_cluster_name>   true           https://api.<east_domain>:6443                                  True     True        5m
-----
-
-Repeat for the west cluster with `clusterGroup=west`.
-
-== Installing the east spoke
-
-.Prerequisites
-* Hub cluster verified and healthy (all applications Synced/Healthy)
-* East cluster imported into RHACM with `clusterGroup=east` label
-* Validated Patterns Operator installed on the east cluster
-* East cluster `kubeconfig` active in your shell
-
-. Log in to the east cluster:
-
-[source,bash]
-----
-$ oc login --token=<east_token> --server=https://api.<east_domain>:6443
-----
-
-. Install the east spoke:
-
-[source,bash]
-----
-$ export TARGET_CLUSTERGROUP=east
-$ ./pattern.sh make install
-----
-
-Allow 15–30 minutes for spoke applications to sync.
-
-== Verifying the east spoke
-
-=== Verify OpenShift GitOps applications
-
-[source,bash]
-----
-$ oc get applications.argoproj.io -n vp-gitops
-----
-
-.Expected output
-[source,text]
-----
-NAME                         SYNC STATUS   HEALTH STATUS
-acs-secured-cluster          Synced        Healthy
-console-links                Synced        Healthy
-devspaces                    Synced        Healthy
-observability                Synced        Healthy
-openshift-external-secrets   Synced        Healthy
-platform-users               Synced        Healthy
-servicemesh-config           Synced        Healthy
-spoke-interconnect           Synced        Healthy
-spoke-neuroface              Synced        Healthy
-spoke-neuroface-cv           Synced        Healthy
-----
-
-=== Verify NeuroFace and OVMS workloads
-
-[source,bash]
-----
-$ oc get pods -n neuroface
-$ oc get pods -n neuroface-cv
-----
-
-Both namespaces should show pods in `Running` state with `READY` columns showing all containers ready.
-
-=== Verify Service Mesh ambient mode
-
-[source,bash]
-----
-$ oc get pods -n istio-system
-$ oc get pods -n ztunnel
-----
-
-.Expected: `istiod` running in `istio-system`, ztunnel DaemonSet pods running on each node.
-
-=== Verify Skupper interconnect
-
-[source,bash]
-----
-$ oc get site -n service-interconnect
-$ oc get listener,connector -n service-interconnect
-----
-
-=== Verify ACS Secured Cluster registration
+After spokes are imported and `acs-init-bundle-sync` is healthy on the hub, verify on each spoke:
 
 [source,bash]
 ----
@@ -429,28 +493,6 @@ $ oc get securedcluster -n stackrox
 ----
 
 .Expected: SecuredCluster resource present and reporting to hub ACS Central.
-
-== Installing the west spoke
-
-Repeat the east spoke procedure on the west cluster:
-
-. Ensure the west cluster is imported into RHACM with `clusterGroup=west`.
-. Log in to the west cluster:
-
-[source,bash]
-----
-$ oc login --token=<west_token> --server=https://api.<west_domain>:6443
-----
-
-. Install:
-
-[source,bash]
-----
-$ export TARGET_CLUSTERGROUP=west
-$ ./pattern.sh make install
-----
-
-. Verify using the same commands as the east spoke section above.
 
 == Verifying end-to-end operation
 

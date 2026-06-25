@@ -1,0 +1,21 @@
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: hub-spoke-placement
+  namespace: openshift-gitops
+  labels:
+    cluster.open-cluster-management.io/placement: hub-spoke-placement
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  clusterSets:
+    - global
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: region
+              operator: In
+              values:
+                - east
+                - west

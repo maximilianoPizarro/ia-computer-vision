@@ -1,0 +1,64 @@
+{{- range $name, $cluster := .Values.managedClusters }}
+{{- if $cluster.apiUrl }}
+{{- /* ManagedCluster first — ACM creates the cluster namespace. Do NOT pre-create a
+     Namespace with cluster.open-cluster-management.io/managedCluster label or OCP
+     terminates it before the ManagedCluster exists. */ -}}
+---
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  name: {{ $name }}
+  labels:
+    name: {{ $name }}
+    region: {{ $name }}
+    clusterGroup: {{ $name }}
+    cloud: auto-detect
+    vendor: OpenShift
+    cluster.open-cluster-management.io/clusterset: global
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  hubAcceptsClient: true
+  leaseDurationSeconds: 60
+{{- if $cluster.token }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auto-import-secret
+  namespace: {{ $name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+stringData:
+  autoImportRetry: "5"
+  server: {{ $cluster.apiUrl }}
+  token: {{ $cluster.token }}
+type: Opaque
+{{- end }}
+---
+apiVersion: agent.open-cluster-management.io/v1
+kind: KlusterletAddonConfig
+metadata:
+  name: {{ $name }}
+  namespace: {{ $name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  clusterName: {{ $name }}
+  clusterNamespace: {{ $name }}
+  clusterLabels:
+    cloud: auto-detect
+    vendor: OpenShift
+  applicationManager:
+    enabled: true
+  certPolicyController:
+    enabled: true
+  iamPolicyController:
+    enabled: true
+  policyController:
+    enabled: true
+  searchCollector:
+    enabled: true
+{{- end }}
+{{- end }}

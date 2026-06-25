@@ -1,0 +1,172 @@
+{{- if and .Values.spokeCredentials.enabled (eq (include "acm-hub-spoke.useHelmTokens" .) "false") }}
+{{- $sc := .Values.spokeCredentials -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acm-spoke-auto-import
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: acm-spoke-auto-import
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclusters"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["agent.open-cluster-management.io"]
+    resources: ["klusterletaddonconfigs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: acm-spoke-auto-import
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: acm-spoke-auto-import
+subjects:
+  - kind: ServiceAccount
+    name: acm-spoke-auto-import
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: acm-spoke-auto-import
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: acm-spoke-auto-import
+          restartPolicy: OnFailure
+          containers:
+            - name: import
+              image: registry.redhat.io/openshift4/ose-cli:latest
+              env:
+                - name: CRED_NS
+                  value: {{ .Release.Namespace | quote }}
+                - name: CRED_NAME
+                  value: {{ $sc.secretName | quote }}
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  set -euo pipefail
+
+                  read_cred() {
+                    local key="$1"
+                    oc get secret "$CRED_NAME" -n "$CRED_NS" -o "jsonpath={.data.${key}}" 2>/dev/null | base64 -d || true
+                  }
+
+                  import_spoke() {
+                    local name="$1"
+                    local api_url token
+
+                    api_url="$(read_cred "${name}-api-url")"
+                    token="$(read_cred "${name}-token")"
+
+                    if [ -z "$api_url" ] || [ -z "$token" ]; then
+                      echo "Skip ${name}: missing api-url or token in ${CRED_NS}/${CRED_NAME}"
+                      return 0
+                    fi
+
+                    echo "Ensuring ManagedCluster ${name}..."
+                    cat <<EOF | oc apply -f -
+                  apiVersion: cluster.open-cluster-management.io/v1
+                  kind: ManagedCluster
+                  metadata:
+                    name: ${name}
+                    labels:
+                      name: ${name}
+                      region: ${name}
+                      clusterGroup: ${name}
+                      cloud: auto-detect
+                      vendor: OpenShift
+                      cluster.open-cluster-management.io/clusterset: global
+                  spec:
+                    hubAcceptsClient: true
+                    leaseDurationSeconds: 60
+                  EOF
+
+                    for i in $(seq 1 30); do
+                      if oc get namespace "$name" &>/dev/null; then
+                        break
+                      fi
+                      echo "Waiting for namespace ${name} (${i}/30)..."
+                      sleep 5
+                    done
+
+                    if ! oc get namespace "$name" &>/dev/null; then
+                      echo "ERROR: namespace ${name} not created by ACM after ManagedCluster apply"
+                      return 1
+                    fi
+
+                    echo "Applying auto-import-secret in ${name}..."
+                    oc create secret generic auto-import-secret -n "$name" \
+                      --from-literal=autoImportRetry=5 \
+                      --from-literal=server="$api_url" \
+                      --from-literal=token="$token" \
+                      --dry-run=client -o yaml | oc apply -f -
+
+                    echo "Ensuring KlusterletAddonConfig ${name}..."
+                    cat <<EOF | oc apply -f -
+                  apiVersion: agent.open-cluster-management.io/v1
+                  kind: KlusterletAddonConfig
+                  metadata:
+                    name: ${name}
+                    namespace: ${name}
+                  spec:
+                    clusterName: ${name}
+                    clusterNamespace: ${name}
+                    clusterLabels:
+                      cloud: auto-detect
+                      vendor: OpenShift
+                    applicationManager:
+                      enabled: true
+                    certPolicyController:
+                      enabled: true
+                    iamPolicyController:
+                      enabled: true
+                    policyController:
+                      enabled: true
+                    searchCollector:
+                      enabled: true
+                  EOF
+
+                    echo "Import resources applied for ${name}"
+                  }
+
+                  if ! oc get secret "$CRED_NAME" -n "$CRED_NS" &>/dev/null; then
+                    echo "Secret ${CRED_NS}/${CRED_NAME} not found — waiting for ExternalSecret"
+                    exit 0
+                  fi
+
+                  import_spoke east
+                  import_spoke west
+                  echo "ACM spoke auto-import complete"
+{{- end }}

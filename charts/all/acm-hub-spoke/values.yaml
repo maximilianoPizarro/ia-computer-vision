@@ -1,0 +1,18 @@
+# Managed clusters for ACM auto-import.
+# Leave apiUrl/token empty to use spoke-credentials from Vault (ExternalSecret + sync Job).
+# Set apiUrl and token here only for sandbox/demo without Vault.
+managedClusters:
+  east:
+    apiUrl: ""
+    domain: ""
+    token: ""
+  west:
+    apiUrl: ""
+    domain: ""
+    token: ""
+
+# Pull spoke API tokens from Vault via ESO (default). Disabled when managedClusters.*.token is set.
+spokeCredentials:
+  enabled: true
+  secretName: spoke-credentials
+  vaultKey: ""

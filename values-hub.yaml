@@ -253,6 +253,13 @@ clusterGroup:
       path: charts/all/neuroface-gateway
       syncWave: "6"
 
+    acm-hub-spoke:
+      name: acm-hub-spoke
+      namespace: openshift-gitops
+      argoProject: hub
+      path: charts/all/acm-hub-spoke
+      syncWave: "6"
+
     acs-init-bundle-sync:
       name: acs-init-bundle-sync
       namespace: stackrox
