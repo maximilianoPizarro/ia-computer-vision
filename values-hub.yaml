@@ -15,7 +15,9 @@ clusterGroup:
       targetNamespaces: []
     external-secrets: {}
     # stackrox: {}  # ACS disabled by default to save resources
-    neuroface-gateway-system: {}
+    neuroface-gateway-system:
+      labels:
+        istio.io/rev: default
     redhat-connectivity-link-operator:
       operatorGroup: true
       targetNamespaces: []
