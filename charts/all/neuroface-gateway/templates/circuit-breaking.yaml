@@ -8,9 +8,11 @@
 {{- $backends := list }}
 {{- if .Values.clusters.east.domain }}
   {{- $backends = append $backends "neuroface-cv-east" }}
+  {{- $backends = append $backends "neuroface-app-east" }}
 {{- end }}
 {{- if .Values.clusters.west.domain }}
   {{- $backends = append $backends "neuroface-cv-west" }}
+  {{- $backends = append $backends "neuroface-app-west" }}
 {{- end }}
 
 {{- range $i, $svc := $backends }}
@@ -27,6 +29,8 @@ metadata:
 spec:
   host: {{ $svc }}.neuroface-gateway-system.svc.cluster.local
   trafficPolicy:
+    tls:
+      mode: DISABLE
     connectionPool:
       tcp:
         maxConnections: {{ $cpTcp.maxConnections | default 100 }}
