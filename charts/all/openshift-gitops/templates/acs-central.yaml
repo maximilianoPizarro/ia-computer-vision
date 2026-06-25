@@ -32,12 +32,41 @@ spec:
         limits:
           cpu: "2"
           memory: 4Gi
+  scannerV4:
+    db:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+    indexer:
+      scaling:
+        autoScaling: Disabled
+        replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+    matcher:
+      scaling:
+        autoScaling: Disabled
+        replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
   scanner:
     analyzer:
       scaling:
-        autoScaling: Enabled
+        autoScaling: Disabled
         maxReplicas: 1
         minReplicas: 1
         replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
     scannerComponent: Enabled
 {{- end }}
