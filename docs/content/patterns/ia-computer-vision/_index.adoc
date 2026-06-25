@@ -28,7 +28,7 @@ links:
   install: getting-started
 ---
 :toc:
-:imagesdir: /images/ia-computer-vision
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: ASSEMBLY
 
 = AI Computer Vision
@@ -62,12 +62,12 @@ Install each cluster role independently using `clusterGroupName: hub`, `east`, o
 
 == Documentation map
 
-* xref:getting-started.adoc[Getting started] — install and verify hub, east, and west clusters
-* xref:architecture.adoc[Architecture] — topology, traffic flow, security, and GitOps
-* xref:cluster-sizing.adoc[Cluster sizing] — AWS instance types and resource requirements
-* xref:workshop.adoc[Workshop mode] — lab users and Showroom lab guide
-* xref:ideas-for-customization.adoc[Ideas for customization] — extend the pattern for your environment
-* xref:troubleshooting.adoc[Troubleshooting] — diagnose common installation issues
+* link:../getting-started/[Getting started] — install and verify hub, east, and west clusters
+* link:../architecture/[Architecture] — topology, traffic flow, security, and GitOps
+* link:../cluster-sizing/[Cluster sizing] — AWS instance types and resource requirements
+* link:../workshop/[Workshop mode] — lab users and Showroom lab guide
+* link:../ideas-for-customization/[Ideas for customization] — extend the pattern for your environment
+* link:../troubleshooting/[Troubleshooting] — diagnose common installation issues
 
 [NOTE]
 ====

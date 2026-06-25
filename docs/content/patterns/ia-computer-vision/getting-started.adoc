@@ -2,7 +2,7 @@
 title: Getting started
 weight: 10
 ---
-:imagesdir: /images/ia-computer-vision
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: ASSEMBLY
 
 = Getting started with AI Computer Vision
@@ -20,7 +20,7 @@ Complete each cluster installation and verification before moving to the next. T
 
 * Three Red Hat OpenShift Container Platform (OCP) 4.20 or later clusters: one hub, one east spoke, one west spoke
 * Recommended AWS sizing per cluster: 3 control plane nodes (`m6a.2xlarge`) + 3 worker nodes (`m6a.2xlarge`)
-* See xref:cluster-sizing.adoc[Cluster sizing] for GPU options and network requirements
+* See link:../cluster-sizing/[Cluster sizing] for GPU options and network requirements
 * CPU-only inference is the default; GPU workers are optional
 
 === Network requirements
@@ -320,7 +320,7 @@ vault                        Synced        Healthy
 
 [IMPORTANT]
 ====
-If any application shows `Degraded` or `Missing`, do not proceed. Check the xref:troubleshooting.adoc[Troubleshooting] guide. Common causes include:
+If any application shows `Degraded` or `Missing`, do not proceed. Check the link:../troubleshooting/[Troubleshooting] guide. Common causes include:
 
 * **OutOfSync + Healthy**: Normal during initial install. OpenShift GitOps reconciles automatically; wait 5–10 minutes and recheck.
 * **Progressing**: An operator is still installing its operand. Wait for the CSV to reach `Succeeded`.
@@ -341,7 +341,7 @@ $ oc get csv -A | grep -v Succeeded
 NAMESPACE   NAME   DISPLAY   VERSION   REPLACES   PHASE
 ----
 
-If any CSV shows `Failed` or `Installing` for more than 20 minutes, see xref:troubleshooting.adoc#_openshift_gitops_application_degraded_or_unknown[Troubleshooting: ArgoCD application Degraded].
+If any CSV shows `Failed` or `Installing` for more than 20 minutes, see link:../troubleshooting/#_openshift_gitops_application_degraded_or_unknown[Troubleshooting: ArgoCD application Degraded].
 
 === Step 3: Verify Vault is initialized and unsealed
 
@@ -559,8 +559,8 @@ Log in with `user1` / `Welcome123!` to access the embedded terminal and lab exer
 
 == Next steps
 
-* Read xref:architecture.adoc[Architecture] to understand traffic flow, design decisions, and security model
-* Review xref:ideas-for-customization.adoc[Ideas for customization] to adapt the pattern for your environment
-* See xref:cluster-sizing.adoc[Cluster sizing] for the tested product version matrix and network requirements
-* Consult xref:troubleshooting.adoc[Troubleshooting] if any component fails to sync
-* Access xref:workshop.adoc[Workshop mode] for lab user provisioning details
+* Read link:../architecture/[Architecture] to understand traffic flow, design decisions, and security model
+* Review link:../ideas-for-customization/[Ideas for customization] to adapt the pattern for your environment
+* See link:../cluster-sizing/[Cluster sizing] for the tested product version matrix and network requirements
+* Consult link:../troubleshooting/[Troubleshooting] if any component fails to sync
+* Access link:../workshop/[Workshop mode] for lab user provisioning details

@@ -2,7 +2,7 @@
 title: Troubleshooting
 weight: 50
 ---
-:imagesdir: /images/ia-computer-vision
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: REFERENCE
 
 = Troubleshooting AI Computer Vision
@@ -565,4 +565,4 @@ The `rhbk-credentials` secret must include both `admin-password` and `db-passwor
 * Validated Patterns framework: link:https://validatedpatterns.io/[validatedpatterns.io]
 * Support policy: see `SUPPORT.md` in the pattern repository (Sandbox tier)
 
-For preventive guidance during installation, follow the verification steps in xref:getting-started.adoc[Getting started] after each cluster deploy.
+For preventive guidance during installation, follow the verification steps in link:../getting-started/[Getting started] after each cluster deploy.

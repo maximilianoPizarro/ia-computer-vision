@@ -2,7 +2,7 @@
 title: Cluster sizing and version matrix
 weight: 15
 ---
-:imagesdir: /images/ia-computer-vision
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: REFERENCE
 
 = Cluster sizing and version matrix
@@ -122,7 +122,7 @@ Install these operators on spoke clusters before enabling GPU workloads:
 . **Node Feature Discovery (NFD) Operator** — detects GPU hardware on nodes
 . **NVIDIA GPU Operator** — installs drivers and device plugin
 
-See xref:ideas-for-customization.adoc#_enabling_gpu_workers_on_spokes[Enabling GPU workers on spokes] for step-by-step instructions.
+See link:../ideas-for-customization/#_enabling_gpu_workers_on_spokes[Enabling GPU workers on spokes] for step-by-step instructions.
 
 == Tested product version matrix
 

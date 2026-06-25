@@ -2,7 +2,7 @@
 title: Architecture
 weight: 20
 ---
-:imagesdir: /images/ia-computer-vision
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: ASSEMBLY
 
 = AI Computer Vision architecture
@@ -314,4 +314,4 @@ The Validated Patterns Operator installs OpenShift GitOps and creates a Pattern 
 | Console links
 |===
 
-For installation verification commands, see xref:getting-started.adoc[Getting started].
+For installation verification commands, see link:../getting-started/[Getting started].

@@ -2,7 +2,7 @@
 title: Workshop mode
 weight: 35
 ---
-:imagesdir: /images/ia-computer-vision
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: CONCEPT
 
 = Workshop mode

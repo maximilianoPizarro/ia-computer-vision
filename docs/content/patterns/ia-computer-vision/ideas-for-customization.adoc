@@ -2,7 +2,7 @@
 title: Ideas for customization
 weight: 40
 ---
-:imagesdir: /images/ia-computer-vision
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
 :_content-type: CONCEPT
 
 = Ideas for customization
@@ -504,6 +504,6 @@ In `values-hub.yaml`:
 
 Apply the same `userCount: "50"` to `platform-users` in `values-east.yaml` and `values-west.yaml`.
 
-See xref:workshop.adoc[Workshop mode] for details on what each chart provisions per user.
+See link:../workshop/[Workshop mode] for details on what each chart provisions per user.
 
-For installation issues during customization, see xref:troubleshooting.adoc[Troubleshooting].
+For installation issues during customization, see link:../troubleshooting/[Troubleshooting].
