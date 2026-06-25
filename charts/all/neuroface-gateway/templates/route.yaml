@@ -2,19 +2,24 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: neuroface-gateway
-  namespace: neuroface-gateway-system
+  namespace: service-interconnect
   annotations:
     argocd.argoproj.io/sync-wave: "4"
     haproxy.router.openshift.io/timeout: 3600s
-    haproxy.router.openshift.io/hsts_header: max-age=0
 spec:
   host: neuroface.{{ include "neuroface-gateway.clusterDomain" . }}
   port:
-    targetPort: http
+    targetPort: 8080
   to:
     kind: Service
-    name: neuroface-gateway-istio
-    weight: 100
+    name: neuroface-app-east
+    weight: 50
+  alternateBackends:
+    {{- if .Values.clusters.west.domain }}
+    - kind: Service
+      name: neuroface-app-west
+      weight: 50
+    {{- end }}
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
