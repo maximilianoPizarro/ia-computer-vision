@@ -1,0 +1,5 @@
+apiVersion: v2
+name: hub-interconnect
+description: Skupper Site, Listeners, and AccessGrant for hub-spoke VAN
+type: application
+version: 0.1.0

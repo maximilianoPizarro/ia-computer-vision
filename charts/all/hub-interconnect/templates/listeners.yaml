@@ -1,0 +1,71 @@
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: neuroface-app-east
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  routingKey: neuroface-app-east
+  host: neuroface-app-east
+  port: 8080
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: neuroface-app-west
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  routingKey: neuroface-app-west
+  host: neuroface-app-west
+  port: 8080
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: neuroface-cv-east
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  routingKey: neuroface-cv-east
+  host: neuroface-cv-east
+  port: 8080
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: neuroface-cv-west
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  routingKey: neuroface-cv-west
+  host: neuroface-cv-west
+  port: 8080
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: prometheus-east
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  routingKey: prometheus-east
+  host: prometheus-east
+  port: 9091
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: prometheus-west
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  routingKey: prometheus-west
+  host: prometheus-west
+  port: 9091

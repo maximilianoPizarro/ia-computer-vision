@@ -1,0 +1,10 @@
+apiVersion: skupper.io/v2alpha1
+kind: AccessGrant
+metadata:
+  name: spoke-link-grant
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  redemptionsAllowed: 10
+  expirationWindow: 720h

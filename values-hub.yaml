@@ -43,6 +43,7 @@ clusterGroup:
     istio-system: {}
     istio-cni: {}
     ztunnel: {}
+    service-interconnect: {}
 
   subscriptions:
     acm:
@@ -88,6 +89,11 @@ clusterGroup:
       name: servicemeshoperator3
       namespace: openshift-operators
       channel: stable-3.2
+      source: redhat-operators
+    skupper:
+      name: skupper-operator
+      namespace: openshift-operators
+      channel: stable-2
       source: redhat-operators
     gitlab:
       name: gitlab-operator-kubernetes
@@ -287,6 +293,13 @@ clusterGroup:
           value: ambient
         - name: servicemesh.istio.name
           value: default
+
+    hub-interconnect:
+      name: hub-interconnect
+      namespace: service-interconnect
+      argoProject: mesh
+      path: charts/all/hub-interconnect
+      syncWave: "5"
 
     neuroface-gateway:
       name: neuroface-gateway
