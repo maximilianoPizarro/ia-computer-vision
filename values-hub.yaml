@@ -197,6 +197,11 @@ clusterGroup:
       chart: rhbk
       chartVersion: 0.1.*
       syncWave: "2"
+      overrides:
+        - name: keycloak.adminUser.passwordVaultKey
+          value: secret/data/hub/rhbk-credentials
+        - name: keycloak.postgresqlDb.passwordVaultKey
+          value: secret/data/hub/rhbk-credentials
 
     quay:
       name: quay
@@ -259,6 +264,20 @@ clusterGroup:
       argoProject: hub
       path: charts/all/acm-hub-spoke
       syncWave: "6"
+      overrides:
+        # --- ACM Auto-Import mode ---
+        # vault   — Vault/ESO injects spoke-credentials (default VP flow)
+        # inline  — Pattern CR extraParameters provides tokens (no Vault)
+        # secret  — user pre-creates K8s Secret spoke-credentials
+        #
+        # To use inline mode, set these via Pattern CR > Extra Parameters:
+        #   spokeCredentials.mode                   = inline
+        #   spokeCredentials.clusters.east.token     = <east SA token>
+        #   spokeCredentials.clusters.east.apiUrl    = https://api.<east>:6443
+        #   spokeCredentials.clusters.west.token     = <west SA token>
+        #   spokeCredentials.clusters.west.apiUrl    = https://api.<west>:6443
+        - name: spokeCredentials.mode
+          value: inline
       ignoreDifferences:
         - group: external-secrets.io
           kind: ExternalSecret
