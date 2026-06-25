@@ -184,6 +184,8 @@ clusterGroup:
           value: west
         - name: neuroface.clusterName
           value: west
+        - name: neuroface.chat.modelEndpoint
+          value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"
 
     spoke-neuroface-cv:
       name: spoke-neuroface-cv

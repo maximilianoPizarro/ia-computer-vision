@@ -8,7 +8,7 @@
 {{- $apiBase = $lm.apiUrl | default "" -}}
 {{- end -}}
 {{- if not $apiBase -}}
-{{- $apiBase = "https://litellm-prod.apps.maas.redhatworkshops.io/v1" -}}
+{{- $apiBase = "" -}}
 {{- else if not (hasSuffix "/v1" $apiBase) -}}
 {{- $apiBase = printf "%s/v1" (trimSuffix "/" $apiBase) -}}
 {{- end -}}

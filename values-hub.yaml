@@ -262,6 +262,8 @@ clusterGroup:
       overrides:
         - name: userCount
           value: "30"
+        - name: maas.endpoint
+          value: "https://maas-rhdp.apps.maas.redhatworkshops.io"
 
     showroom:
       name: showroom

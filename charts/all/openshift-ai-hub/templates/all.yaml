@@ -1,5 +1,5 @@
 {{- $maas := .Values.maas | default dict -}}
-{{- $endpoint := $maas.endpoint | default "https://maas-rhdp.apps.maas.redhatworkshops.io" -}}
+{{- $endpoint := $maas.endpoint | default "" -}}
 {{- $secretName := $maas.credentialsSecretName | default "openshift-ai-maas-credentials" -}}
 {{- $defaultSecretKey := $maas.credentialsSecretKey | default "api-key" -}}
 {{- $maasKey := include "openshift-ai-hub.maasApiKey" . -}}

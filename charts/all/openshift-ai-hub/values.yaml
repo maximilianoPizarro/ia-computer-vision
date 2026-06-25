@@ -33,8 +33,8 @@ modelServing:
   serverlessEnabled: false
   defaultDeploymentMode: RawDeployment
 maas:
-  endpoint: "https://maas-rhdp.apps.maas.redhatworkshops.io"
-  # Injected at runtime from litemaas.apiKey (RHDP); never commit to Git.
+  endpoint: ""
+  # Set via values override or Vault. Example: https://maas-rhdp.apps.maas.redhatworkshops.io
   apiKey: ""
   credentialsSecretName: openshift-ai-maas-credentials
   credentialsSecretKey: api-key

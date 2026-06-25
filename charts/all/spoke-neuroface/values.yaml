@@ -12,7 +12,7 @@ neuroface:
   chat:
     enabled: true
     autoServiceAccount: false
-    modelEndpoint: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"
+    modelEndpoint: ""
     modelName: "llama-scout-17b"
     apiKey: ""
   ovms:

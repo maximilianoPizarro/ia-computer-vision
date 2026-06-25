@@ -2,7 +2,7 @@
 global:
   pattern: ia-computer-vision
   singleArgoCD: true
-  argoNamespace: openshift-gitops
+  argoNamespace: vp-gitops
   options:
     useCSV: false
     syncPolicy: Automatic

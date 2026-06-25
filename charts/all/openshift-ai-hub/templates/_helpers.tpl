@@ -17,7 +17,7 @@
 {{- $base = $lm.apiUrl | default "" -}}
 {{- end -}}
 {{- if not $base -}}
-{{- $base = "https://maas-rhdp.apps.maas.redhatworkshops.io" -}}
+{{- $base = "" -}}
 {{- end -}}
 {{- trimSuffix "/" $base -}}
 {{- end -}}

@@ -2,14 +2,14 @@ apiVersion: apps.open-cluster-management.io/v1beta1
 kind: GitOpsCluster
 metadata:
   name: hub-spoke-gitops
-  namespace: openshift-gitops
+  namespace: vp-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   argoServer:
     cluster: local-cluster
-    argoNamespace: openshift-gitops
+    argoNamespace: vp-gitops
   placementRef:
     kind: Placement
     name: hub-spoke-placement
