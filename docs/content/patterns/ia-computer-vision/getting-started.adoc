@@ -278,9 +278,69 @@ $ ./pattern.sh make install
 
 The command creates a Pattern custom resource, which triggers the Validated Patterns Operator to install OpenShift GitOps and deploy all applications defined in `values-hub.yaml`. This process takes 30–60 minutes depending on cluster resources and image pull speed.
 
-[NOTE]
+=== Alternative: Pattern CR via OCP Console
+
+Instead of `./pattern.sh make install`, create the Pattern CR from the console: *Operators* -> *Installed Operators* -> *Validated Patterns Operator* -> *Pattern* tab -> *Create Pattern*.
+
+For **spoke** clusters (east or west), use a minimal CR without `extraParameters`:
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: east    # <1>
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+<1> Replace with `west` for the west spoke.
+
+For the **hub** cluster, add `extraParameters` with the spoke tokens collected during spoke installation:
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+  extraParameters:
+    - name: spokeCredentials.mode
+      value: inline
+    - name: spokeCredentials.clusters.east.token
+      value: "<EAST_SA_TOKEN>"          # <1>
+    - name: spokeCredentials.clusters.east.apiUrl
+      value: "https://api.<EAST_DOMAIN>:6443"   # <2>
+    - name: spokeCredentials.clusters.west.token
+      value: "<WEST_SA_TOKEN>"          # <3>
+    - name: spokeCredentials.clusters.west.apiUrl
+      value: "https://api.<WEST_DOMAIN>:6443"   # <4>
+----
+<1> Long-lived token from east: `oc create token -n kube-system default --duration=87600h`
+<2> East API server URL from `oc whoami --show-server`
+<3> Long-lived token from west
+<4> West API server URL
+
+[IMPORTANT]
 ====
-Alternatively, you can create the Pattern CR directly from the OCP console: navigate to *Operators* -> *Installed Operators* -> *Validated Patterns Operator* -> *Pattern* tab -> *Create Pattern*, set `clusterGroupName: hub` and the Git repository URL.
+Replace all `<...>` placeholders with your actual cluster values. Never commit tokens to Git.
 ====
 
 == Verifying the hub installation

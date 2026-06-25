@@ -160,9 +160,41 @@ Add the tokens to `~/values-secret-ia-computer-vision.yaml` under `spoke-credent
 # Uses values-global.yaml (clusterGroupName: hub)
 ```
 
-Or create a Pattern CR with `clusterGroupName: hub` pointing to this repository.
+Or create a Pattern CR directly from the OCP Console (**Operators → Installed Operators → Validated Patterns Operator → Pattern → Create Pattern**):
 
-The `acm-hub-spoke` chart (wave 6) auto-imports both spokes into RHACM using the tokens from Vault.
+```yaml
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+  extraParameters:
+    - name: spokeCredentials.mode
+      value: inline
+    - name: spokeCredentials.clusters.east.token
+      value: "<EAST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.east.apiUrl
+      value: "https://api.<EAST_DOMAIN>:6443"
+    - name: spokeCredentials.clusters.west.token
+      value: "<WEST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.west.apiUrl
+      value: "https://api.<WEST_DOMAIN>:6443"
+```
+
+Replace `<EAST_SA_TOKEN>`, `<WEST_SA_TOKEN>`, `<EAST_DOMAIN>`, and `<WEST_DOMAIN>` with the values collected in step 3.
+
+For spokes, create the same CR replacing `clusterGroupName: hub` with `east` or `west` and omitting `extraParameters`.
+
+The `acm-hub-spoke` chart (wave 6) auto-imports both spokes into RHACM using the inline tokens.
 
 For step-by-step verification commands, see the [Getting started guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/getting-started/).
 
