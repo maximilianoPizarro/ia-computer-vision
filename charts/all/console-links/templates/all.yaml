@@ -76,20 +76,6 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: platform-acs-central
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "acs.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://central-stackrox.{{ $domain }}"
-  location: ApplicationMenu
-  text: "ACS Central (Security)"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
   name: platform-developer-hub
   annotations:
     argocd.argoproj.io/sync-wave: "10"

@@ -15,7 +15,7 @@ clusterGroup:
         value: "4"
 
   namespaces:
-    stackrox: {}
+    # stackrox: {}  # ACS disabled by default to save resources
     neuroface: {}
     neuroface-cv: {}
     service-interconnect: {}
@@ -50,11 +50,11 @@ clusterGroup:
       namespace: openshift-operators
       channel: stable-2
       source: redhat-operators
-    rhacs:
-      name: rhacs-operator
-      namespace: openshift-operators
-      channel: stable
-      source: redhat-operators
+    # rhacs:  # ACS disabled by default to save resources
+    #   name: rhacs-operator
+    #   namespace: openshift-operators
+    #   channel: stable
+    #   source: redhat-operators
     servicemesh:
       name: servicemeshoperator3
       namespace: openshift-operators
@@ -143,17 +143,17 @@ clusterGroup:
         - name: clusterSuffix
           value: "-west"
 
-    acs-secured-cluster:
-      name: acs-secured-cluster
-      namespace: stackrox
-      argoProject: security
-      path: charts/all/acs-secured-cluster
-      syncWave: "3"
-      overrides:
-        - name: clusterName
-          value: west
-        - name: clusterRole
-          value: spoke
+    # acs-secured-cluster:  # ACS disabled by default to save resources
+    #   name: acs-secured-cluster
+    #   namespace: stackrox
+    #   argoProject: security
+    #   path: charts/all/acs-secured-cluster
+    #   syncWave: "3"
+    #   overrides:
+    #     - name: clusterName
+    #       value: west
+    #     - name: clusterRole
+    #       value: spoke
 
     openshift-external-secrets:
       name: openshift-external-secrets

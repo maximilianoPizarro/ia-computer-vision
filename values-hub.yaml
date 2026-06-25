@@ -14,7 +14,7 @@ clusterGroup:
       operatorGroup: true
       targetNamespaces: []
     external-secrets: {}
-    stackrox: {}
+    # stackrox: {}  # ACS disabled by default to save resources
     neuroface-gateway-system: {}
     redhat-connectivity-link-operator:
       operatorGroup: true
@@ -55,11 +55,11 @@ clusterGroup:
       name: openshift-external-secrets-operator
       namespace: external-secrets-operator
       channel: stable-v1
-    rhacs:
-      name: rhacs-operator
-      namespace: openshift-operators
-      channel: stable
-      source: redhat-operators
+    # rhacs:  # ACS disabled by default to save resources
+    #   name: rhacs-operator
+    #   namespace: openshift-operators
+    #   channel: stable
+    #   source: redhat-operators
     rhcl:
       name: rhcl-operator
       namespace: redhat-connectivity-link-operator
@@ -342,12 +342,12 @@ clusterGroup:
           jqPathExpressions:
             - .status
 
-    acs-init-bundle-sync:
-      name: acs-init-bundle-sync
-      namespace: stackrox
-      argoProject: security
-      path: charts/all/acs-init-bundle-sync
-      syncWave: "7"
+    # acs-init-bundle-sync:  # ACS disabled by default to save resources
+    #   name: acs-init-bundle-sync
+    #   namespace: stackrox
+    #   argoProject: security
+    #   path: charts/all/acs-init-bundle-sync
+    #   syncWave: "7"
 
     devspaces:
       name: devspaces
