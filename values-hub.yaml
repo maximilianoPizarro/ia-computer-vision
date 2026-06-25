@@ -368,6 +368,10 @@ clusterGroup:
       overrides:
         - name: clusterRole
           value: hub
+        - name: eastDomain
+          value: "apps.east.example.com"
+        - name: westDomain
+          value: "apps.west.example.com"
 
   managedClusterGroups:
     east:

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: kafka-console
+description: Streams for Apache Kafka Console (StreamsHub UI) for NeuroFace CV clusters
+type: application
+version: 0.1.0

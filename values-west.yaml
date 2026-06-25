@@ -45,6 +45,11 @@ clusterGroup:
       namespace: openshift-operators
       channel: stable
       source: redhat-operators
+    amq-streams-console:
+      name: amq-streams-console
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
     skupper:
       name: skupper-operator
       namespace: openshift-operators
@@ -205,6 +210,13 @@ clusterGroup:
       overrides:
         - name: clusterName
           value: west
+
+    kafka-console:
+      name: kafka-console
+      namespace: neuroface-cv
+      argoProject: ai
+      path: charts/all/kafka-console
+      syncWave: "7"
 
     console-links:
       name: console-links

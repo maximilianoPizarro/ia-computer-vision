@@ -225,9 +225,9 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://console-openshift-console.{{ $hubDomain }}/multicloud/infrastructure/clusters/east/neuroface-cv/strimzi.io~v1beta2~Kafka"
+  href: "https://kafka-console-neuroface-cv.{{ .Values.eastDomain | default "east.example.com" }}"
   location: ApplicationMenu
-  text: "Kafka Cluster (east)"
+  text: "Kafka Console (east)"
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
@@ -239,9 +239,9 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://console-openshift-console.{{ $hubDomain }}/multicloud/infrastructure/clusters/west/neuroface-cv/strimzi.io~v1beta2~Kafka"
+  href: "https://kafka-console-neuroface-cv.{{ .Values.westDomain | default "west.example.com" }}"
   location: ApplicationMenu
-  text: "Kafka Cluster (west)"
+  text: "Kafka Console (west)"
 {{- else }}
 ---
 apiVersion: console.openshift.io/v1

@@ -1,0 +1,3 @@
+clusterDomain: ""
+kafkaNamespace: neuroface-cv
+kafkaClusterName: cv-kafka

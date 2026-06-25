@@ -1,0 +1,45 @@
+apiVersion: console.streamshub.github.com/v1alpha1
+kind: Console
+metadata:
+  name: kafka-console
+  namespace: {{ .Values.kafkaNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  hostname: kafka-console-{{ .Values.kafkaNamespace }}.{{ include "kafka-console.clusterDomain" . }}
+  kafkaClusters:
+    - name: {{ .Values.kafkaClusterName }}
+      namespace: {{ .Values.kafkaNamespace }}
+      listener: plain
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kafka-console-kafka-access
+  namespace: {{ .Values.kafkaNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["kafka.strimzi.io"]
+    resources: ["kafkas", "kafkatopics", "kafkausers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kafka-console-kafka-access
+  namespace: {{ .Values.kafkaNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+subjects:
+  - kind: ServiceAccount
+    name: kafka-console-console-serviceaccount
+    namespace: {{ .Values.kafkaNamespace }}
+roleRef:
+  kind: Role
+  name: kafka-console-kafka-access
+  apiGroup: rbac.authorization.k8s.io
