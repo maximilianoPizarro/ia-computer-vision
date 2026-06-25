@@ -11,8 +11,24 @@ managedClusters:
     domain: ""
     token: ""
 
-# Pull spoke API tokens from Vault via ESO (default). Disabled when managedClusters.*.token is set.
+# Spoke credential injection modes:
+#   vault  — ESO ExternalSecret pulls from Vault (default VP flow)
+#   inline — K8s Secret created from spokeCredentials.clusters.* values
+#            (pass via Pattern CR extraParameters, no Vault needed)
+#   secret — user pre-creates the K8s Secret; chart just reads it
+#
+# When managedClusters.*.token is set, ALL modes are bypassed and the
+# Helm-tokens path renders ManagedCluster + auto-import-secret directly.
 spokeCredentials:
   enabled: true
+  mode: vault
   secretName: spoke-credentials
   vaultKey: ""
+  # mode=inline: set these via Pattern CR extraParameters
+  clusters:
+    east:
+      token: ""
+      apiUrl: ""
+    west:
+      token: ""
+      apiUrl: ""

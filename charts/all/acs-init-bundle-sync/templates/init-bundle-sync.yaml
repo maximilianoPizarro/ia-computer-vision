@@ -288,8 +288,7 @@ data:
         password = os.environ.get("ROX_ADMIN_PASSWORD", "").strip()
         if not password:
             print(
-                "ROX_ADMIN_PASSWORD not set — create Secret acs-init-credentials in stackrox "
-                "then refresh acs-init-bundle-sync",
+                "ROX_ADMIN_PASSWORD not set — waiting for ACS Central password secret",
                 file=sys.stderr,
             )
             sys.exit(0)
@@ -380,8 +379,8 @@ spec:
             - name: ROX_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: acs-init-credentials
-                  key: ROX_ADMIN_PASSWORD
+                  name: {{ .Values.initBundleSync.passwordSecret.name | default "central-htpasswd" | quote }}
+                  key: {{ .Values.initBundleSync.passwordSecret.key | default "password" | quote }}
                   optional: true
           volumeMounts:
             - name: shared
@@ -453,8 +452,8 @@ spec:
                 - name: ROX_ADMIN_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: acs-init-credentials
-                      key: ROX_ADMIN_PASSWORD
+                      name: {{ .Values.initBundleSync.passwordSecret.name | default "central-htpasswd" | quote }}
+                      key: {{ .Values.initBundleSync.passwordSecret.key | default "password" | quote }}
                       optional: true
               volumeMounts:
                 - name: shared

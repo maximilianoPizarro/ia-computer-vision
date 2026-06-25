@@ -1,4 +1,4 @@
-{{- if and .Values.spokeCredentials.enabled (eq (include "acm-hub-spoke.useHelmTokens" .) "false") }}
+{{- if eq (include "acm-hub-spoke.useCronJob" .) "true" }}
 {{- $sc := .Values.spokeCredentials -}}
 ---
 apiVersion: v1
@@ -162,7 +162,7 @@ spec:
                   }
 
                   if ! oc get secret "$CRED_NAME" -n "$CRED_NS" &>/dev/null; then
-                    echo "Secret ${CRED_NS}/${CRED_NAME} not found — waiting for ExternalSecret"
+                    echo "Secret ${CRED_NS}/${CRED_NAME} not found — waiting for credential secret"
                     exit 0
                   fi
 

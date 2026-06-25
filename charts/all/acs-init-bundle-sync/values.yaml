@@ -1,13 +1,16 @@
 clusterDomain: ""
-# Hub-only. ROX_ADMIN_PASSWORD from Secret acs-init-credentials (never commit).
 initBundleSync:
   enabled: true
   centralEndpoint: central.stackrox.svc:443
   clusters: "hub,east,west"
   schedule: "0 */12 * * *"
-  # rhel9 stream matches RHACS 4.11 operator (rhel8 :4.11.0 is not published on registry.redhat.io).
   image: registry.redhat.io/advanced-cluster-security/rhacs-roxctl-rhel9:4.11.0
-  # RHEL9 base — roxctl rhel9 binary is not compatible with ose-cli (glibc 2.28).
   cliImage: registry.redhat.io/rhel9/support-tools:latest
   maxRetries: 12
   retryInterval: 30
+  # ACS Central auto-generated admin password secret.
+  # Set passwordSecret.name to "acs-init-credentials" and .key to
+  # "ROX_ADMIN_PASSWORD" to use a manually created secret instead.
+  passwordSecret:
+    name: central-htpasswd
+    key: password
