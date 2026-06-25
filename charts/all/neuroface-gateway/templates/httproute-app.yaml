@@ -15,7 +15,10 @@ spec:
   rules:
     {{- $w := .Values.gateway.weights | default dict }}
     {{- if and .Values.clusters.east.domain .Values.clusters.west.domain }}
-    - backendRefs:
+    - timeouts:
+        request: 120s
+        backendRequest: 120s
+      backendRefs:
         - name: neuroface-app-east
           port: 8080
           weight: {{ $w.east | default 50 }}
@@ -23,12 +26,18 @@ spec:
           port: 8080
           weight: {{ $w.west | default 50 }}
     {{- else if .Values.clusters.east.domain }}
-    - backendRefs:
+    - timeouts:
+        request: 120s
+        backendRequest: 120s
+      backendRefs:
         - name: neuroface-app-east
           port: 8080
           weight: 100
     {{- else if .Values.clusters.west.domain }}
-    - backendRefs:
+    - timeouts:
+        request: 120s
+        backendRequest: 120s
+      backendRefs:
         - name: neuroface-app-west
           port: 8080
           weight: 100
