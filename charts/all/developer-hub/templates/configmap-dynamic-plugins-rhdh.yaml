@@ -401,9 +401,9 @@ data:
                           - isGitlabAvailable
 {{- end }}
       - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-gitlab-dynamic
-        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
+        disabled: true
       - package: ./dynamic-plugins/dist/backstage-plugin-catalog-backend-module-gitlab-dynamic
-        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
+        disabled: true
       - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-github-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-plugin-notifications
