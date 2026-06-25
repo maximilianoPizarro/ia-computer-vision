@@ -107,7 +107,6 @@ spec:
                       clusterGroup: ${name}
                       cloud: auto-detect
                       vendor: OpenShift
-                      cluster.open-cluster-management.io/clusterset: global
                   spec:
                     hubAcceptsClient: true
                     leaseDurationSeconds: 60
