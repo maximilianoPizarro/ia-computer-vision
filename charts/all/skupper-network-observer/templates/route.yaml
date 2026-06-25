@@ -6,7 +6,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "5"
 spec:
-  host: skupper-network-observer-service-interconnect.{{ include "skupper-network-observer.domainBase" . }}
+  host: skupper-network-observer-service-interconnect.{{ include "skupper-network-observer.clusterDomain" . }}
   to:
     kind: Service
     name: skupper-network-observer

@@ -1,0 +1,11 @@
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: minio-hub
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  routingKey: minio-hub
+  host: minio-hub
+  port: 9000
