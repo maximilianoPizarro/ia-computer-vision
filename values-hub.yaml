@@ -41,6 +41,8 @@ clusterGroup:
       targetNamespaces: []
     openshift-opentelemetry: {}
     istio-system: {}
+    istio-cni: {}
+    ztunnel: {}
 
   subscriptions:
     acm:
@@ -81,6 +83,11 @@ clusterGroup:
       name: opentelemetry-product
       namespace: openshift-operators
       channel: stable
+      source: redhat-operators
+    servicemesh:
+      name: servicemeshoperator3
+      namespace: openshift-operators
+      channel: stable-3.2
       source: redhat-operators
     gitlab:
       name: gitlab-operator-kubernetes
@@ -265,6 +272,19 @@ clusterGroup:
       overrides:
         - name: showroom.terminal.userCount
           value: "30"
+
+    servicemesh-config:
+      name: servicemesh-config
+      namespace: istio-system
+      argoProject: mesh
+      chart: servicemesh
+      chartVersion: 0.1.*
+      syncWave: "5"
+      overrides:
+        - name: servicemesh.profile
+          value: ambient
+        - name: servicemesh.istio.name
+          value: default
 
     neuroface-gateway:
       name: neuroface-gateway
