@@ -202,7 +202,48 @@ For step-by-step verification commands, see the [Getting started guide](https://
 
 ## Secrets
 
-Copy `values-secret.yaml.template` to `~/values-secret-ia-computer-vision.yaml` and fill in optional values. See [Validated Patterns secrets management](https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/).
+### Option A — CLI install (`./pattern.sh make install`)
+
+Copy the template and run the install. Secrets with `onMissingValue: generate` are auto-generated in Vault:
+
+```bash
+cp values-secret.yaml.template ~/values-secret-ia-computer-vision.yaml
+# Edit ~/values-secret-ia-computer-vision.yaml to fill in spoke tokens and optional keys
+./pattern.sh make install
+```
+
+### Option B — Console install (Pattern CR)
+
+When you install via the OCP console, `make load-secrets` does not run. You must load secrets into Vault manually after Vault initializes (wave 2):
+
+```bash
+# Generate passwords and load into Vault
+oc exec vault-0 -n vault -- vault kv put secret/hub/gitlab-credentials \
+  root-password="$(openssl rand -base64 16)" runner-token="$(openssl rand -base64 16)"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/rhbk-credentials \
+  admin-password="$(openssl rand -base64 16)" db-password="$(openssl rand -base64 16)"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets \
+  session-secret="$(openssl rand -base64 32)" gitlab-token="<GITLAB_PAT>"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/maas-credentials \
+  api-key="<MAAS_API_KEY>"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/quay-credentials \
+  dockerconfigjson='{"auths":{}}'
+```
+
+| Secret | Fields | Required | Used by |
+|--------|--------|----------|---------|
+| `gitlab-credentials` | `root-password`, `runner-token` | Auto-generated | GitLab admin, CI runner |
+| `rhbk-credentials` | `admin-password`, `db-password` | Auto-generated | Keycloak admin, PostgreSQL |
+| `developer-hub-secrets` | `session-secret`, `gitlab-token` | `session-secret` auto-generated; `gitlab-token` set after GitLab deploys | RHDH session, scaffolder |
+| `maas-credentials` | `api-key` | Optional — only for MaaS LLM chat | OpenShift AI dashboard, NeuroFace chat |
+| `quay-credentials` | `dockerconfigjson` | Optional — only for Quay push | Quay registry push |
+| `spoke-credentials` | `east-token`, `east-api-url`, `west-token`, `west-api-url` | Via Pattern CR `extraParameters` (inline mode) | ACM auto-import |
+
+See [Validated Patterns secrets management](https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/).
 
 ## Workshop mode
 
