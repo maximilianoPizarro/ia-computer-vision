@@ -292,6 +292,76 @@ __WORKSHOP_MCP_OPENAPI_SPEC__
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
+  name: neuroface-cv-api-product
+  title: NeuroFace CV API Product
+  description: |
+    Computer vision inference via RHCL Gateway — PPE detection and AI chat.
+    Load-balanced 50/50 between east and west spokes.
+
+    ```bash
+    # Health check (no auth required)
+    curl -sk https://neuroface.__HUB_APPS_DOMAIN__/health
+
+    # PPE detection (upload image)
+    curl -sk -X POST https://neuroface.__HUB_APPS_DOMAIN__/api/v1/detect \
+      -F "file=@photo.jpg"
+
+    # With API key (when AuthPolicy is active)
+    curl -sk -H "Authorization: APIKEY $KEY" \
+      https://neuroface.__HUB_APPS_DOMAIN__/health
+    ```
+  annotations:
+    backstage.io/kubernetes-namespace: neuroface-gateway-system
+    backstage.io/kubernetes-id: neuroface-gateway
+    kuadrant.io/api-product: neuroface-cv
+  links:
+    - url: https://neuroface.__HUB_APPS_DOMAIN__
+      title: NeuroFace UI
+      icon: web
+    - url: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/workshop-neuroface-openapi
+      title: Swagger / OpenAPI
+      icon: docs
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  providesApis:
+    - workshop-neuroface-openapi
+  dependsOn:
+    - component:workshop-apis-gateway
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: workshop-neuroface-openapi
+  title: NeuroFace CV (RHCL Gateway)
+  description: |
+    PPE detection and AI chat via RHCL gateway with 50/50 east/west load balancing.
+    Use the Swagger UI **Authorize** button to set your API key header.
+
+    ```bash
+    curl -sk https://neuroface.__HUB_APPS_DOMAIN__/health
+    curl -sk -X POST https://neuroface.__HUB_APPS_DOMAIN__/api/v1/detect -F "file=@photo.jpg"
+    ```
+  tags: [kuadrant, neuroface, computer-vision, ppe, swagger]
+  annotations:
+    kuadrant.io/api-product: neuroface-cv
+  links:
+    - url: https://neuroface.__HUB_APPS_DOMAIN__
+      title: NeuroFace UI
+      icon: web
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-engineering
+  system: workshop-kuadrant-apis
+  definition: |
+__WORKSHOP_NEUROFACE_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
   name: workshop-api-consumer
   title: Workshop API consumer (userN / platformadmin)
   description: |
@@ -319,3 +389,4 @@ spec:
     - workshop-maas-openapi
     - workshop-mcp-openapi
     - workshop-restcountries-openapi
+    - workshop-neuroface-openapi

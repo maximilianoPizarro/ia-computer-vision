@@ -2,10 +2,29 @@
     info:
       title: REST Countries API
       version: 3.1.0
-      description: Get country data by name, code, or region — open CORS
+      description: |
+        Get country data by name, code, or region — open CORS, no auth required.
+
+        **Scenario: Securize with Kuadrant**
+        Proxy this API through the workshop-apis Gateway and apply an AuthPolicy
+        to require an API key from Developer Hub → Kuadrant.
     servers:
       - url: https://restcountries.com/v3.1
+        description: Direct public access (no auth)
+      - url: https://workshop-apis.__HUB_APPS_DOMAIN__/countries
+        description: Via RHCL Gateway (Kuadrant APIKEY required)
+    security:
+      - {}
+      - ApiKeyAuth: []
     components:
+      securitySchemes:
+        ApiKeyAuth:
+          type: apiKey
+          in: header
+          name: Authorization
+          description: |
+            Optional — only when calling via the RHCL Gateway.
+            Format: `APIKEY <your-key>`.
       schemas:
         CountryName:
           type: object

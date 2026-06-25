@@ -2,10 +2,26 @@
     info:
       title: JSONPlaceholder
       version: 1.0.0
-      description: Fake online REST API for testing and prototyping — CORS enabled
+      description: |
+        Fake online REST API for testing and prototyping — CORS enabled.
+
+        **Scenario: Securize with Kuadrant**
+        Add an HTTPRoute + AuthPolicy on the workshop-apis Gateway to proxy
+        this API and require a Kuadrant API key.
     servers:
       - url: https://jsonplaceholder.typicode.com
+        description: Direct public access (no auth)
+    security:
+      - {}
     components:
+      securitySchemes:
+        ApiKeyAuth:
+          type: apiKey
+          in: header
+          name: Authorization
+          description: |
+            For future use — apply an AuthPolicy on the RHCL Gateway to
+            require API keys from Developer Hub → Kuadrant.
       schemas:
         Post:
           type: object

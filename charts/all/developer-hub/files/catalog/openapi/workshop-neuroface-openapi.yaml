@@ -1,0 +1,233 @@
+      openapi: 3.0.3
+      info:
+        title: NeuroFace CV API (RHCL Gateway)
+        description: |
+          Computer vision inference API for PPE detection and AI chat, fronted by
+          the RHCL Gateway with 50/50 east/west load balancing.
+
+          **Authentication**: Request an API key in Developer Hub (Kuadrant tab)
+          or use curl with header `Authorization: APIKEY <key>`.
+
+          **Without Kuadrant auth**: If AuthPolicy is not applied, the gateway
+          accepts unauthenticated requests.
+        version: v1
+        contact:
+          name: Platform Engineering
+      servers:
+        - url: https://neuroface.__HUB_APPS_DOMAIN__
+          description: RHCL Gateway (hub) — load-balanced to east/west spokes
+      security:
+        - ApiKeyAuth: []
+        - {}
+      components:
+        securitySchemes:
+          ApiKeyAuth:
+            type: apiKey
+            in: header
+            name: Authorization
+            description: |
+              Kuadrant API key — format: `APIKEY <your-key>`.
+              Request one in Developer Hub → Kuadrant → API Products.
+              If no AuthPolicy is applied, requests work without a key.
+          BearerAuth:
+            type: http
+            scheme: bearer
+            description: MaaS Bearer token (for chat endpoint)
+        schemas:
+          HealthResponse:
+            type: object
+            properties:
+              status:
+                type: string
+                example: ok
+              version:
+                type: string
+                example: v1.5.1
+              cluster:
+                type: string
+                example: east
+          PPEDetectionRequest:
+            type: object
+            properties:
+              image:
+                type: string
+                format: binary
+                description: JPEG/PNG image for PPE detection
+          PPEDetection:
+            type: object
+            properties:
+              class:
+                type: string
+                enum: [hardhat, safety-vest, goggles, no-hardhat, no-safety-vest]
+              confidence:
+                type: number
+                format: float
+                minimum: 0
+                maximum: 1
+                example: 0.87
+              bbox:
+                type: array
+                items:
+                  type: number
+                description: "[x1, y1, x2, y2] bounding box"
+                example: [120, 45, 280, 190]
+          PPEDetectionResponse:
+            type: object
+            properties:
+              detections:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PPEDetection"
+              model:
+                type: string
+                example: yolo-ppe-v8
+              inference_time_ms:
+                type: number
+                example: 42.3
+              cluster:
+                type: string
+                example: east
+          ChatRequest:
+            type: object
+            required: [message]
+            properties:
+              message:
+                type: string
+                example: What PPE is required in a construction zone?
+              model:
+                type: string
+                example: llama-scout-17b
+          ChatResponse:
+            type: object
+            properties:
+              reply:
+                type: string
+                example: In a construction zone, required PPE includes...
+              model:
+                type: string
+              tokens:
+                type: integer
+          ErrorResponse:
+            type: object
+            properties:
+              error:
+                type: string
+              status:
+                type: integer
+      paths:
+        /:
+          get:
+            summary: NeuroFace UI (frontend)
+            description: Returns the Angular frontend. Use a browser for full UI experience.
+            operationId: neurofaceUI
+            responses:
+              "200":
+                description: NeuroFace web application
+                content:
+                  text/html:
+                    schema:
+                      type: string
+              "503":
+                description: Gateway has no healthy backends (spokes unreachable)
+        /health:
+          get:
+            summary: Health check
+            description: Returns application health status and responding cluster name.
+            operationId: neurofaceHealth
+            responses:
+              "200":
+                description: Healthy
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/HealthResponse"
+                    example:
+                      status: ok
+                      version: v1.5.1
+                      cluster: east
+              "503":
+                description: Unhealthy
+        /api/v1/detect:
+          post:
+            summary: PPE detection on uploaded image
+            description: |
+              Upload a JPEG/PNG image and receive YOLO PPE detections with bounding boxes.
+              The request is load-balanced 50/50 between east and west spokes.
+            operationId: detectPPE
+            requestBody:
+              required: true
+              content:
+                multipart/form-data:
+                  schema:
+                    type: object
+                    required: [file]
+                    properties:
+                      file:
+                        type: string
+                        format: binary
+                        description: Image file (JPEG or PNG)
+                      confidence:
+                        type: number
+                        minimum: 0
+                        maximum: 1
+                        default: 0.15
+                        description: Minimum detection confidence threshold
+            responses:
+              "200":
+                description: PPE detections with bounding boxes
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/PPEDetectionResponse"
+                    example:
+                      detections:
+                        - class: hardhat
+                          confidence: 0.92
+                          bbox: [120, 45, 280, 190]
+                        - class: safety-vest
+                          confidence: 0.87
+                          bbox: [100, 200, 320, 450]
+                      model: yolo-ppe-v8
+                      inference_time_ms: 42.3
+                      cluster: east
+              "400":
+                description: Invalid image format
+              "401":
+                description: Missing or invalid API key (when AuthPolicy is active)
+              "503":
+                description: No healthy backends
+        /api/v1/chat:
+          post:
+            summary: AI chat about PPE and safety
+            description: |
+              Send a natural language question about PPE, safety regulations, or detection results.
+              Uses MaaS Llama Scout 17B model via external endpoint.
+            operationId: neurofaceChat
+            security:
+              - ApiKeyAuth: []
+              - BearerAuth: []
+              - {}
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/ChatRequest"
+                  example:
+                    message: What PPE is required in a construction zone?
+                    model: llama-scout-17b
+            responses:
+              "200":
+                description: Chat response
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/ChatResponse"
+                    example:
+                      reply: "In a construction zone, workers must wear: hard hat, high-visibility safety vest, safety goggles, and steel-toed boots."
+                      model: llama-scout-17b
+                      tokens: 35
+              "401":
+                description: Missing or invalid API key
+              "503":
+                description: MaaS endpoint unreachable

@@ -2,10 +2,30 @@
     info:
       title: httpbin.org
       version: 1.0.0
-      description: HTTP request/response testing service — no auth required for Try It Out
+      description: |
+        HTTP request/response testing service — no auth required for Try It Out.
+
+        **Scenario: Securize with Kuadrant**
+        To protect this public API with an API key, apply an AuthPolicy on
+        the workshop-apis Gateway pointing to httpbin.org as ExternalName Service.
+        Then use `Authorization: APIKEY <key>` from Developer Hub → Kuadrant.
     servers:
       - url: https://httpbin.org
+        description: Direct public access (no auth)
+      - url: https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin
+        description: Via RHCL Gateway (Kuadrant APIKEY required)
+    security:
+      - {}
+      - ApiKeyAuth: []
     components:
+      securitySchemes:
+        ApiKeyAuth:
+          type: apiKey
+          in: header
+          name: Authorization
+          description: |
+            Optional — only needed when calling via the RHCL Gateway.
+            Format: `APIKEY <your-key>` (request from Developer Hub → Kuadrant).
       schemas:
         HttpbinArgs:
           type: object
