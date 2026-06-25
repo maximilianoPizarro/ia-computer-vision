@@ -1,3 +1,4 @@
 _ref_hmp/
 docs/public/
 charts/*.tgz
+.tmp/
