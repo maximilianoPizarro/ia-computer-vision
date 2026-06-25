@@ -3,55 +3,32 @@
 {{- $realm := .Values.kuadrant.realm | default "backstage" -}}
 {{- $clientId := .Values.kuadrant.clientId | default "neuroface" -}}
 {{- $appHost := printf "neuroface.%s" (include "neuroface-gateway.clusterDomain" .) -}}
-apiVersion: kuadrant.io/v1
-kind: AuthPolicy
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: OIDCPolicy
 metadata:
   name: neuroface-oidc
   namespace: neuroface-gateway-system
   annotations:
     argocd.argoproj.io/sync-wave: "5"
 spec:
+  provider:
+    issuerURL: "https://{{ $ssoHost }}/realms/{{ $realm }}"
+    clientID: {{ $clientId | quote }}
+    {{- if .Values.kuadrant.clientSecret }}
+    clientSecret: {{ .Values.kuadrant.clientSecret | quote }}
+    {{- end }}
+    authorizationEndpoint: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/auth"
+    tokenEndpoint: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/token"
+    redirectURI: "https://{{ $appHost }}/auth/callback"
   targetRef:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: neuroface-app-lb
-  overrides:
-    strategy: merge
-    rules:
-      authentication:
-        oidc:
-          credentials:
-            authorizationHeader:
-              prefix: Bearer
-          jwt:
-            issuerUrl: "https://{{ $ssoHost }}/realms/{{ $realm }}"
-          metrics: false
-          priority: 0
-      response:
-        success: {}
-        unauthenticated:
-          code: 302
-          headers:
-            location:
-              value: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/auth?client_id={{ $clientId }}&redirect_uri=https%3A%2F%2F{{ $appHost }}%2F&response_type=code&scope=openid"
----
-apiVersion: kuadrant.io/v1
-kind: AuthPolicy
-metadata:
-  name: neuroface-cv-anonymous
-  namespace: neuroface-gateway-system
-  annotations:
-    argocd.argoproj.io/sync-wave: "5"
-spec:
-  targetRef:
-    group: gateway.networking.k8s.io
-    kind: HTTPRoute
-    name: neuroface-cv-lb
-  overrides:
-    strategy: merge
-    rules:
-      authentication:
-        anonymous:
-          anonymous: {}
-          priority: 0
+  auth:
+    tokenSource:
+      authorizationHeader:
+        prefix: Bearer
+        name: Authorization
+      cookie:
+        name: jwt
 {{- end }}
