@@ -142,6 +142,7 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 | `quay` | VP chart | 2 | workshop (requires ODF) |
 | `gitlab-operator` | local | 3 | workshop |
 | `developer-hub` | local | 4 | workshop |
+| `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 5 | mesh (required for neuroface-gateway Istio) |
 | `openshift-ai-hub` | local | 5 | ai |
 | `showroom` | local | 5 | workshop |
 | `neuroface-gateway` | local | 6 | mesh |
@@ -153,15 +154,14 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 ### Spoke charts (values-east.yaml / values-west.yaml)
 | Chart | Type | Wave | ArgoProject |
 |-------|------|------|-------------|
-| `openshift-gitops` | local | 0 | platform |
-| `platform-users` | local | 0 | platform |
-| `openshift-external-secrets` | VP chart | 1 | external-secrets |
-| `servicemesh-config` | local | 1 | mesh |
-| `observability` | local | 2 | observability |
+| `platform-users` | local | 0 | platform (creates `acm-import` SA with cluster-admin) |
+| `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 1 | mesh |
+| `openshift-external-secrets` | VP chart | 2 | external-secrets |
+| `observability` | local | 2 | observability (also deploys spoke DSC for KServe CRDs) |
 | `acs-secured-cluster` | local | 3 | security |
+| `spoke-interconnect` | local | 4 | mesh |
 | `spoke-neuroface` | local | 5 | ai |
 | `spoke-neuroface-cv` | local | 6 | ai |
-| `spoke-interconnect` | local | 7 | mesh |
 | `devspaces` | local | 7 | workshop |
 | `console-links` | local | 10 | workshop |
 
@@ -170,18 +170,56 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 - **Quay** requires ODF (ObjectBucketClaim). Without ODF, the app shows `Missing`. Disable or install ODF.
 - **Hub sizing**: `m6a.2xlarge` workers saturate at 98-99% CPU requests. Use `m6a.4xlarge` for production or remove master taints for sandbox.
 - **Developer Hub plugins**: OCM, Tekton, Topology, Kafka, Quay community plugins do not ship in RHDH 1.10 image. Must be `disabled: true` in `dynamic-plugins-rhdh` ConfigMap.
-- **Vault secrets**: If installed via OCP console Pattern CR (not CLI), secrets are not auto-loaded. Run `./pattern.sh make load-secrets` or populate Vault manually.
+- **Vault secrets**: If installed via OCP console Pattern CR (not CLI), secrets are not auto-loaded. Populate Vault manually after Vault initializes (wave 2). See README "Option B — Console install".
 - **RHBK**: The `rhbk-credentials` secret must include both `admin-password` and `db-password` fields.
-- **Spoke connectivity**: Spokes require Skupper and Service Mesh operators (subscriptions in `values-east.yaml`). The hub does NOT subscribe to these operators (Skupper runs on spokes only; Service Mesh on hub is installed via RHOAI operator).
+- **Skupper console link**: Points to hub but Skupper only runs on spokes. The hub console link will always show 503.
+
+## Lessons learned from installation (Jun 2026)
+
+### OperatorGroup install modes
+Operators like RHCL and Cluster Observability Operator do NOT support `OwnNamespace` install mode. Spoke namespaces for these operators MUST declare `operatorGroup: true` + `targetNamespaces: []` (AllNamespaces mode). Without this, CSVs fail with `OwnNamespace InstallModeType not supported`.
+
+### ACM auto-import RBAC
+The `acm-spoke-auto-import` CronJob ServiceAccount requires these permissions beyond basic `managedclusters` CRUD:
+- `cluster.open-cluster-management.io/managedclustersets/join` (create) — ACM auto-adds clusters to the `default` clusterset
+- `cluster.open-cluster-management.io/managedclusters/accept` (update) — required to set `hubAcceptsClient: true`
+- `register.open-cluster-management.io/managedclusters/accept` (update) — alternative API group for the same
+- Namespace `create` verb — to wait for ACM to create the spoke namespace
+
+### Spoke import tokens
+The default ServiceAccount `kube-system:default` does NOT have `cluster-admin` permissions. The pattern auto-creates `kube-system:acm-import` SA with `cluster-admin` via `platform-users` chart (wave 0). Users only need to generate the token: `oc create token -n kube-system acm-import --duration=87600h`.
+
+### KServe CRDs on spokes
+Spokes subscribe to RHOAI but the `InferenceService` and `ServingRuntime` CRDs are only installed when a `DataScienceCluster` CR exists with `kserve.managementState: Managed`. The pattern places a minimal DSC (KServe-only, everything else Removed) in the `observability` chart (wave 2) — NOT in `spoke-neuroface-cv` (wave 6) because that creates a deadlock (chart needs CRDs that only exist after the chart syncs).
+
+### Service Mesh on hub
+The hub MUST have `servicemeshoperator3` subscription and a `servicemesh-config` application (VP `servicemesh` chart with `profile: ambient`) for the NeuroFace Gateway (`gatewayClassName: istio`). Without it, the Gateway shows `Waiting for controller` / `PROGRAMMED: Unknown`.
+
+### Developer Hub YAML config
+The `catalog.providers.gitlab` config must NOT have duplicate `schedule:` keys. RHDH YAML parser is strict and crashes on duplicate map keys (`YAMLParseError: Map keys must be unique`).
+
+### Developer Hub missing namespaces
+RHDH templates reference namespaces `gitlab`, `keycloak`, `east`, `west` for RBAC/spoke-token-sync. These must exist before the developer-hub app syncs. If they don't exist, ArgoCD retries until they are created.
+
+### Console install (Pattern CR) secrets
+When installing via the OCP console (Pattern CR), `make load-secrets` is NOT executed. Vault initializes empty. You must load secrets manually:
+```bash
+oc exec vault-0 -n vault -- vault kv put secret/hub/gitlab-credentials root-password="$(openssl rand -base64 16)" runner-token="$(openssl rand -base64 16)"
+oc exec vault-0 -n vault -- vault kv put secret/hub/rhbk-credentials admin-password="$(openssl rand -base64 16)" db-password="$(openssl rand -base64 16)"
+oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets session-secret="$(openssl rand -base64 32)" gitlab-token="placeholder"
+oc exec vault-0 -n vault -- vault kv put secret/hub/maas-credentials api-key="placeholder"
+oc exec vault-0 -n vault -- vault kv put secret/hub/quay-credentials dockerconfigjson='{"auths":{}}'
+```
+After loading, force ESO refresh: `oc annotate externalsecret -n keycloak-system --all force-sync=$(date +%s) --overwrite`
 
 ## Key constraints
 
-- Port charts from hybrid-mesh-platform, simplifying where possible
-- Developer Hub: only `ai-computer-vision` software template (not all 8 from hybrid-mesh-platform)
+- Developer Hub: only `ai-computer-vision` software template
 - TSSC (RHTAS, RHTPA): optional, commented out in values-hub.yaml
-- Service Mesh: local chart for ambient mode (not VP `servicemesh` chart)
+- Service Mesh: VP `servicemesh` chart with `profile: ambient` on hub and spokes
 - ArgoCD: hub needs 12Gi controller memory via `openshift-gitops` chart
-- Community plugins: disable in `configmap-dynamic-plugins-rhdh.yaml` any `backstage-community-plugin-*` from `./dynamic-plugins/dist/` not present in the RHDH image
+- Community plugins: disable in `configmap-dynamic-plugins-rhdh.yaml` any `backstage-community-plugin-*` not in the RHDH image
+- API catalog: `workshop-kuadrant-apis.yaml` and `public-apis.yaml` use `__SPEC__` placeholders injected by `catalog-kuadrant-apis.yaml` and `catalog-public-apis.yaml` templates
 
 ## Reference plan
 

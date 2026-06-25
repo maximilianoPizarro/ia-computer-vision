@@ -245,14 +245,33 @@ The Vault path follows the convention `secret/data/hub/{secret-name}` where `{se
 2. **ignoreDifferences for ExternalSecret**: When ExternalSecret points to a Vault path that doesn't exist yet, ArgoCD marks the app as Degraded. Add `ignoreDifferences` on `.status` to prevent blocking.
 3. **RHDH operator regenerates ConfigMaps**: The Backstage operator creates `backstage-dynamic-plugins-developer-hub` from `dynamic-plugins-rhdh` ConfigMap. Patches to the generated ConfigMap are overwritten on next reconciliation. Always patch the source `dynamic-plugins-rhdh` ConfigMap.
 4. **Community plugins not in RHDH image**: `backstage-community-plugin-{ocm,tekton,topology,kafka,quay,acr,rbac}` must be `disabled: true` in the dynamic plugins ConfigMap for RHDH 1.10.
+5. **Duplicate YAML keys crash RHDH**: The `catalog.providers.gitlab` config must not have two `schedule:` keys. RHDH uses a strict YAML parser that throws `YAMLParseError: Map keys must be unique` and CrashLoopBackOff.
+6. **OperatorGroup AllNamespaces**: RHCL and COO operators require `operatorGroup: true` + `targetNamespaces: []` (AllNamespaces). Without this in spoke namespaces, CSVs fail with `OwnNamespace InstallModeType not supported`.
+7. **KServe CRD deadlock on spokes**: Do NOT place `DataScienceCluster` CR in the same chart that uses KServe CRDs (`spoke-neuroface-cv`). Place the DSC in a lower-wave chart that already syncs successfully (`observability` wave 2).
+8. **Service Mesh required on hub**: The `neuroface-gateway` uses `gatewayClassName: istio` which requires an Istio control plane. Hub must have `servicemeshoperator3` subscription and `servicemesh-config` app (VP `servicemesh` chart, `profile: ambient`) at wave 5 before the gateway at wave 6.
+9. **ACM auto-import SA permissions**: The CronJob SA needs `managedclustersets/join`, `managedclusters/accept`, and namespace `create` beyond basic `managedclusters` CRUD. See `spoke-auto-import-cronjob.yaml` ClusterRole.
+10. **Spoke import tokens**: Use `acm-import` SA (auto-created by `platform-users` chart), not `kube-system:default` which lacks `cluster-admin`.
+
+### Spoke sync waves
+| Wave | Purpose | Applications |
+|------|---------|-------------|
+| 0 | Platform base | platform-users (creates acm-import SA) |
+| 1 | Service Mesh | servicemesh-config (VP chart, ambient) |
+| 2 | Observability + ESO | observability (includes spoke DSC for KServe CRDs), openshift-external-secrets |
+| 3 | Security | acs-secured-cluster |
+| 4 | Cross-cluster | spoke-interconnect |
+| 5 | CV inference | spoke-neuroface |
+| 6 | CV model serving | spoke-neuroface-cv |
+| 7 | IDE | devspaces |
+| 10 | Console UI | console-links |
 
 ## Porting from hybrid-mesh-platform
 
 When porting charts from hybrid-mesh-platform:
 1. Strip Industrial Edge components (disabled in ia-computer-vision)
-2. Use VP published charts where available (rhbk, quay, acm, vault, openshift-external-secrets)
-3. Keep ambient mode Service Mesh configuration (local `servicemesh-config` chart)
+2. Use VP published charts where available (rhbk, quay, acm, vault, openshift-external-secrets, servicemesh)
+3. Use VP `servicemesh` chart with `profile: ambient` on both hub and spokes (not local chart)
 4. Keep Skupper spoke interconnect configuration
 5. Keep NeuroFace + OVMS/YOLO CV inference charts
 6. Remove ApplicationSet-based fleet management (VP Operator handles spoke GitOps)
-7. Use `acm-hub-spoke` chart for auto-import with Vault-backed spoke tokens
+7. Use `acm-hub-spoke` chart for auto-import with inline spoke tokens via Pattern CR `extraParameters`
