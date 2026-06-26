@@ -14,6 +14,18 @@
 {{- if .Values.plugins.lightspeed.enabled -}}true{{- end -}}
 {{- end -}}
 
+{{/*
+  Returns "true" or "false" for dynamic plugin disabled flag.
+  Sprig default treats boolean false as empty — use kindIs to honor explicit false.
+*/}}
+{{- define "developer-hub.pluginDisabled" -}}
+{{- $cfg := index .Values.plugins .plugin | default dict -}}
+{{- $defaultEnabled := .defaultEnabled | default true -}}
+{{- if kindIs "bool" $cfg.enabled -}}
+{{- if $cfg.enabled -}}false{{- else -}}true{{- end -}}
+{{- else if $defaultEnabled -}}false{{- else -}}true{{- end -}}
+{{- end -}}
+
 {{- define "developer-hub.lightspeedAiModel" -}}
 {{- $ls := .Values.plugins.lightspeed | default dict -}}
 {{- $ai := $ls.aiModel | default dict -}}

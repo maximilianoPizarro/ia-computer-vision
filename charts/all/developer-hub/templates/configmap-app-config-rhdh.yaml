@@ -179,7 +179,7 @@ data:
             schedule:
               frequency: { minutes: 30 }
               timeout: { minutes: 3 }
-{{- if .Values.plugins.ocm.enabled | default true }}
+{{- if and (kindIs "bool" .Values.plugins.ocm.enabled) .Values.plugins.ocm.enabled }}
         ocm:
           default:
             name: hub

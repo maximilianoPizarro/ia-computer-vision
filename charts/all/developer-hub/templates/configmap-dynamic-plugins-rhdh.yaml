@@ -32,7 +32,7 @@ data:
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-ocm-backend-dynamic:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
-        disabled: {{ not (.Values.plugins.ocm.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" false) }}
         pluginConfig:
           catalog:
             providers:
@@ -47,7 +47,7 @@ data:
                     frequency: { minutes: 15 }
                     timeout: { minutes: 10 }
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-ocm:{{ .Values.plugins.ocm.pluginTag | default "bs_1.45.3__5.11.1" }}
-        disabled: {{ not (.Values.plugins.ocm.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" false) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -91,7 +91,7 @@ data:
                           - isKind: resource
                           - isType: kubernetes-cluster
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-rbac:{{ .Values.plugins.rbac.pluginTag | default "bs_1.45.3__1.47.4" }}
-        disabled: {{ not (.Values.plugins.rbac.enabled | default false) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "rbac" "defaultEnabled" false) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes
@@ -122,7 +122,7 @@ data:
       - package: ./dynamic-plugins/dist/backstage-community-plugin-argocd
         disabled: true
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-topology:{{ .Values.plugins.topology.pluginTag | default "bs_1.45.3__2.9.4" }}
-        disabled: {{ not (.Values.plugins.topology.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "topology" "defaultEnabled" true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -175,13 +175,13 @@ data:
                   - mountPoint: entity.page.kafka/content
                     importName: EntityKafkaContent
       - package: "@kuadrant/kuadrant-backstage-plugin-backend-dynamic@v0.2.1"
-        disabled: {{ not (.Values.plugins.kuadrant.enabled | default false) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kuadrant" "defaultEnabled" false) }}
         integrity: sha512-pttQ6Lp7wD6EqDXAC3AIm4FWuQYO0i1KwoR0k6opTTyRZOGaNyO3YmPQdF403n+WjfTZRE+dfccD/9R4/SO5iA==
         pluginConfig:
           kuadrant:
             dev: true
       - package: "@kuadrant/kuadrant-backstage-plugin-frontend@v0.2.1"
-        disabled: {{ not (.Values.plugins.kuadrant.enabled | default false) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kuadrant" "defaultEnabled" false) }}
         integrity: sha512-E4zgwY3QQmA2mn0CwO2Zwc0k9/oCtHcsVHRcrKal2PfnXv6chKb9fCKi5SznH9FbNtx8fHVYnac9SQjFh5XGCA==
         pluginConfig:
           dynamicPlugins:
@@ -236,7 +236,7 @@ data:
                         allOf:
                           - hasAnnotation: kuadrant.io/api-product
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-tekton:{{ .Values.plugins.tekton.pluginTag | default "bs_1.45.3__3.33.3" }}
-        disabled: {{ not (.Values.plugins.tekton.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "tekton" "defaultEnabled" true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -346,7 +346,7 @@ data:
       - package: ./dynamic-plugins/dist/roadiehq-scaffolder-backend-module-http-request-dynamic
         disabled: false
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-catalog-backend-module-keycloak:{{ .Values.plugins.keycloakCatalog.pluginTag | default "bs_1.45.3__3.16.0" }}
-        disabled: {{ not (.Values.plugins.keycloakCatalog.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "keycloakCatalog" "defaultEnabled" true) }}
         pluginConfig:
           catalog:
             providers:
