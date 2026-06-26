@@ -40,8 +40,8 @@ links:
     edge spokes. GitOps-driven. Multi-cluster. Zero-trust by default.
   </p>
   <div class="vp-actions">
-    <a href="../getting-started/" class="vp-primary">Get started &rarr;</a>
-    <a href="../architecture/" class="vp-secondary">Architecture</a>
+    <a href="/ia-computer-vision/patterns/ia-computer-vision/getting-started/" class="vp-primary">Get started &rarr;</a>
+    <a href="/ia-computer-vision/patterns/ia-computer-vision/architecture/" class="vp-secondary">Architecture</a>
     <a href="https://github.com/maximilianoPizarro/ia-computer-vision" class="vp-secondary">GitHub</a>
   </div>
 </div>

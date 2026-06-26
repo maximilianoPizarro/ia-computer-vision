@@ -57,6 +57,11 @@ $ oc get csv -n openshift-operators | grep patterns-operator
 patterns-operator.v0.0.76   Validated Patterns Operator   0.0.76   Succeeded
 ----
 
+[NOTE]
+====
+*Migrating from an older version?* If your previous installation included Quay Registry, remove the `quay` subscription, namespace, and application entry from `values-hub.yaml` before reinstalling. Quay was replaced by the OpenShift internal registry for scaffolded NeuroFace builds. See the link:../troubleshooting/#quay-removed-use-openshift-internal-registry[Troubleshooting] section for details.
+====
+
 == Preparing your environment
 
 === Cloning the pattern repository
@@ -197,13 +202,16 @@ Both namespaces should show pods in `Running` state with `READY` columns showing
 
 === Collect the east spoke API token
 
-Generate a long-lived token for RHACM auto-import on the hub. The pattern automatically creates a `acm-import` ServiceAccount with `cluster-admin` in `kube-system` (via the `platform-users` chart at wave 0), so you only need to generate the token:
+Generate a long-lived token for RHACM auto-import on the hub. The pattern automatically creates an `acm-import` ServiceAccount with `cluster-admin` in `kube-system` (via the `platform-users` chart at wave 0). Verify it exists before generating the token:
 
 [source,bash]
 ----
+$ oc get sa acm-import -n kube-system   # must exist before generating token
 $ oc create token -n kube-system acm-import --duration=87600h
 $ oc whoami --show-server
 ----
+
+WARNING: The `--duration=87600h` (10 years) creates a long-lived token required by RHACM for persistent spoke management. *Never commit this token to Git.* Store it exclusively in `~/values-secret-ia-computer-vision.yaml` (which is in `.gitignore`) or inject it via the Pattern CR `extraParameters`. After installation completes, consider rotating the token using `oc create token` with a shorter duration and updating Vault.
 
 Record the token and API URL (`https://api.<east_domain>:6443`) in `~/values-secret-ia-computer-vision.yaml` under `spoke-credentials` as `east-token` and `east-api-url`.
 
