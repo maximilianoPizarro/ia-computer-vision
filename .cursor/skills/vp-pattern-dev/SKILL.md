@@ -174,7 +174,7 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 - **RHBK**: The `rhbk-credentials` secret must include both `admin-password` and `db-password` fields.
 - **Skupper console link**: Points to hub but Skupper only runs on spokes. The hub console link will always show 503.
 
-## Lessons learned from installation (Jun 2026)
+## Lessons learned from installation and software template launch (Jun 2026)
 
 ### OperatorGroup install modes
 Operators like RHCL and Cluster Observability Operator do NOT support `OwnNamespace` install mode. Spoke namespaces for these operators MUST declare `operatorGroup: true` + `targetNamespaces: []` (AllNamespaces mode). Without this, CSVs fail with `OwnNamespace InstallModeType not supported`.
@@ -208,9 +208,61 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/gitlab-credentials root-pass
 oc exec vault-0 -n vault -- vault kv put secret/hub/rhbk-credentials admin-password="$(openssl rand -base64 16)" db-password="$(openssl rand -base64 16)"
 oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets session-secret="$(openssl rand -base64 32)" gitlab-token="placeholder"
 oc exec vault-0 -n vault -- vault kv put secret/hub/maas-credentials api-key="placeholder"
-oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets session-secret="$(openssl rand -base64 32)" gitlab-token="<GITLAB_PAT>"
 ```
 After loading, force ESO refresh: `oc annotate externalsecret -n keycloak-system --all force-sync=$(date +%s) --overwrite`
+Note: `gitlab-token` can stay as `placeholder` — the `gitlab-token-setup` PostSync job (developer-hub chart) auto-creates a PAT and patches both the K8s Secret and Vault.
+
+### GitLab external URL (`gitlab-gitlab.apps` vs `gitlab.apps`)
+The GitLab operator creates an Ingress with hostname `gitlab-gitlab.apps.<domain>` (from `hostSuffix: gitlab`). OpenShift translates this into a Route, but WITHOUT TLS termination by default. HTTPS git push to `gitlab-gitlab.apps` returns **503** (OpenShift "Application not available" page).
+**Fix**: Set `global.hosts.gitlab.name` in the GitLab CR to `gitlab.apps.<domain>` (via Helm helper `gitlab-operator.host`). This overrides the auto-generated hostname so clone URLs (http_url_to_repo) use the working `gitlab.apps` route. Also add `route.openshift.io/termination: edge` in ingress annotations. The custom `route-gitlab-apps.yaml` uses the same helper and has TLS edge termination.
+
+### RHDH scaffolder `publish:gitlab` input schema
+The RHDH dynamic plugin `backstage-plugin-scaffolder-backend-module-gitlab-dynamic` does NOT accept `description` or `repoVisibility` as top-level inputs. These must go under `settings`:
+```yaml
+action: publish:gitlab
+input:
+  repoUrl: "gitlab.apps.{{ domain }}?owner=group&repo=name"
+  defaultBranch: main
+  settings:
+    description: "Project description"
+    visibility: public
+```
+Using top-level `description` causes `InputError: instance is not allowed to have the additional property "description"`.
+
+### RHDH GitLab token lifecycle (stale pod token)
+ESO syncs the GitLab PAT from Vault into the `developer-hub-oidc-auth` Secret, but the RHDH pod only reads `GITLAB_TOKEN` at startup (`envFrom`). If the Secret updates after the pod starts, the pod keeps the old (possibly placeholder) value until restarted. The `gitlab-token-setup` PostSync job now:
+1. Checks if the Secret token is valid (GitLab API 200)
+2. Compares the Secret token with the running pod's `GITLAB_TOKEN` env var
+3. If they differ, restarts the `backstage-developer-hub` deployment
+4. If no valid token exists, creates a new PAT via `gitlab-rails runner`
+5. Patches both the K8s Secret AND Vault (`secret/hub/developer-hub-secrets gitlab-token`)
+6. Restarts RHDH to load the new token
+
+This eliminates the manual step of patching Vault after GitLab deploys.
+
+### ApplicationSet SSH_AUTH_SOCK error
+When `user-neuroface-apps` ApplicationSet finds repos via scmProvider but they are marked for deletion (`deletion_scheduled`), ArgoCD tries to clone them and fails with `error creating SSH agent: SSH_AUTH_SOCK not-specified`. This is transient — it resolves when the repos finish deletion or new repos are created.
+
+### GitOpsCluster placement namespace
+The `GitOpsCluster` CR MUST be in `openshift-gitops` (same namespace as the ACM `Placement`), NOT in `vp-gitops`. But `spec.argoServer.argoNamespace` MUST point to `vp-gitops` (where the VP-managed ArgoCD instance lives). Without this split, ArgoCD never discovers spoke clusters.
+
+### ExternalSecret API version
+Use `external-secrets.io/v1` (not `v1beta1`). The ESO operator on OCP 4.20 does not serve `v1beta1` by default. Using the wrong version causes `no matches for kind "ExternalSecret"`.
+
+### Gateway API HA replicas
+Istio Gateway API does not support `spec.replicas` directly. Use `spec.infrastructure.parametersRef` pointing to a ConfigMap:
+```yaml
+spec:
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: neuroface-gateway-infrastructure
+```
+The ConfigMap contains `deployment: | spec: replicas: 2`. This works on both hub and spokes.
+
+### OwnerPicker entity ref format
+The Backstage `OwnerPicker` field returns `user:default/user1`, not `user1`. Use the Nunjucks filter `parseEntityRef | pick('name')` throughout the template to extract just the username. Without this, repo names and namespaces contain `user-default-user1` instead of `user1`.
 
 ## Key constraints
 
@@ -220,6 +272,39 @@ After loading, force ESO refresh: `oc annotate externalsecret -n keycloak-system
 - ArgoCD: hub needs 12Gi controller memory via `openshift-gitops` chart
 - Community plugins: disable in `configmap-dynamic-plugins-rhdh.yaml` any `backstage-community-plugin-*` not in the RHDH image
 - API catalog: `workshop-kuadrant-apis.yaml` and `public-apis.yaml` use `__SPEC__` placeholders injected by `catalog-kuadrant-apis.yaml` and `catalog-public-apis.yaml` templates
+
+## Day-1 automation checklist (fresh install)
+
+Everything below happens automatically via sync waves and PostSync jobs. The only manual input is `spoke-credentials` tokens.
+
+1. **Wave 0**: `platform-users` creates `acm-import` SA with `cluster-admin` on spokes
+2. **Wave 2**: Vault initializes, ESO creates `ClusterSecretStore vault-backend`, secrets auto-generated
+3. **Wave 3**: GitLab deploys with correct external URL (`gitlab.apps.<domain>` via helper)
+4. **Wave 4**: Developer Hub deploys with `GITLAB_TOKEN=placeholder`
+   - **PostSync**: `gitlab-token-setup` job creates GitLab root PAT via rails, patches Secret + Vault, restarts RHDH
+5. **Wave 5**: Service Mesh (Istio ambient), Skupper VAN, Showroom
+6. **Wave 6**: Gateway HA (2 replicas via ConfigMap parametersRef), ACM hub-spoke auto-import
+7. **Wave 4 (ongoing)**: ApplicationSet `user-neuroface-apps` discovers `neuroface-*` GitLab repos, deploys to spokes
+
+### Post-install verification
+```bash
+# GitLab PAT working
+TOKEN=$(oc get secret developer-hub-oidc-auth -n developer-hub -o jsonpath='{.data.GITLAB_TOKEN}' | base64 -d)
+curl -skS -o /dev/null -w "%{http_code}" -H "PRIVATE-TOKEN: $TOKEN" "https://gitlab.apps.$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')/api/v4/user"
+# Expected: 200
+
+# Clone URL correct (not gitlab-gitlab.apps)
+curl -skS -X POST -H "PRIVATE-TOKEN: $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"test","namespace_id":69}' \
+  "https://gitlab.apps.$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')/api/v4/projects" \
+  | grep -o '"http_url_to_repo":"[^"]*"'
+# Expected: "http_url_to_repo":"https://gitlab.apps.<domain>/ws-workshop/test.git"
+# (delete test project after)
+
+# Spokes registered
+oc get gitopscluster hub-spoke-gitops -n openshift-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementResolved")].message}'
+# Expected: Successfully resolved 2 managed clusters from placement
+```
 
 ## Reference plan
 

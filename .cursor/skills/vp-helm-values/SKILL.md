@@ -265,6 +265,14 @@ The Vault path follows the convention `secret/data/hub/{secret-name}` where `{se
 | 7 | IDE | devspaces |
 | 10 | Console UI | console-links |
 
+11. **GitLab operator external URL**: The GitLab CR `global.hosts.hostSuffix: gitlab` generates hostname `gitlab-gitlab.apps.<domain>`. The operator Ingress->Route translation creates a Route WITHOUT TLS. HTTPS to this hostname returns 503. Override with `global.hosts.gitlab.name: gitlab.apps.<domain>` (via `gitlab-operator.host` Helm helper) and add `route.openshift.io/termination: edge` in `global.ingress.annotations`.
+12. **RHDH publish:gitlab settings**: The RHDH GitLab scaffolder module does NOT accept `description` or `repoVisibility` as top-level inputs. Use `settings.description` and `settings.visibility` instead. Top-level `description` causes `InputError: instance is not allowed to have the additional property`.
+13. **PostSync jobs with cross-namespace RBAC**: ArgoCD apps with `destinations: *` in their project CAN create Roles/RoleBindings in other namespaces (e.g., `developer-hub` app creating RBAC in `vault` and `gitlab-system`). Verify the ArgoCD project allows `*` destinations. Use `argocd.argoproj.io/sync-wave: "1"` on RBAC resources so they exist before the Job (wave 8) runs.
+14. **ExternalSecret v1 vs v1beta1**: Use `external-secrets.io/v1` on OCP 4.20+. The `v1beta1` API is not served by default.
+15. **Gateway HA via parametersRef**: Istio Gateway API ignores `spec.replicas`. Use `spec.infrastructure.parametersRef` pointing to a ConfigMap with `deployment: | spec: replicas: N`.
+16. **ApplicationSet scmProvider SSH error**: When GitLab repos are in `deletion_scheduled` state, ArgoCD scmProvider tries to clone them and fails with `SSH_AUTH_SOCK not-specified`. This is transient and self-resolves when repos finish deletion.
+17. **Vault root token path**: VP Vault chart stores the root token at `/vault/data/root-token` inside the `vault-0` pod. Use this for automated `vault kv patch` operations from PostSync jobs.
+
 ## Porting from hybrid-mesh-platform
 
 When porting charts from hybrid-mesh-platform:
