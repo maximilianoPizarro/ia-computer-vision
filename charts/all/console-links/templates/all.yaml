@@ -225,23 +225,9 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://kafka-console-neuroface-cv.{{ .Values.eastDomain | default "east.example.com" }}"
+  href: "https://kafka-console-neuroface-cv.{{ $domain }}"
   location: ApplicationMenu
-  text: "Kafka Console (east)"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
-  name: platform-kafka-west
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://kafka-console-neuroface-cv.{{ .Values.westDomain | default "west.example.com" }}"
-  location: ApplicationMenu
-  text: "Kafka Console (west)"
+  text: "Kafka Console"
 {{- else }}
 ---
 apiVersion: console.openshift.io/v1
