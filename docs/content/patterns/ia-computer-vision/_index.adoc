@@ -108,7 +108,7 @@ This pattern solves the challenge of running *secure, observable AI inference at
 
 The hub cluster orchestrates fleet management, secrets, developer experience, and the external API gateway. East and west spokes run the actual inference workloads behind Istio ambient mesh.
 
-link:../architecture/[Read the full architecture document &rarr;]
+link:architecture/[Read the full architecture document &rarr;]
 
 == Technology stack
 
@@ -144,22 +144,22 @@ link:../architecture/[Read the full architecture document &rarr;]
 |===
 | Guide | Description
 
-| link:../getting-started/[Getting started]
+| link:getting-started/[Getting started]
 | Install and verify hub, east, and west clusters
 
-| link:../architecture/[Architecture]
+| link:architecture/[Architecture]
 | Topology, traffic flow, security, and GitOps design decisions
 
-| link:../cluster-sizing/[Cluster sizing]
+| link:cluster-sizing/[Cluster sizing]
 | AWS instance types, resource requirements, and network ports
 
-| link:../workshop/[Workshop mode]
+| link:workshop/[Workshop mode]
 | Enable 30 lab users with Showroom guide
 
-| link:../ideas-for-customization/[Ideas for customization]
+| link:ideas-for-customization/[Ideas for customization]
 | Extend the pattern for your environment
 
-| link:../troubleshooting/[Troubleshooting]
+| link:troubleshooting/[Troubleshooting]
 | Diagnose common installation and runtime issues
 |===
 
