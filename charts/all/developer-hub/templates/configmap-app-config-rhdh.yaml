@@ -61,16 +61,14 @@ data:
               serviceAccountToken: ${K8S_SA_TOKEN}
               skipTLSVerify: true
               caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-{{- if and .Values.kubernetesSpokes.enabled (.Values.kubernetesSpokes.east.apiUrl | default "") }}
+{{- if .Values.kubernetesSpokes.enabled | default false }}
             - name: east
-              url: {{ .Values.kubernetesSpokes.east.apiUrl | quote }}
+              url: ${EAST_API_URL}
               authProvider: serviceAccount
               serviceAccountToken: ${EAST_SA_TOKEN}
               skipTLSVerify: true
-{{- end }}
-{{- if and .Values.kubernetesSpokes.enabled (.Values.kubernetesSpokes.west.apiUrl | default "") }}
             - name: west
-              url: {{ .Values.kubernetesSpokes.west.apiUrl | quote }}
+              url: ${WEST_API_URL}
               authProvider: serviceAccount
               serviceAccountToken: ${WEST_SA_TOKEN}
               skipTLSVerify: true
