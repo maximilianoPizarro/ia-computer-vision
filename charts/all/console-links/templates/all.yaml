@@ -214,20 +214,6 @@ spec:
   href: "https://showroom-showroom.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Showroom Workshop"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
-  name: platform-kafka-east
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://kafka-console-neuroface-cv.{{ $domain }}"
-  location: ApplicationMenu
-  text: "Kafka Console"
 {{- else }}
 ---
 apiVersion: console.openshift.io/v1
@@ -271,4 +257,18 @@ spec:
   href: "https://rhods-dashboard-redhat-ods-applications.{{ $domain }}"
   location: ApplicationMenu
   text: "OpenShift AI Dashboard"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-kafka-console
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://kafka-console-neuroface-cv.{{ $domain }}"
+  location: ApplicationMenu
+  text: "Kafka Console"
 {{- end }}
