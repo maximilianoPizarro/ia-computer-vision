@@ -31,7 +31,7 @@ data:
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
-      - package: ./dynamic-plugins/dist/backstage-community-plugin-ocm-backend-dynamic
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-ocm-backend-dynamic:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
         disabled: {{ not (.Values.plugins.ocm.enabled | default true) }}
         pluginConfig:
           catalog:
@@ -46,7 +46,7 @@ data:
                   schedule:
                     frequency: { minutes: 15 }
                     timeout: { minutes: 10 }
-      - package: ./dynamic-plugins/dist/backstage-community-plugin-ocm
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-ocm:{{ .Values.plugins.ocm.pluginTag | default "bs_1.45.3__5.11.1" }}
         disabled: {{ not (.Values.plugins.ocm.enabled | default true) }}
         pluginConfig:
           dynamicPlugins:
@@ -90,7 +90,7 @@ data:
                         allOf:
                           - isKind: resource
                           - isType: kubernetes-cluster
-      - package: ./dynamic-plugins/dist/backstage-community-plugin-rbac
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-rbac:{{ .Values.plugins.rbac.pluginTag | default "bs_1.45.3__1.47.4" }}
         disabled: {{ not (.Values.plugins.rbac.enabled | default false) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
         disabled: false
@@ -121,7 +121,7 @@ data:
       # Disabled: package missing in RHDH 1.9 image (npm pack ENOENT). Use redhat-argocd plugin instead.
       - package: ./dynamic-plugins/dist/backstage-community-plugin-argocd
         disabled: true
-      - package: ./dynamic-plugins/dist/backstage-community-plugin-topology
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-topology:{{ .Values.plugins.topology.pluginTag | default "bs_1.45.3__2.9.4" }}
         disabled: {{ not (.Values.plugins.topology.enabled | default true) }}
         pluginConfig:
           dynamicPlugins:
@@ -235,7 +235,7 @@ data:
                       if:
                         allOf:
                           - hasAnnotation: kuadrant.io/api-product
-      - package: ./dynamic-plugins/dist/backstage-community-plugin-tekton
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-tekton:{{ .Values.plugins.tekton.pluginTag | default "bs_1.45.3__3.33.3" }}
         disabled: {{ not (.Values.plugins.tekton.enabled | default true) }}
         pluginConfig:
           dynamicPlugins:
@@ -345,7 +345,7 @@ data:
                     importName: EntitySecurityInsightsContent
       - package: ./dynamic-plugins/dist/roadiehq-scaffolder-backend-module-http-request-dynamic
         disabled: false
-      - package: ./dynamic-plugins/dist/backstage-community-plugin-catalog-backend-module-keycloak-dynamic
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-catalog-backend-module-keycloak:{{ .Values.plugins.keycloakCatalog.pluginTag | default "bs_1.45.3__3.16.0" }}
         disabled: {{ not (.Values.plugins.keycloakCatalog.enabled | default true) }}
         pluginConfig:
           catalog:
