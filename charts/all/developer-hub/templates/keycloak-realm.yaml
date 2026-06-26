@@ -1,11 +1,13 @@
 {{- /*
   Backstage realm on the cluster Keycloak instance (namespace keycloak-system).
-  OIDC client secret is injected via KeycloakRealmImport placeholders from
-  developer-hub-oidc-client (Vault/ESO). Workshop users user1..userN share
-  password with htpasswd/GitLab (default Welcome123!).
+  OIDC client secret comes from values (keycloakOidcClientSecret) which is
+  injected by Vault/ESO or set via helm override. Must match the secret in
+  developer-hub-oidc-auth used by RHDH.
+  Workshop users user1..userN share password with htpasswd/GitLab (default Welcome123!).
 */ -}}
 {{- $count := int (.Values.userCount | default 50) }}
 {{- $password := .Values.defaultPassword | default "Welcome123!" }}
+{{- $oidcSecret := .Values.keycloakOidcClientSecret | default "backstage-default-oidc-secret" }}
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakRealmImport
 metadata:
@@ -15,11 +17,6 @@ metadata:
     argocd.argoproj.io/sync-wave: "5"
 spec:
   keycloakCRName: {{ include "developer-hub.keycloakCrName" . }}
-  placeholders:
-    OIDC_CLIENT_SECRET:
-      secret:
-        name: developer-hub-oidc-client
-        key: OIDC_CLIENT_SECRET
   realm:
     realm: backstage
     enabled: true
@@ -43,7 +40,7 @@ spec:
         name: Developer Hub
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: $(OIDC_CLIENT_SECRET)
+        secret: {{ $oidcSecret | quote }}
         redirectUris:
           - "https://developer-hub.{{ include "developer-hub.clusterDomain" . }}/api/auth/oidc/handler/frame"
         webOrigins:
