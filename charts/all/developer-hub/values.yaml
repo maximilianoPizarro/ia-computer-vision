@@ -6,6 +6,7 @@ keycloak:
   namespace: keycloak-system
   crName: keycloak
   serviceName: keycloak-service-serving
+keycloakOidcClientSecret: "rhdh-oidc-2026-ia-cv-pattern"
 oidcAuth:
   useVault: true
   vaultKey: secret/data/hub/developer-hub-secrets
