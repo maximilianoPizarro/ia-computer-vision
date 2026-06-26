@@ -16,6 +16,6 @@
 {{- if .Values.ppeKafkaMailpit.neurofaceUrl -}}
 {{- .Values.ppeKafkaMailpit.neurofaceUrl -}}
 {{- else -}}
-{{- printf "https://neuroface-gateway.%s" (include "mailpit.clusterDomainBase" .) -}}
+{{- printf "https://neuroface.%s" (include "mailpit.clusterDomain" .) -}}
 {{- end -}}
 {{- end -}}
