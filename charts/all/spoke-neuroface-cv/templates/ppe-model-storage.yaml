@@ -1,9 +1,46 @@
 {{- $ms := .Values.yoloPpeServing.modelStorage | default dict -}}
 {{- $endpoint := include "spoke-neuroface-cv.minioEndpoint" . -}}
 {{- $bucket := $ms.bucket | default "models" -}}
-{{- $accessKey := $ms.accessKeyId | default "minio" -}}
-{{- $secretKey := $ms.secretAccessKey | default "minio123" -}}
----
+{{- if $ms.useVault | default false }}
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: aws-connection-ppe-models
+  namespace: neuroface-cv
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: aws-connection-ppe-models
+    template:
+      metadata:
+        labels:
+          opendatahub.io/dashboard: "true"
+          opendatahub.io/managed: "true"
+        annotations:
+          opendatahub.io/connection-type: s3
+          openshift.io/display-name: PPE models (MinIO)
+      data:
+        AWS_ACCESS_KEY_ID: "{{ "{{ .accesskey }}" }}"
+        AWS_SECRET_ACCESS_KEY: "{{ "{{ .secretkey }}" }}"
+        AWS_DEFAULT_REGION: {{ $ms.region | default "us-east-1" | quote }}
+        AWS_S3_BUCKET: {{ $bucket | quote }}
+        AWS_S3_ENDPOINT: {{ $endpoint | quote }}
+  data:
+    - secretKey: accesskey
+      remoteRef:
+        key: {{ $ms.vaultKey | default "secret/data/hub/minio-credentials" }}
+        property: accesskey
+    - secretKey: secretkey
+      remoteRef:
+        key: {{ $ms.vaultKey | default "secret/data/hub/minio-credentials" }}
+        property: secretkey
+{{- else }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -18,8 +55,9 @@ metadata:
     openshift.io/display-name: PPE models (MinIO)
 type: Opaque
 stringData:
-  AWS_ACCESS_KEY_ID: {{ $accessKey | quote }}
-  AWS_SECRET_ACCESS_KEY: {{ $secretKey | quote }}
+  AWS_ACCESS_KEY_ID: {{ $ms.accessKeyId | default "minio" | quote }}
+  AWS_SECRET_ACCESS_KEY: {{ $ms.secretAccessKey | default "minio123" | quote }}
   AWS_DEFAULT_REGION: {{ $ms.region | default "us-east-1" | quote }}
   AWS_S3_BUCKET: {{ $bucket | quote }}
   AWS_S3_ENDPOINT: {{ $endpoint | quote }}
+{{- end }}

@@ -38,9 +38,10 @@ spec:
         h2UpgradePolicy: {{ $cpHttp.h2UpgradePolicy | default "DO_NOT_UPGRADE" }}
         maxRequestsPerConnection: {{ $cpHttp.maxRequestsPerConnection | default 10 }}
     outlierDetection:
-      consecutive5xxErrors: {{ $od.consecutive5xxErrors | default 3 }}
-      interval: {{ $od.interval | default "10s" }}
-      baseEjectionTime: {{ $od.baseEjectionTime | default "30s" }}
+      consecutive5xxErrors: {{ $od.consecutive5xxErrors | default 1 }}
+      consecutiveGatewayErrors: {{ $od.consecutiveGatewayErrors | default 1 }}
+      interval: {{ $od.interval | default "5s" }}
+      baseEjectionTime: {{ $od.baseEjectionTime | default "60s" }}
       maxEjectionPercent: {{ $od.maxEjectionPercent | default 100 }}
 {{- end }}
 {{- end }}
