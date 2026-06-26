@@ -1,3 +1,4 @@
+{{- $gitlabNs := include "developer-hub.gitlabNamespace" . -}}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -43,7 +44,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: gitlab-token-setup-exec-toolbox
-  namespace: gitlab
+  namespace: {{ $gitlabNs }}
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 rules:
@@ -59,7 +60,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: gitlab-token-setup-exec-toolbox
-  namespace: gitlab
+  namespace: {{ $gitlabNs }}
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 roleRef:
@@ -92,6 +93,8 @@ spec:
           env:
             - name: GITLAB_API
               value: "https://{{ include "developer-hub.gitlabHost" . }}/api/v4"
+            - name: GITLAB_NAMESPACE
+              value: {{ $gitlabNs | quote }}
             - name: RHDH_NAMESPACE
               value: developer-hub
             - name: RHDH_DEPLOYMENT
@@ -103,8 +106,8 @@ spec:
             - -c
             - |
               set -euo pipefail
-              if ! oc get deploy gitlab-toolbox -n gitlab -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q '^1$'; then
-                echo "SKIP: GitLab toolbox not ready yet"
+              if ! oc get deploy gitlab-toolbox -n "${GITLAB_NAMESPACE}" -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q '^1$'; then
+                echo "SKIP: GitLab toolbox not ready yet in ${GITLAB_NAMESPACE}"
                 exit 0
               fi
 
@@ -123,7 +126,7 @@ spec:
                 echo "No valid GITLAB_TOKEN — creating personal access token for root..."
               fi
 
-              RAILS_OUT=$(oc exec -n gitlab deploy/gitlab-toolbox -c toolbox -- gitlab-rails runner "
+              RAILS_OUT=$(oc exec -n "${GITLAB_NAMESPACE}" deploy/gitlab-toolbox -c toolbox -- gitlab-rails runner "
                 root = User.find_by(username: 'root') || User.admins.first
                 pat_name = 'developer-hub'
                 root.personal_access_tokens.where(name: pat_name).find_each(&:revoke!)
@@ -146,4 +149,4 @@ spec:
               echo "Patched ${OIDC_SECRET} with GITLAB_TOKEN."
 
               oc rollout restart "deployment/${RHDH_DEPLOYMENT}" -n "${RHDH_NAMESPACE}"
-              echo "gitlab-token-setup complete."
+              echo "gitlab-token-setup complete. Patch Vault gitlab-token if ApplicationSet scmProvider still returns 401."

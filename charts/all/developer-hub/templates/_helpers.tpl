@@ -71,6 +71,10 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "developer-hub.gitlabNamespace" -}}
+{{- .Values.gitlab.namespace | default "gitlab-system" -}}
+{{- end -}}
+
 {{- define "developer-hub.gitlabHost" -}}
 {{- printf "gitlab.apps.%s" (include "developer-hub.clusterDomainBase" .) -}}
 {{- end -}}

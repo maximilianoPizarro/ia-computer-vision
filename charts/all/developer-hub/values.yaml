@@ -16,6 +16,8 @@ oidcAuth:
 devspacesOidcClientSecret: ""
 gitlabToken: ""
 sessionSecret: ""
+gitlab:
+  namespace: gitlab-system
 quayDockerConfigJson: ""
 rhacsApiToken: ""
 pluginReadiness:

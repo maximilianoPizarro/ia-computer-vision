@@ -336,6 +336,15 @@ spec:
       value: "<WEST_SA_TOKEN>"          # <3>
     - name: spokeCredentials.clusters.west.apiUrl
       value: "https://api.<WEST_DOMAIN>:6443"   # <4>
+    # Developer Hub: same spoke apiUrl keys for AI CV software-template spoke domain defaults
+    - name: clusterGroup.applications.developer-hub.overrides[8].name
+      value: spokeCredentials.clusters.east.apiUrl
+    - name: clusterGroup.applications.developer-hub.overrides[8].value
+      value: "https://api.<EAST_DOMAIN>:6443"
+    - name: clusterGroup.applications.developer-hub.overrides[9].name
+      value: spokeCredentials.clusters.west.apiUrl
+    - name: clusterGroup.applications.developer-hub.overrides[9].value
+      value: "https://api.<WEST_DOMAIN>:6443"
 ----
 <1> Long-lived cluster-admin token from east (SA created automatically by the pattern): `oc create token -n kube-system acm-import --duration=87600h`
 <2> East API server URL from `oc whoami --show-server`
