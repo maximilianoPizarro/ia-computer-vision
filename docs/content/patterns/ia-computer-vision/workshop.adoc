@@ -61,8 +61,10 @@ Showroom module 02 walks through the AI Computer Vision software template journe
 . Open **Create** → **AI Computer Vision at the Edge**
 . Select target spoke (east or west) and confirm hub/spoke apps domains
 . Submit — the scaffolder creates a GitLab repo in `ws-workshop/neuroface-userN`
-. Argo CD ApplicationSet on the spoke discovers the repo and deploys `k8s/` manifests
+. Argo CD ApplicationSet on the **hub** (`vp-gitops`) discovers the repo and deploys `k8s/` manifests to the selected spoke
 . Verify ApplicationSet: `oc get applicationset -n vp-gitops user-neuroface-apps`
+
+For operator interaction diagrams and expected results, see link:../scaffolding-and-secrets/[Scaffolding and secrets].
 . Open your catalog entity → tab **API** → NeuroFace OpenAPI spec with **Try It Out**
 . Click **Open in DevSpaces** to edit NeuroFace source
 . Tab **CI** shows Tekton pipeline run status (when Tekton plugin is enabled)

@@ -128,7 +128,7 @@ East and west spokes run identical software stacks. Helm overrides set `clusterN
 
 === Per-user NeuroFace scaffolding (workshop)
 
-Developer Hub software template `ai-computer-vision` scaffolds a GitLab repo in the shared `ws-workshop` group. An Argo CD ApplicationSet on each spoke watches for repos matching `neuroface-*` and deploys manifests from the `k8s/` directory.
+Developer Hub software template `ai-computer-vision` scaffolds a GitLab repo in the shared `ws-workshop` group. An Argo CD ApplicationSet on the **hub** (`vp-gitops`) watches for repos matching `neuroface-*` and deploys manifests from the `k8s/` directory to the spoke named in `k8s/target-cluster.yaml`. See link:../scaffolding-and-secrets/[Scaffolding and secrets] for the full operator flow.
 
 Each user namespace (`neuroface-userN`) contains:
 
@@ -236,9 +236,13 @@ The pattern implements defense in depth across four layers.
 
 === Secrets management
 
+image::scaffolding-vault-eso-flow.png[Vault and ESO flow — from values-secret to OpenShift Secret,align="center",width=100%]
+
 * **Vault** stores auto-generated credentials (GitLab root password, Keycloak admin password, Developer Hub session secret) and user-provided secrets (GitLab PAT, MaaS API key).
 * **ESO** projects Vault secrets into Kubernetes `Secret` objects consumed by operators and applications. The mapping is defined in `ExternalSecret` CRs within each chart.
 * **No secrets in Git**: Only `ExternalSecret` references are committed. Actual secret values live in Vault and are synced at deploy time.
+
+For operator interaction diagrams, scaffolder module descriptions, and expected results, see link:../scaffolding-and-secrets/[Scaffolding and secrets].
 
 === Runtime security
 

@@ -1,35 +1,43 @@
-# Hybrid Mesh Platform — Workshop Onboarding
+# Workshop onboarding — AI Computer Vision
 
-Welcome to the **hub-spoke Industrial Edge** demo on OpenShift 4.20.
+Welcome to the **AI Computer Vision at the Edge** workshop on OpenShift 4.20+.
 
 ## What you get
 
 | Capability | Where |
 |------------|--------|
-| Developer Hub (scaffolder, catalog, topology) | `https://developer-hub.<hub-apps-domain>` |
-| GitLab org per user | `ws-<username>` on hub GitLab |
-| DevSpaces (east or west) | Chosen when you run a template |
-| Internal Quay registry | Org `workshop` — images from Tekton |
-| ACM, Kiali, Skupper | OpenShift console (hub) + entity links |
+| Developer Hub (scaffolder, catalog, plugins) | `https://developer-hub.apps.<hub-domain>` |
+| AI CV software template | **Create** → **AI Computer Vision at the Edge** |
+| GitLab repos | Group `ws-workshop` — `neuroface-<username>` |
+| DevSpaces | Hub or spoke URL from catalog entity link |
+| NeuroFace + RHBK (per user) | Spoke gateway `/user/<you>/` |
+| ACM, Kiali, Skupper | Developer Hub entity tabs + OpenShift console |
 
 ## Architecture
 
 ```text
-Hub (ACM, GitOps, GitLab, Quay, Developer Hub)
-  ├── East spoke — Industrial Edge, DevSpaces, mesh
-  └── West spoke — Industrial Edge, DevSpaces, mesh
+Hub (ACM, GitOps, Vault, ESO, GitLab, Developer Hub, OpenShift AI)
+  ├── East spoke — NeuroFace gateway, PPE/YOLO, mesh, user namespaces
+  └── West spoke — NeuroFace gateway, PPE/YOLO, mesh, user namespaces
 ```
+
+Platform secrets flow: **Vault → ESO → OpenShift Secret → Pods** (never stored in Git).
 
 ## Quick start
 
 1. Read [Login](login.md) — credentials and URLs.
-2. Open **Developer Hub** → **Create** → **Industrial Edge** template.
-3. Pick **east** or **west**; your repo lands in GitLab and deploys via Argo CD.
-4. Use **Open in DevSpaces** on the catalog entity (spoke DevSpaces URL).
-5. See [Pipelines and Quay](pipelines.md) for builds; [Observability](observability.md) for ACM/Kiali/Skupper.
+2. Read [AI Computer Vision scaffolding](ai-computer-vision-scaffolding.md) — template journey and expected results.
+3. Open **Developer Hub** → **Create** → **AI Computer Vision at the Edge**.
+4. Pick **east** or **west**; your repo deploys via Argo CD ApplicationSet.
+5. Open catalog entity links: NeuroFace gateway, RHBK admin, DevSpaces, Tekton.
+6. Optional: [Vault and ESO](vault-eso-secrets.md) for operators; [Kuadrant MaaS keys](kuadrant-apis.md) for chat.
 
 ## Workshop users
 
-- Users: `user1` … `user50` (up to `user200` if enabled by admins)
+- Users: `user1` … `user30` (extend via `userCount` in values)
 - Password (demo): `Welcome123!`
-- Same password for: OpenShift console (htpasswd), Developer Hub (Keycloak), GitLab, DevSpaces on the spoke where you work
+- Same password for: OpenShift (htpasswd), Developer Hub (Keycloak), GitLab, RHBK user in your instance
+
+## Legacy Industrial Edge template
+
+The **Industrial Edge** templates remain available for multi-cluster IoT demos. See [Create a component (Industrial Edge)](create-component.md).

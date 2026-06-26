@@ -144,6 +144,9 @@ link:architecture/[Read the full architecture document &rarr;]
 |===
 | Guide | Description
 
+| link:scaffolding-and-secrets/[Scaffolding and secrets]
+| Software template operator flow and Vault/ESO → OpenShift Secret
+
 | link:getting-started/[Getting started]
 | Install and verify hub, east, and west clusters
 

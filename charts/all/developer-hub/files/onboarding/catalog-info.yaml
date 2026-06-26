@@ -3,7 +3,7 @@ kind: Component
 metadata:
   name: workshop-onboarding
   title: Workshop Onboarding
-  description: Getting started with Hybrid Mesh Platform — login, scaffolder, DevSpaces, Quay, observability
+  description: Getting started with AI Computer Vision — scaffolder, Vault/ESO secrets, DevSpaces, observability
   annotations:
     backstage.io/techdocs-ref: dir:.
   links:

@@ -46,6 +46,9 @@ menu:
     - name: Architecture
       url: /patterns/ia-computer-vision/architecture/
       weight: 30
+    - name: Scaffolding and secrets
+      url: /patterns/ia-computer-vision/scaffolding-and-secrets/
+      weight: 32
     - name: Ideas for customization
       url: /patterns/ia-computer-vision/ideas-for-customization/
       weight: 35

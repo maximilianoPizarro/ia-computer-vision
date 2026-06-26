@@ -118,7 +118,7 @@ For automated spoke import, install east and west *before* the hub and fill `spo
 You can skip editing optional secrets for a first deployment. Vault auto-generates GitLab, Keycloak, and Developer Hub secrets. You must provide `spoke-credentials` before hub install unless you import spokes manually (see xref:#importing-spoke-clusters-into-rhACM[Importing spoke clusters into RHACM]).
 ====
 
-For details on how Vault and ESO manage secrets in Validated Patterns, see link:https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/[Validated Patterns secrets management].
+For details on how Vault and ESO manage secrets in Validated Patterns, see link:https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/[Validated Patterns secrets management] and link:../scaffolding-and-secrets/[Scaffolding and secrets — operator flows and expected results].
 
 === Setting the active cluster context
 
