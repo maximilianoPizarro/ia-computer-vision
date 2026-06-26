@@ -75,6 +75,10 @@
 {{- printf "gitlab.apps.%s" (include "developer-hub.clusterDomainBase" .) -}}
 {{- end -}}
 
+{{- define "developer-hub.gitlabApiUrl" -}}
+{{- printf "https://%s/api/v4" (include "developer-hub.gitlabHost" .) -}}
+{{- end -}}
+
 {{- define "developer-hub.platformContentBaseUrl" -}}
 {{- printf "https://%s/developer-hub/platform-content" (include "developer-hub.gitlabHost" .) -}}
 {{- end -}}
@@ -128,4 +132,30 @@
 {{- define "developer-hub.kialiEndpoint" -}}
 {{- $k := .Values.plugins.kiali | default dict -}}
 {{- $k.endpoint | default (printf "https://kiali-openshift-cluster-observability-operator.%s" (include "developer-hub.clusterDomain" .)) -}}
+{{- end -}}
+
+{{/*
+  Derive spoke apps domain (without apps. prefix) from OpenShift API URL.
+  Input: https://api.cluster-name.example.com:6443 → cluster-name.example.com
+  Used for software-template defaults; source of truth is spokeCredentials (VP Pattern CR).
+*/}}
+{{- define "developer-hub.spokeDomainFromApiUrl" -}}
+{{- $url := . | default "" | trim -}}
+{{- if $url -}}
+{{- $url = regexReplaceAll "^https?://api\\." $url "" -}}
+{{- $url = regexReplaceAll ":6443/?$" $url "" -}}
+{{- end -}}
+{{- $url -}}
+{{- end -}}
+
+{{- define "developer-hub.spokeDomainEast" -}}
+{{- $sc := .Values.spokeCredentials.clusters.east | default dict -}}
+{{- $d := include "developer-hub.spokeDomainFromApiUrl" ($sc.apiUrl | default "") -}}
+{{- $d | default "cluster-east.example.com" -}}
+{{- end -}}
+
+{{- define "developer-hub.spokeDomainWest" -}}
+{{- $sc := .Values.spokeCredentials.clusters.west | default dict -}}
+{{- $d := include "developer-hub.spokeDomainFromApiUrl" ($sc.apiUrl | default "") -}}
+{{- $d | default "cluster-west.example.com" -}}
 {{- end -}}

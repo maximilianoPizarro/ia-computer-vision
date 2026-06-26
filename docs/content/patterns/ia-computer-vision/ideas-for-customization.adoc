@@ -19,7 +19,7 @@ Workshop users scaffold personal NeuroFace instances via Developer Hub. Each ins
 
 . Scaffolding template: `charts/all/developer-hub/files/software-templates/ai-computer-vision.yaml`
 . Skeleton manifests: `charts/all/developer-hub/files/software-templates/ai-cv-skeleton/k8s/`
-. ApplicationSet: `charts/all/spoke-neuroface/templates/applicationset-user-neuroface.yaml`
+. ApplicationSet: `charts/all/developer-hub/templates/applicationset-user-neuroface.yaml` (hub `vp-gitops`, matrix SCM + `k8s/target-cluster.yaml` → spoke `east`/`west`)
 . Gateway cross-namespace routes: `charts/all/spoke-neuroface/templates/gateway.yaml` (`allowedRoutes.namespaces.from: All`)
 
 === Validation
@@ -27,11 +27,12 @@ Workshop users scaffold personal NeuroFace instances via Developer Hub. Each ins
 [source,bash]
 ----
 $ oc get applicationset -n vp-gitops user-neuroface-apps
-$ oc get application -n vp-gitops | grep neuroface-user
+$ oc get application -n vp-gitops | grep neuroface-
+$ oc get application -n vp-gitops neuroface-user1 -o jsonpath='{.spec.destination.name}{"\n"}'
 $ oc get httproute,authpolicy -n neuroface-user1
 ----
 
-.Expected: ApplicationSet generates one Argo CD Application per `neuroface-*` GitLab repo; HTTPRoute and AuthPolicy exist in the user namespace.
+.Expected: ApplicationSet on the **hub** discovers `ws-workshop/neuroface-*` repos; each Application targets spoke `east` or `west` from `k8s/target-cluster.yaml`; HTTPRoute and AuthPolicy exist in the user namespace.
 
 == Adding a third spoke (south) for a new region
 

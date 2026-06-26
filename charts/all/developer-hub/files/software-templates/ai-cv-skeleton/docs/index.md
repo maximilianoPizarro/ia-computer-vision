@@ -1,0 +1,54 @@
+# NeuroFace ${{ values.owner }}
+
+Personal NeuroFace instance on the **${{ values.spoke }}** spoke with RHBK biometric OIDC.
+
+## After scaffolding
+
+1. Argo CD Application **`${{ values.name }}`** appears in `vp-gitops` (ApplicationSet `user-neuroface-apps`).
+2. Workloads deploy to namespace **`${{ values.namespace }}`** on spoke **`${{ values.spoke }}`**.
+3. Open the catalog entity in Developer Hub for **Kubernetes**, **Topology**, **Kiali**, **Tekton**, **GitLab**, **Argo CD**, and **Docs** tabs.
+
+## Access
+
+| URL | Purpose |
+|-----|---------|
+| `https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}/` | NeuroFace UI (OIDC) |
+| `https://rhbk-${{ values.name }}.${{ values.spokeClusterDomain }}/admin` | RHBK admin |
+| `https://gitlab.apps.${{ values.hubClusterDomain }}/ws-workshop/${{ values.name }}` | GitLab repo |
+
+## MaaS chat
+
+Request an API key: Developer Hub → **Kuadrant** → **workshop-llm-tokens**, or open the **MaaS Chat** API entity → **Kuadrant** tab.
+
+Endpoint: `https://ai-gateway.apps.${{ values.hubClusterDomain }}/v1/chat/completions`
+
+## Tekton builds
+
+The `neuroface-build` Pipeline is created on first sync. Trigger a build manually:
+
+```bash
+oc create -f - <<EOF
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: neuroface-build-
+  namespace: ${{ values.namespace }}
+spec:
+  pipelineRef:
+    name: neuroface-build
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 1Gi
+    - name: dockerconfig
+      emptyDir: {}
+  taskRunTemplate:
+    serviceAccountName: pipeline
+EOF
+```
+
+Populate the `source` workspace with a git clone of this repository before the PipelineRun succeeds (webhook integration is optional).

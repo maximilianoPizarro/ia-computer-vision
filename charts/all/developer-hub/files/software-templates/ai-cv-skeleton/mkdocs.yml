@@ -1,0 +1,7 @@
+site_name: NeuroFace ${{ values.owner }}
+site_description: Personal AI Computer Vision instance on the ${{ values.spoke }} spoke
+nav:
+  - Home: index.md
+  - API: openapi.md
+plugins:
+  - techdocs-core

@@ -451,6 +451,20 @@ $ curl -sk -o /dev/null -w "Developer Hub /kiali: %{http_code}\n" "$HUB/kiali"
 
 OCM and Kiali plugins are enabled by default (`plugins.ocm.enabled`, `plugins.kiali.enabled` in the Developer Hub chart). Argo CD runs PreSync ghcr validation and PostSync route checks automatically; expect HTTP `200` on `/ocm` and `/kiali` after `developer-hub` is Healthy.
 
+=== Step 5b: Verify AI Computer Vision software template (optional)
+
+Run the **AI Computer Vision at the Edge** template as a workshop user, then confirm GitOps and plugin tabs:
+
+[source,bash]
+----
+$ oc get applicationset -n vp-gitops user-neuroface-apps
+$ oc get application -n vp-gitops | grep neuroface-
+$ HUB=https://$(oc get route backstage -n developer-hub -o jsonpath='{.spec.host}')
+# Open Developer Hub → Catalog → entity neuroface-<user> → tabs Kubernetes, Topology, Kiali, Tekton, GitLab, Argo CD, Docs
+----
+
+Set `spokeCredentials.clusters.east.apiUrl` and `spokeCredentials.clusters.west.apiUrl` via Pattern CR `extraParameters` (same keys as `acm-hub-spoke`); Developer Hub derives spoke domains for the AI CV software template from those URLs (`https://api.<domain>:6443` → `<domain>`).
+
 === Step 6: Verify workshop users (if workshop mode is enabled)
 
 [source,bash]

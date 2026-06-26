@@ -1,0 +1,2 @@
+# Argo CD ApplicationSet reads this file to route the GitOps Application to the correct spoke.
+cluster: ${{ values.spoke }}

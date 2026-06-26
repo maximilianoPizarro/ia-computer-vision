@@ -261,6 +261,10 @@ clusterGroup:
           value: "true"
         - name: kubernetesSpokes.enabled
           value: "true"
+        - name: applicationSet.enabled
+          value: "true"
+        # Spoke domains for AI CV template: derived from Pattern CR extraParameters
+        # spokeCredentials.clusters.east.apiUrl / west.apiUrl (same as acm-hub-spoke)
 
     openshift-ai-hub:
       name: openshift-ai-hub

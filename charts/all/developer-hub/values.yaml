@@ -37,9 +37,24 @@ kubernetesSpokes:
     apiUrl: ""
 techdocs:
   githubPagesUrl: "https://maximilianopizarro.github.io/ia-computer-vision/"
-spokeDomains:
-  east: ""
-  west: ""
+# Same schema as acm-hub-spoke — Pattern CR extraParameters spokeCredentials.clusters.*.apiUrl
+# drives ACM import and AI CV software-template spoke domain defaults (no spokeDomains duplicate).
+spokeCredentials:
+  enabled: true
+  mode: vault
+  clusters:
+    east:
+      token: ""
+      apiUrl: ""
+    west:
+      token: ""
+      apiUrl: ""
+applicationSet:
+  enabled: true
+  gitlabGroup: ws-workshop
+  repositoryMatch: "^neuroface-"
+  secretStoreName: vault-backend
+  vaultKey: secret/data/hub/developer-hub-secrets
 plugins:
   # OCI registry for community dynamic plugins (override for Quay mirror)
   registry: ""

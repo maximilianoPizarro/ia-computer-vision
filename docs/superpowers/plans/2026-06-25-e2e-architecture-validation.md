@@ -24,7 +24,7 @@
 ## Variables de entorno (completar al inicio)
 
 ```bash
-export HUB_DOMAIN="apps.<hub>.<domain>"          # ej. apps.cluster-m54ll.m54ll.sandbox2075.opentlc.com
+export HUB_DOMAIN="apps.<hub>.<domain>"          # ej. apps.cluster-name.example.com
 export EAST_DOMAIN="apps.<east>.<domain>"
 export WEST_DOMAIN="apps.<west>.<domain>"
 export HUB_API="https://api.<hub>.<domain>:6443"

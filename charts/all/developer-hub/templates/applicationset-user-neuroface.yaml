@@ -2,26 +2,27 @@
 {{- if .Values.global -}}
 {{- $argoNs = .Values.global.argoNamespace | default $argoNs -}}
 {{- end -}}
-{{- if .Values.applicationSet.enabled }}
+{{- $as := .Values.applicationSet | default dict -}}
+{{- if $as.enabled | default true }}
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: gitlab-scm-token
   namespace: {{ $argoNs }}
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
-    name: {{ .Values.applicationSet.secretStoreName | default "vault-backend" }}
+    name: {{ $as.secretStoreName | default "vault-backend" }}
   target:
     name: gitlab-scm-token
     creationPolicy: Owner
   data:
     - secretKey: token
       remoteRef:
-        key: {{ .Values.applicationSet.vaultKey | default "secret/data/hub/developer-hub-secrets" }}
+        key: {{ $as.vaultKey | default "secret/data/hub/developer-hub-secrets" }}
         property: gitlab-token
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -30,21 +31,28 @@ metadata:
   name: user-neuroface-apps
   namespace: {{ $argoNs }}
   annotations:
-    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
   generators:
-    - scmProvider:
-        gitlab:
-          group: {{ .Values.applicationSet.gitlabGroup | default "ws-workshop" | quote }}
-          cloneProtocol: https
-          api: {{ include "spoke-neuroface.gitlabApiUrl" . | quote }}
-          tokenRef:
-            secretName: gitlab-scm-token
-            key: token
-        filters:
-          - repositoryMatch: {{ .Values.applicationSet.repositoryMatch | default "^neuroface-" | quote }}
+    - matrix:
+        generators:
+          - scmProvider:
+              gitlab:
+                group: {{ $as.gitlabGroup | default "ws-workshop" | quote }}
+                cloneProtocol: https
+                api: {{ include "developer-hub.gitlabApiUrl" . | quote }}
+                tokenRef:
+                  secretName: gitlab-scm-token
+                  key: token
+              filters:
+                - repositoryMatch: {{ $as.repositoryMatch | default "^neuroface-" | quote }}
+          - git:
+              repoURL: "{{`{{ .url }}`}}"
+              revision: HEAD
+              files:
+                - path: k8s/target-cluster.yaml
   template:
     metadata:
       name: "{{`{{ .repository }}`}}"
@@ -54,10 +62,10 @@ spec:
       project: ai
       source:
         repoURL: "{{`{{ .url }}`}}"
-        targetRevision: main
+        targetRevision: HEAD
         path: k8s
       destination:
-        server: https://kubernetes.default.svc
+        name: "{{`{{ .cluster }}`}}"
         namespace: "{{`{{ .repository }}`}}"
       syncPolicy:
         automated:

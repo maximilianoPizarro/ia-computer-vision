@@ -9,10 +9,13 @@ metadata:
   annotations:
     backstage.io/techdocs-ref: dir:.
     backstage.io/source-location: url:${{ values.repoUrl }}
+    backstage.io/kubernetes-namespace: ${{ values.namespace }}
+    backstage.io/kubernetes-cluster: ${{ values.spoke }}
+    backstage.io/kubernetes-id: neuroface-backend
     gitlab.com/project-slug: ws-workshop/${{ values.name }}
     argocd/app-name: ${{ values.name }}
     tekton.dev/pipeline: neuroface-build
-    dev.azure.com/project-repo: ws-workshop/${{ values.name }}
+    devspaces.io/factory: ${{ values.repoUrl }}
     openshift.io/deployment-name: neuroface-backend
   links:
     - url: https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}/
@@ -30,13 +33,46 @@ metadata:
     - url: https://gitlab.apps.${{ values.hubClusterDomain }}/ws-workshop/${{ values.name }}
       title: GitLab Repository
       icon: catalog
+    - url: https://ai-gateway.apps.${{ values.hubClusterDomain }}/v1/chat/completions
+      title: AI Gateway — MaaS chat
+      icon: api
+    - url: https://developer-hub.apps.${{ values.hubClusterDomain }}/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens
+      title: Request MaaS API key (Kuadrant)
+      icon: catalog
 spec:
   type: service
   lifecycle: experimental
-  owner: user:${{ values.owner }}
-  system: neuroface-cv
+  owner: user:default/${{ values.owner }}
+  system: neuroface-cv-journey
   providesApis:
     - ${{ values.name }}-api
+    - ${{ values.name }}-maas-api
+  consumesApis:
+    - workshop-maas-openapi
+  dependsOn:
+    - component:edge-ppe-${{ values.spoke }}
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}-frontend
+  title: NeuroFace Frontend (${{ values.owner }})
+  description: Angular UI for personal NeuroFace instance on ${{ values.spoke }} spoke.
+  annotations:
+    backstage.io/kubernetes-namespace: ${{ values.namespace }}
+    backstage.io/kubernetes-cluster: ${{ values.spoke }}
+    backstage.io/kubernetes-id: neuroface-frontend
+    argocd/app-name: ${{ values.name }}
+  links:
+    - url: https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}/
+      title: NeuroFace UI (OIDC Gateway)
+      icon: dashboard
+spec:
+  type: website
+  lifecycle: experimental
+  owner: user:default/${{ values.owner }}
+  system: neuroface-cv-journey
 
 ---
 apiVersion: backstage.io/v1alpha1
@@ -50,7 +86,29 @@ metadata:
 spec:
   type: openapi
   lifecycle: experimental
-  owner: user:${{ values.owner }}
-  system: neuroface-cv
+  owner: user:default/${{ values.owner }}
+  system: neuroface-cv-journey
   definition:
     $text: ./docs/openapi.yaml
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}-maas-api
+  title: MaaS Chat (AI Gateway)
+  description: OpenAI-compatible chat for NeuroFace; request API key via Kuadrant tab.
+  annotations:
+    kuadrant.io/api-product: workshop-llm-tokens
+  links:
+    - url: https://developer-hub.apps.${{ values.hubClusterDomain }}/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens
+      title: Request API key
+      icon: catalog
+    - url: https://ai-gateway.apps.${{ values.hubClusterDomain }}/v1/chat/completions
+      title: Chat completions endpoint
+      icon: api
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: user:default/${{ values.owner }}
+  system: neuroface-cv-journey

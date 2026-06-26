@@ -1,4 +1,7 @@
 {{- $templates := list "ai-computer-vision" -}}
+{{- $hubBase := include "developer-hub.clusterDomainBase" . -}}
+{{- $east := include "developer-hub.spokeDomainEast" . -}}
+{{- $west := include "developer-hub.spokeDomainWest" . -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,5 +14,9 @@ metadata:
 data:
 {{- range $name := $templates }}
   {{ $name }}.yaml: |
-{{ $.Files.Get (printf "files/software-templates/%s.yaml" $name) | indent 4 }}
+{{ $.Files.Get (printf "files/software-templates/%s.yaml" $name)
+   | replace "__HUB_CLUSTER_DOMAIN__" $hubBase
+   | replace "__EAST_SPOKE_DOMAIN__" $east
+   | replace "__WEST_SPOKE_DOMAIN__" $west
+   | indent 4 }}
 {{- end }}

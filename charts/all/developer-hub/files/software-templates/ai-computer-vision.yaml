@@ -41,15 +41,15 @@ spec:
           enumNames: [East spoke, West spoke]
           default: east
         hubClusterDomain:
-          title: Hub apps domain
+          title: Hub cluster domain
           type: string
-          description: "Hub cluster domain without apps. prefix (e.g. cluster-m54ll.m54ll.sandbox2075.opentlc.com)"
-          default: cluster.example.com
+          description: "Hub domain without apps. prefix (from oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')"
+          default: __HUB_CLUSTER_DOMAIN__
         maasEndpoint:
           title: MaaS chat endpoint
           type: string
-          description: "LiteLLM/MaaS endpoint for NeuroFace chat"
-          default: https://maas-rhdp.apps.maas.redhatworkshops.io/v1
+          description: "OpenAI-compatible MaaS endpoint for NeuroFace chat"
+          default: https://ai-gateway.apps.__HUB_CLUSTER_DOMAIN__/v1
       dependencies:
         spoke:
           oneOf:
@@ -57,18 +57,18 @@ spec:
                 spoke:
                   const: east
                 spokeClusterDomain:
-                  title: East spoke apps domain
+                  title: East spoke domain
                   type: string
-                  default: cluster-east.example.com
-                  description: "East spoke apps domain (without apps. prefix)"
+                  default: __EAST_SPOKE_DOMAIN__
+                  description: "East spoke domain (without apps. prefix)"
             - properties:
                 spoke:
                   const: west
                 spokeClusterDomain:
-                  title: West spoke apps domain
+                  title: West spoke domain
                   type: string
-                  default: cluster-west.example.com
-                  description: "West spoke apps domain (without apps. prefix)"
+                  default: __WEST_SPOKE_DOMAIN__
+                  description: "West spoke domain (without apps. prefix)"
   steps:
     - id: fetch
       name: Fetch skeleton
