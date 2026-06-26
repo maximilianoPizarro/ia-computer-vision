@@ -574,6 +574,46 @@ $ oc exec vault-0 -n vault -- sh -c '
 The `rhbk-credentials` secret must include both `admin-password` and `db-password`. If `db-password` is missing, the PostgreSQL ExternalSecret fails with `cannot find secret data for key: "db-password"`.
 ====
 
+== Developer Hub login fails with invalid client credentials
+
+=== Symptom
+
+Developer Hub shows `Authentication rejected, unauthorized_client (Invalid client or Invalid client credentials)` when signing in via Keycloak.
+
+=== Cause
+
+The OIDC client secret in Keycloak does not match the secret RHDH reads from Vault (`developer-hub-oidc-auth`). This can happen when `keycloakOidcClientSecret` is overridden by an empty value in Helm values, or when the realm was imported before Vault secrets were populated.
+
+=== Solution
+
+Verify the three sources agree:
+
+[source,bash]
+----
+# RHDH secret (from Vault via ESO)
+oc get secret developer-hub-oidc-auth -n developer-hub \
+  -o jsonpath='{.data.OIDC_CLIENT_SECRET}' | base64 -d; echo
+
+# Keycloak client secret (admin API)
+ADMIN_USER=$(oc get secret keycloak-admin-user -n keycloak-system -o jsonpath='{.data.username}' | base64 -d)
+ADMIN_PASS=$(oc get secret keycloak-admin-user -n keycloak-system -o jsonpath='{.data.password}' | base64 -d)
+SSO="https://sso.$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')"
+TOKEN=$(curl -sk -X POST "${SSO}/realms/master/protocol/openid-connect/token" \
+  -d "client_id=admin-cli" -d "username=${ADMIN_USER}" -d "password=${ADMIN_PASS}" \
+  -d "grant_type=password" | jq -r .access_token)
+curl -sk "${SSO}/admin/realms/backstage/clients?clientId=developer-hub" \
+  -H "Authorization: Bearer ${TOKEN}" | jq '.[0].secret'
+----
+
+The pattern includes a PostSync job (`oidc-client-secret-sync`) that aligns Keycloak clients with `developer-hub-oidc-client` from Vault. To run it manually:
+
+[source,bash]
+----
+oc create job --from=cronjob/oidc-client-secret-sync oidc-client-secret-sync-manual -n keycloak-system
+oc logs -n keycloak-system -l job-name=oidc-client-secret-sync-manual -f
+oc rollout restart deployment/backstage-developer-hub -n developer-hub
+----
+
 == Getting additional help
 
 * Pattern issues: link:https://github.com/maximilianoPizarro/ia-computer-vision/issues[GitHub Issues]
