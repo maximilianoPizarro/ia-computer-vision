@@ -628,7 +628,7 @@ After scaffolding `neuroface-<user>`, the GitLab repo exists but no Argo CD Appl
 
 [source,bash]
 ----
-$ oc get gitopscluster hub-spoke-gitops -n vp-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementResolved")].message}{"\n"}'
+$ oc get gitopscluster hub-spoke-gitops -n openshift-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementResolved")].message}{"\n"}'
 $ oc get secrets -n vp-gitops -l argocd.argoproj.io/secret-type=cluster -o name
 ----
 
@@ -641,11 +641,11 @@ Successfully resolved 0 managed clusters from placement
 
 === Cause
 
-The hub `GitOpsCluster` must reference the ACM `Placement` in `openshift-gitops` via `spec.placementRef.namespace`. Without it, Argo CD never registers east/west, and ApplicationSet destinations `name: east|west` cannot sync.
+The hub `GitOpsCluster` must live in the same namespace as the ACM `Placement` (`openshift-gitops`) and set `spec.argoServer.argoNamespace` to the Argo CD instance namespace (`vp-gitops` for this pattern). Without that pairing, Argo CD never registers east/west, and ApplicationSet destinations `name: east|west` cannot sync.
 
 === Resolution
 
-Ensure `charts/all/acm-hub-spoke/templates/gitops-cluster.yaml` includes `placementRef.namespace: openshift-gitops` (chart default since the fix). Sync the `acm-hub-spoke` application on the hub, then wait until `PlacementResolved` reports two clusters.
+Ensure `charts/all/acm-hub-spoke/templates/gitops-cluster.yaml` uses `metadata.namespace: openshift-gitops` and `spec.argoServer.argoNamespace: vp-gitops` (chart defaults). Sync the `acm-hub-spoke` application on the hub, then wait until `PlacementResolved` reports two clusters and cluster secrets appear in `vp-gitops`.
 
 == Getting additional help
 

@@ -2,7 +2,7 @@ apiVersion: apps.open-cluster-management.io/v1beta1
 kind: GitOpsCluster
 metadata:
   name: hub-spoke-gitops
-  namespace: {{ .Values.gitOpsCluster.argoNamespace | default "vp-gitops" }}
+  namespace: {{ .Values.gitOpsCluster.namespace | default "openshift-gitops" }}
   annotations:
     argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
@@ -13,5 +13,4 @@ spec:
   placementRef:
     kind: Placement
     name: {{ .Values.gitOpsCluster.placementName | default "hub-spoke-placement" }}
-    namespace: {{ .Values.gitOpsCluster.placementNamespace | default "openshift-gitops" }}
     apiVersion: cluster.open-cluster-management.io/v1beta1

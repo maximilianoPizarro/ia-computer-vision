@@ -466,7 +466,7 @@ Before running the scaffolder, confirm the hub Argo CD instance can target east 
 
 [source,bash]
 ----
-$ oc get gitopscluster hub-spoke-gitops -n vp-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementResolved")].message}{"\n"}'
+$ oc get gitopscluster hub-spoke-gitops -n openshift-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementResolved")].message}{"\n"}'
 $ oc get secrets -n vp-gitops -l argocd.argoproj.io/secret-type=cluster -o name
 ----
 

@@ -1,6 +1,8 @@
 # GitOpsCluster registers ACM spokes (east/west) with the hub Argo CD instance.
-# placementNamespace must match charts/all/acm-hub-spoke/templates/placement.yaml metadata.namespace.
+# GitOpsCluster and Placement must share metadata.namespace (openshift-gitops per ACM docs).
+# argoNamespace is where Argo CD runs and where cluster secrets are created (vp-gitops for VP).
 gitOpsCluster:
+  namespace: openshift-gitops
   argoNamespace: vp-gitops
   placementNamespace: openshift-gitops
   placementName: hub-spoke-placement
