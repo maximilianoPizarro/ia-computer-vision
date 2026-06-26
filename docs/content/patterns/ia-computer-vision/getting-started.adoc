@@ -462,6 +462,22 @@ OCM and Kiali plugins are enabled by default (`plugins.ocm.enabled`, `plugins.ki
 
 === Step 5b: Verify AI Computer Vision software template (optional)
 
+Before running the scaffolder, confirm the hub Argo CD instance can target east and west (required for ApplicationSet `user-neuroface-apps`):
+
+[source,bash]
+----
+$ oc get gitopscluster hub-spoke-gitops -n vp-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementResolved")].message}{"\n"}'
+$ oc get secrets -n vp-gitops -l argocd.argoproj.io/secret-type=cluster -o name
+----
+
+.Expected
+[source,text]
+----
+Successfully resolved 2 managed clusters from placement
+secret/east-...
+secret/west-...
+----
+
 Run the **AI Computer Vision at the Edge** template as a workshop user, then confirm GitOps and plugin tabs:
 
 [source,bash]

@@ -1,10 +1,10 @@
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: hub-spoke-placement
-  namespace: openshift-gitops
+  name: {{ .Values.gitOpsCluster.placementName | default "hub-spoke-placement" }}
+  namespace: {{ .Values.gitOpsCluster.placementNamespace | default "openshift-gitops" }}
   labels:
-    cluster.open-cluster-management.io/placement: hub-spoke-placement
+    cluster.open-cluster-management.io/placement: {{ .Values.gitOpsCluster.placementName | default "hub-spoke-placement" }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:

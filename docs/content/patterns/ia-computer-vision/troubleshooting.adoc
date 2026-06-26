@@ -620,6 +620,33 @@ $ oc exec vault-0 -n vault -- sh -c '
 The `rhbk-credentials` secret must include both `admin-password` and `db-password`. If `db-password` is missing, the PostgreSQL ExternalSecret fails with `cannot find secret data for key: "db-password"`.
 ====
 
+== AI CV software template: ApplicationSet does not deploy to spokes
+
+After scaffolding `neuroface-<user>`, the GitLab repo exists but no Argo CD Application appears, or the Application shows `Unknown` cluster / fails to sync.
+
+=== Symptom
+
+[source,bash]
+----
+$ oc get gitopscluster hub-spoke-gitops -n vp-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementResolved")].message}{"\n"}'
+$ oc get secrets -n vp-gitops -l argocd.argoproj.io/secret-type=cluster -o name
+----
+
+.Problem output
+[source,text]
+----
+Successfully resolved 0 managed clusters from placement
+(no east/west cluster secrets)
+----
+
+=== Cause
+
+The hub `GitOpsCluster` must reference the ACM `Placement` in `openshift-gitops` via `spec.placementRef.namespace`. Without it, Argo CD never registers east/west, and ApplicationSet destinations `name: east|west` cannot sync.
+
+=== Resolution
+
+Ensure `charts/all/acm-hub-spoke/templates/gitops-cluster.yaml` includes `placementRef.namespace: openshift-gitops` (chart default since the fix). Sync the `acm-hub-spoke` application on the hub, then wait until `PlacementResolved` reports two clusters.
+
 == Getting additional help
 
 * Pattern issues: link:https://github.com/maximilianoPizarro/ia-computer-vision/issues[GitHub Issues]

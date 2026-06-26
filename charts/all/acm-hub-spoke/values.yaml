@@ -1,3 +1,10 @@
+# GitOpsCluster registers ACM spokes (east/west) with the hub Argo CD instance.
+# placementNamespace must match charts/all/acm-hub-spoke/templates/placement.yaml metadata.namespace.
+gitOpsCluster:
+  argoNamespace: vp-gitops
+  placementNamespace: openshift-gitops
+  placementName: hub-spoke-placement
+
 # Managed clusters for ACM auto-import.
 # Leave apiUrl/token empty to use spoke-credentials from Vault (ExternalSecret + sync Job).
 # Set apiUrl and token here only for sandbox/demo without Vault.
