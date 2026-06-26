@@ -525,6 +525,43 @@ After patching, delete the pod to restart with the corrected config:
 $ oc delete pod -n developer-hub -l app.kubernetes.io/name=backstage
 ----
 
+== OCM / Kiali plugins (ghcr.io OCI)
+
+=== Symptom
+
+`install-dynamic-plugins` fails pulling `backstage-community-plugin-ocm` or `backstage-community-plugin-kiali`, or sidebar routes `/ocm` / `/kiali` return 404.
+
+=== Cause
+
+RHDH 1.9+ loads community plugins from `oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/...` (not from `./dynamic-plugins/dist/`). Tags must match the Backstage version bundled with RHDH (`bs_1.45.3__*` for RHDH 1.9). Network policies or registry blocks can cause 403 on ghcr.io.
+
+=== Verify ghcr pull from the cluster
+
+[source,bash]
+----
+$ oc run skopeo-test --rm -i --restart=Never \
+  --image=registry.redhat.io/ubi9/skopeo:latest \
+  --command -- skopeo inspect \
+  docker://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-kiali:bs_1.45.3__1.49.0
+----
+
+=== Enable / configure
+
+In `charts/all/developer-hub/values.yaml`:
+
+* `plugins.ocm.enabled: true` — tags `bs_1.45.3__5.11.1` (frontend), `bs_1.45.3__5.12.2` (backend)
+* `plugins.kiali.enabled: true` — tags `bs_1.45.3__1.49.0` (frontend), `bs_1.45.3__1.28.0` (backend)
+
+Override registry for a Quay mirror: `plugins.registry: quay.io/maximilianopizarro/rhdh-plugins`.
+
+=== Kiali entity tab
+
+Components need `backstage.io/kubernetes-namespace` (and optionally `backstage.io/kubernetes-id`). Example: `neuroface-backend`, `workshop-apis-gateway`.
+
+=== OCM prerequisites
+
+ACM `MultiClusterHub` healthy; `ClusterRoleBinding` `backstage-ocm-plugin` bound to SA `developer-hub`; ManagedClusters visible in ACM.
+
 == Quay Missing (legacy installs)
 
 === Symptom

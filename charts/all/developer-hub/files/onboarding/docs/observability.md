@@ -2,9 +2,16 @@
 
 ## From Developer Hub
 
-- **Overview** — OCM cluster cards (hub, east, west).
+- **Overview** — OCM cluster cards (hub, east, west) when `plugins.ocm.enabled` is true. Sidebar **Clusters** (`/ocm`).
 - **Kubernetes** — workloads on the spoke selected in entity annotations.
 - **Topology** — mesh-aware graph when `backstage.io/kubernetes-cluster` is set.
+- **Kiali** — sidebar **Kiali** (`/kiali`) and entity **Kiali** tab when the component has `backstage.io/kubernetes-namespace` (e.g. `neuroface-backend`, `workshop-apis-gateway`).
+
+Use the OpenShift console Kiali link for full multi-cluster mesh admin; the Developer Hub tab focuses on the namespace tied to the catalog entity.
+
+## Plugin catalog
+
+System **rhdh-platform-plugins** in the Developer Hub catalog lists installed dynamic plugins (OCM, Kiali, Tekton, Topology, Kuadrant, Argo CD).
 
 ## OpenShift console (hub)
 

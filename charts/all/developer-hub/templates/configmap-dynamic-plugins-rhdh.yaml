@@ -1,3 +1,4 @@
+{{- $pluginRegistry := include "developer-hub.pluginRegistry" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -31,7 +32,7 @@ data:
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-ocm-backend-dynamic:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-ocm-backend-dynamic:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" false) }}
         pluginConfig:
           catalog:
@@ -46,7 +47,7 @@ data:
                   schedule:
                     frequency: { minutes: 15 }
                     timeout: { minutes: 10 }
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-ocm:{{ .Values.plugins.ocm.pluginTag | default "bs_1.45.3__5.11.1" }}
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-ocm:{{ .Values.plugins.ocm.pluginTag | default "bs_1.45.3__5.11.1" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" false) }}
         pluginConfig:
           dynamicPlugins:
@@ -90,7 +91,39 @@ data:
                         allOf:
                           - isKind: resource
                           - isType: kubernetes-cluster
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-rbac:{{ .Values.plugins.rbac.pluginTag | default "bs_1.45.3__1.47.4" }}
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-kiali-backend:{{ .Values.plugins.kiali.backendTag | default "bs_1.45.3__1.28.0" }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kiali" "defaultEnabled" false) }}
+        pluginConfig:
+          kiali:
+            providers:
+              - name: hub
+                url: {{ include "developer-hub.kialiEndpoint" . | quote }}
+                skipTLSVerify: true
+                serviceAccountToken: ${KIALI_SA_TOKEN}
+                sessionTime: 60
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-kiali:{{ .Values.plugins.kiali.pluginTag | default "bs_1.45.3__1.49.0" }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kiali" "defaultEnabled" false) }}
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-kiali:
+                appIcons:
+                  - name: kialiIcon
+                    importName: KialiIcon
+                dynamicRoutes:
+                  - path: /kiali
+                    importName: KialiPage
+                    menuItem:
+                      icon: kialiIcon
+                      text: Kiali
+                mountPoints:
+                  - mountPoint: entity.page.kiali/cards
+                    importName: EntityKialiContent
+                    config:
+                      if:
+                        anyOf:
+                          - hasAnnotation: backstage.io/kubernetes-namespace
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-rbac:{{ .Values.plugins.rbac.pluginTag | default "bs_1.45.3__1.47.4" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "rbac" "defaultEnabled" false) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
         disabled: false
@@ -121,7 +154,7 @@ data:
       # Disabled: package missing in RHDH 1.9 image (npm pack ENOENT). Use redhat-argocd plugin instead.
       - package: ./dynamic-plugins/dist/backstage-community-plugin-argocd
         disabled: true
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-topology:{{ .Values.plugins.topology.pluginTag | default "bs_1.45.3__2.9.4" }}
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-topology:{{ .Values.plugins.topology.pluginTag | default "bs_1.45.3__2.9.4" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "topology" "defaultEnabled" true) }}
         pluginConfig:
           dynamicPlugins:
@@ -235,7 +268,7 @@ data:
                       if:
                         allOf:
                           - hasAnnotation: kuadrant.io/api-product
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-tekton:{{ .Values.plugins.tekton.pluginTag | default "bs_1.45.3__3.33.3" }}
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-tekton:{{ .Values.plugins.tekton.pluginTag | default "bs_1.45.3__3.33.3" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "tekton" "defaultEnabled" true) }}
         pluginConfig:
           dynamicPlugins:
@@ -279,14 +312,14 @@ data:
 {{- end }}
 {{- if .Values.plugins.mcp.enabled | default false }}
       {{- $mcpTag := .Values.plugins.mcp.pluginTag | default "bs_1.45.3__0.1.5" }}
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-mcp-actions-backend:{{ $mcpTag }}
+      - package: oci://{{ $pluginRegistry }}/backstage-plugin-mcp-actions-backend:{{ $mcpTag }}
         disabled: false
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-software-catalog-mcp-tool:{{ .Values.plugins.mcp.catalogToolTag | default "bs_1.45.3__0.4.1" }}
+      - package: oci://{{ $pluginRegistry }}/red-hat-developer-hub-backstage-plugin-software-catalog-mcp-tool:{{ .Values.plugins.mcp.catalogToolTag | default "bs_1.45.3__0.4.1" }}
         disabled: false
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-techdocs-mcp-tool:{{ .Values.plugins.mcp.techdocsToolTag | default "bs_1.45.3__0.3.2" }}
+      - package: oci://{{ $pluginRegistry }}/red-hat-developer-hub-backstage-plugin-techdocs-mcp-tool:{{ .Values.plugins.mcp.techdocsToolTag | default "bs_1.45.3__0.3.2" }}
         disabled: false
 {{- end }}
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/roadiehq-backstage-plugin-argo-cd-backend:bs_1.45.3__4.6.0
+      - package: oci://{{ $pluginRegistry }}/roadiehq-backstage-plugin-argo-cd-backend:bs_1.45.3__4.6.0
         disabled: {{ not (.Values.plugins.argocd.enabled | default false) }}
         pluginConfig:
           argocd:
@@ -296,7 +329,7 @@ data:
                   - name: default
                     url: https://openshift-gitops-server-openshift-gitops.{{ include "developer-hub.clusterDomain" . }}
                     token: ${K8S_SA_TOKEN}
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-redhat-argocd:bs_1.45.3__2.3.0
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-redhat-argocd:bs_1.45.3__2.3.0
         disabled: {{ not (.Values.plugins.argocd.enabled | default false) }}
         pluginConfig:
           dynamicPlugins:
@@ -345,7 +378,7 @@ data:
                     importName: EntitySecurityInsightsContent
       - package: ./dynamic-plugins/dist/roadiehq-scaffolder-backend-module-http-request-dynamic
         disabled: false
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-catalog-backend-module-keycloak:{{ .Values.plugins.keycloakCatalog.pluginTag | default "bs_1.45.3__3.16.0" }}
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-catalog-backend-module-keycloak:{{ .Values.plugins.keycloakCatalog.pluginTag | default "bs_1.45.3__3.16.0" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "keycloakCatalog" "defaultEnabled" true) }}
         pluginConfig:
           catalog:
@@ -362,9 +395,9 @@ data:
                     timeout: { minutes: 3 }
 {{- if .Values.plugins.gitlab.enabled | default true }}
       {{- $gitlabTag := .Values.plugins.gitlab.pluginTag | default "bs_1.45.3__6.13.0" }}
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/immobiliarelabs-backstage-plugin-gitlab-backend:{{ $gitlabTag }}
+      - package: oci://{{ $pluginRegistry }}/immobiliarelabs-backstage-plugin-gitlab-backend:{{ $gitlabTag }}
         disabled: false
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/immobiliarelabs-backstage-plugin-gitlab:{{ $gitlabTag }}
+      - package: oci://{{ $pluginRegistry }}/immobiliarelabs-backstage-plugin-gitlab:{{ $gitlabTag }}
         disabled: false
         pluginConfig:
           dynamicPlugins:
@@ -456,7 +489,7 @@ data:
                     importName: EntityAzurePipelinesContent
 {{- if include "developer-hub.lightspeedEnabled" . }}
       {{- $lsTag := .Values.plugins.lightspeed.pluginTag | default "bs_1.45.3__1.2.3" }}
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-lightspeed:{{ $lsTag }}
+      - package: oci://{{ $pluginRegistry }}/red-hat-developer-hub-backstage-plugin-lightspeed:{{ $lsTag }}
         disabled: false
         pluginConfig:
           dynamicPlugins:
@@ -483,6 +516,6 @@ data:
                     config:
                       id: lightspeed
                       priority: 100
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-lightspeed-backend:{{ $lsTag }}
+      - package: oci://{{ $pluginRegistry }}/red-hat-developer-hub-backstage-plugin-lightspeed-backend:{{ $lsTag }}
         disabled: false
 {{- end }}

@@ -102,3 +102,16 @@
 {{- $spec := .root.Files.Get .file -}}
 {{- $spec | replace "__HUB_APPS_DOMAIN__" .hub -}}
 {{- end -}}
+
+{{/*
+  OCI registry for RHDH dynamic plugins (default: Red Hat ghcr overlays).
+  Override with plugins.registry to use a Quay mirror, e.g. quay.io/maximilianopizarro/rhdh-plugins.
+*/}}
+{{- define "developer-hub.pluginRegistry" -}}
+{{- .Values.plugins.registry | default "ghcr.io/redhat-developer/rhdh-plugin-export-overlays" -}}
+{{- end -}}
+
+{{- define "developer-hub.kialiEndpoint" -}}
+{{- $k := .Values.plugins.kiali | default dict -}}
+{{- $k.endpoint | default (printf "https://kiali-openshift-cluster-observability-operator.%s" (include "developer-hub.clusterDomain" .)) -}}
+{{- end -}}

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-rhdh-plugins
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  rhdh-plugins.yaml: |
+{{ .Files.Get "files/catalog/rhdh-plugins.yaml" | nindent 4 }}

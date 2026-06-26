@@ -38,6 +38,8 @@ spokeDomains:
   east: ""
   west: ""
 plugins:
+  # OCI registry for community dynamic plugins (override for Quay mirror)
+  registry: ""
   rbac:
     enabled: true
     policyAdminUser: platformadmin
@@ -48,7 +50,10 @@ plugins:
   mcp:
     enabled: false
   kiali:
-    enabled: false
+    enabled: true
+    pluginTag: "bs_1.45.3__1.49.0"
+    backendTag: "bs_1.45.3__1.28.0"
+    endpoint: ""
   grafana:
     enabled: false
   techInsights:
@@ -67,7 +72,9 @@ plugins:
   kuadrant:
     enabled: true
   ocm:
-    enabled: false
+    enabled: true
+    pluginTag: "bs_1.45.3__5.11.1"
+    backendTag: "bs_1.45.3__5.12.2"
   topology:
     enabled: true
   keycloakCatalog:

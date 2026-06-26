@@ -51,6 +51,9 @@ spec:
           mountPath: /opt/app-root/src/catalog-data/public-apis
           containers:
             - "*"
+        - name: developer-hub-catalog-rhdh-plugins
+          key: rhdh-plugins.yaml
+          mountPath: /opt/app-root/src/catalog-data/rhdh-plugins
           containers:
             - "*"
     route:
@@ -163,6 +166,14 @@ spec:
                   - secretRef:
                       name: developer-hub-spoke-tokens
                       optional: true
+{{- if .Values.plugins.kiali.enabled | default false }}
+                  - name: KIALI_SA_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: developer-hub-sa-token
+                        key: token
+                        optional: true
+{{- end }}
 {{- if .Values.plugins.rbac.enabled | default false }}
                 volumeMounts:
                   - name: rhdh-rbac-policy

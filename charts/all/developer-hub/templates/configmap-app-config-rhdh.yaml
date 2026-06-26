@@ -47,7 +47,9 @@ data:
     enabled:
       kubernetes: true
       argocd: true
+{{- if .Values.plugins.ocm.enabled | default false }}
       ocm: true
+{{- end }}
       kuadrant: true
     kubernetes:
       serviceLocatorMethod:
@@ -158,6 +160,10 @@ data:
           target: /opt/app-root/src/catalog-data/public-apis/public-apis.yaml
           rules:
             - allow: [System, Component, API]
+        - type: file
+          target: /opt/app-root/src/catalog-data/rhdh-plugins/rhdh-plugins.yaml
+          rules:
+            - allow: [System, Resource]
       providers:
         gitlab:
           default:
@@ -188,6 +194,15 @@ data:
             schedule:
               frequency: { minutes: 15 }
               timeout: { minutes: 10 }
+{{- end }}
+{{- if and (kindIs "bool" .Values.plugins.kiali.enabled) .Values.plugins.kiali.enabled }}
+    kiali:
+      providers:
+        - name: hub
+          url: {{ include "developer-hub.kialiEndpoint" . | quote }}
+          skipTLSVerify: true
+          serviceAccountToken: ${KIALI_SA_TOKEN}
+          sessionTime: 60
 {{- end }}
     argocd:
       appLocatorMethods:
@@ -239,6 +254,7 @@ data:
           - permission
           - kubernetes
           - ocm
+          - kiali
           - techdocs
           - notifications
           - argocd

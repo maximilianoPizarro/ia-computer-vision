@@ -48,6 +48,7 @@ metadata:
   annotations:
     backstage.io/kubernetes-namespace: neuroface
     backstage.io/kubernetes-cluster: hub
+    backstage.io/kubernetes-id: neuroface-backend
     openshift.ai/project: neuroface
     devspaces.io/factory: https://github.com/maximilianoPizarro/neuroface
   links:

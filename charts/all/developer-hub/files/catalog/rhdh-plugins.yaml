@@ -1,0 +1,125 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: rhdh-platform-plugins
+  title: RHDH Dynamic Plugins
+  description: |
+    Community and Red Hat dynamic plugins loaded via OCI from
+    `ghcr.io/redhat-developer/rhdh-plugin-export-overlays` (or `plugins.registry` override).
+    Toggle plugins in `charts/all/developer-hub/values.yaml` → `plugins.*.enabled`.
+  tags: [rhdh, dynamic-plugins, platform]
+  links:
+    - url: https://github.com/redhat-developer/rhdh-plugin-export-overlays
+      title: Plugin export overlays (ghcr)
+      icon: catalog
+    - url: https://backstage.io/plugins/
+      title: Backstage plugin directory
+      icon: docs
+spec:
+  owner: platform-engineering
+  domain: hub-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rhdh-plugin-ocm
+  title: OCM — Multi-Cluster View
+  description: |
+    Ingests ACM ManagedClusters as catalog resources. Sidebar **Clusters** (`/ocm`).
+    Requires ACM MultiClusterHub and `plugins.ocm.enabled: true`.
+  tags: [rhdh, ocm, acm, multicluster]
+  links:
+    - url: https://github.com/backstage/community-plugins/tree/main/workspaces/ocm
+      title: Source
+      icon: github
+spec:
+  type: rhdh-dynamic-plugin
+  lifecycle: production
+  owner: platform-engineering
+  system: rhdh-platform-plugins
+  dependencyOf: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rhdh-plugin-kiali
+  title: Kiali Service Mesh
+  description: |
+    Service mesh metrics and topology in Developer Hub. Sidebar **Kiali** (`/kiali`) and entity tab
+    when `backstage.io/kubernetes-namespace` is set. Hub Kiali uses anonymous auth (COO).
+  tags: [rhdh, kiali, istio, servicemesh]
+  links:
+    - url: https://github.com/backstage/community-plugins/tree/main/workspaces/kiali
+      title: Source
+      icon: github
+spec:
+  type: rhdh-dynamic-plugin
+  lifecycle: production
+  owner: platform-engineering
+  system: rhdh-platform-plugins
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rhdh-plugin-tekton
+  title: Tekton Pipelines
+  description: PipelineRun status on catalog entities. Enabled via `plugins.tekton.enabled`.
+  tags: [rhdh, tekton, ci-cd]
+spec:
+  type: rhdh-dynamic-plugin
+  lifecycle: production
+  owner: platform-engineering
+  system: rhdh-platform-plugins
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rhdh-plugin-topology
+  title: Application Topology
+  description: Kubernetes application topology view. Complements the Kubernetes tab.
+  tags: [rhdh, topology, kubernetes]
+spec:
+  type: rhdh-dynamic-plugin
+  lifecycle: production
+  owner: platform-engineering
+  system: rhdh-platform-plugins
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rhdh-plugin-kuadrant
+  title: Kuadrant API Products
+  description: API keys and API Products for workshop gateways. Sidebar **Kuadrant** (`/kuadrant`).
+  tags: [rhdh, kuadrant, api-management]
+spec:
+  type: rhdh-dynamic-plugin
+  lifecycle: production
+  owner: platform-engineering
+  system: rhdh-platform-plugins
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rhdh-plugin-argocd
+  title: Argo CD
+  description: GitOps application status from OpenShift GitOps.
+  tags: [rhdh, argocd, gitops]
+spec:
+  type: rhdh-dynamic-plugin
+  lifecycle: production
+  owner: platform-engineering
+  system: rhdh-platform-plugins
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rhdh-plugin-kubernetes
+  title: Kubernetes (core)
+  description: Bundled Kubernetes plugin — multi-cluster hub + east/west spokes via token sync.
+  tags: [rhdh, kubernetes]
+spec:
+  type: rhdh-dynamic-plugin
+  lifecycle: production
+  owner: platform-engineering
+  system: rhdh-platform-plugins

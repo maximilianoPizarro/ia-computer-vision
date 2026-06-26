@@ -251,6 +251,10 @@ clusterGroup:
           value: "30"
         - name: plugins.kuadrant.enabled
           value: "true"
+        - name: plugins.ocm.enabled
+          value: "true"
+        - name: plugins.kiali.enabled
+          value: "true"
         - name: plugins.notificationsEmail.enabled
           value: "true"
         - name: spokeTokenSync.enabled
