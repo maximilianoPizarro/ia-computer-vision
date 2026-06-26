@@ -549,7 +549,7 @@ $ oc run skopeo-test --rm -i --restart=Never \
 
 In `charts/all/developer-hub/values.yaml`:
 
-* `plugins.ocm.enabled: true` — tags `bs_1.45.3__5.11.1` (frontend), `bs_1.45.3__5.12.2` (backend)
+* `plugins.ocm.enabled: true` — tags `bs_1.45.3__5.11.1` (frontend), `bs_1.45.3__5.12.2` (backend package `backstage-community-plugin-ocm-backend`, not `-backend-dynamic`)
 * `plugins.kiali.enabled: true` — tags `bs_1.45.3__1.49.0` (frontend), `bs_1.45.3__1.28.0` (backend)
 
 Override registry for a Quay mirror: `plugins.registry: quay.io/maximilianopizarro/rhdh-plugins`.

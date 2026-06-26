@@ -32,7 +32,7 @@ data:
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
-      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-ocm-backend-dynamic:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
+      - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-ocm-backend:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" false) }}
         pluginConfig:
           catalog:
