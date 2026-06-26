@@ -35,6 +35,10 @@ spec:
         port: 9092
         type: internal
         tls: false
+      - name: skupper
+        port: 9093
+        type: internal
+        tls: false
         configuration:
           brokers:
             - broker: 0
