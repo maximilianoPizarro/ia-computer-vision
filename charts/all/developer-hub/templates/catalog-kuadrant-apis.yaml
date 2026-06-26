@@ -1,10 +1,10 @@
 {{- $hub := include "developer-hub.clusterDomain" . }}
 {{- $catalog := .Files.Get "files/catalog/workshop-kuadrant-apis.yaml" | replace "__HUB_APPS_DOMAIN__" $hub }}
-{{- $httpbinSpec := .Files.Get "files/catalog/openapi/workshop-httpbin-openapi.yaml" }}
-{{- $restcountriesSpec := .Files.Get "files/catalog/openapi/workshop-restcountries-openapi.yaml" }}
-{{- $maasSpec := .Files.Get "files/catalog/openapi/workshop-maas-openapi.yaml" }}
-{{- $mcpSpec := .Files.Get "files/catalog/openapi/workshop-mcp-openapi.yaml" }}
-{{- $neurofaceSpec := .Files.Get "files/catalog/openapi/workshop-neuroface-openapi.yaml" }}
+{{- $httpbinSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-httpbin-openapi.yaml" "hub" $hub) | nindent 4 }}
+{{- $restcountriesSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-restcountries-openapi.yaml" "hub" $hub) | nindent 4 }}
+{{- $maasSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-maas-openapi.yaml" "hub" $hub) | nindent 4 }}
+{{- $mcpSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-mcp-openapi.yaml" "hub" $hub) | nindent 4 }}
+{{- $neurofaceSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-neuroface-openapi.yaml" "hub" $hub) | nindent 4 }}
 {{- $catalog = $catalog | replace "__WORKSHOP_HTTPBIN_OPENAPI_SPEC__" $httpbinSpec }}
 {{- $catalog = $catalog | replace "__WORKSHOP_RESTCOUNTRIES_OPENAPI_SPEC__" $restcountriesSpec }}
 {{- $catalog = $catalog | replace "__WORKSHOP_MAAS_OPENAPI_SPEC__" $maasSpec }}

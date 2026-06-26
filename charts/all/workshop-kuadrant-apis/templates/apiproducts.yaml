@@ -5,7 +5,6 @@
 {{- $workshopBase := printf "https://%s" $workshopHost }}
 {{- $aiBase := printf "https://%s" $aiHost }}
 {{- $dhHost := printf "developer-hub.%s" (include "workshop-kuadrant-apis.clusterDomain" .) -}}
-{{- $dhApiDef := printf "https://%s/api/catalog/entities/by-name/api/default" $dhHost -}}
 {{- if .Values.apis.httpbin.enabled }}
 ---
 apiVersion: devportal.kuadrant.io/v1alpha1
@@ -25,7 +24,7 @@ spec:
   version: v1
   tags: [workshop, httpbin, external-api]
   documentation:
-    openAPISpecURL: {{ printf "%s/workshop-httpbin-openapi/definition" $dhApiDef | quote }}
+    docsURL: {{ printf "https://%s/catalog/default/api/workshop-httpbin-openapi" $dhHost | quote }}
   contact:
     email: platform@example.com
   targetRef:
@@ -52,8 +51,7 @@ spec:
   version: v1
   tags: [workshop, restcountries, external-api]
   documentation:
-    openAPISpecURL: {{ printf "%s/workshop-restcountries-openapi/definition" $dhApiDef | quote }}
-    docsURL: https://countriesnow.space
+    docsURL: {{ printf "https://%s/catalog/default/api/workshop-restcountries-openapi" $dhHost | quote }}
   contact:
     email: platform@example.com
   targetRef:
@@ -82,8 +80,7 @@ spec:
   version: v1
   tags: [workshop, mcp, gateway-api, external-api]
   documentation:
-    openAPISpecURL: {{ printf "%s/workshop-mcp-openapi/definition" $dhApiDef | quote }}
-    docsURL: https://docs.kuadrant.io
+    docsURL: {{ printf "https://%s/catalog/default/api/workshop-mcp-openapi" $dhHost | quote }}
   contact:
     email: platform@example.com
   targetRef:
@@ -112,7 +109,7 @@ spec:
   version: v1
   tags: [workshop, llm, maas, ai-gateway, token-rate-limit]
   documentation:
-    openAPISpecURL: {{ printf "%s/workshop-maas-openapi/definition" $dhApiDef | quote }}
+    docsURL: {{ printf "https://%s/catalog/default/api/workshop-maas-openapi" $dhHost | quote }}
   contact:
     email: platform@example.com
   targetRef:

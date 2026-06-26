@@ -93,3 +93,12 @@
 {{- $oa := .Values.oidcAuth | default dict -}}
 {{- $oa.vaultKey | default "secret/data/hub/developer-hub-secrets" -}}
 {{- end -}}
+
+{{/*
+  Load a workshop OpenAPI fragment and substitute the hub apps domain.
+  Pass dict: root (chart context), file (path under chart), hub (domain string).
+*/}}
+{{- define "developer-hub.workshopOpenAPISpec" -}}
+{{- $spec := .root.Files.Get .file -}}
+{{- $spec | replace "__HUB_APPS_DOMAIN__" .hub -}}
+{{- end -}}

@@ -1,53 +1,343 @@
-      openapi: 3.0.3
-      info:
-        title: Countries API (via workshop-apis)
-        description: |
-          Kuadrant-protected proxy to countriesnow.space. Use `Authorization: APIKEY <key>`.
-          Example: `/countries/population/q?country=argentina`
-        version: v1
-      servers:
-        - url: https://workshop-apis.__HUB_APPS_DOMAIN__/countries
-          description: Workshop APIs Gateway
-      security:
-        - ApiKeyAuth: []
-      components:
-        securitySchemes:
-          ApiKeyAuth:
-            type: apiKey
-            in: header
-            name: Authorization
-            description: "Kuadrant API key — format: `APIKEY <your-key>`"
-      paths:
-        /codes:
-          get:
-            summary: List country names and dial codes
-            operationId: getCountryCodes
-            responses:
-              "200":
-                description: Country codes JSON
-              "401":
-                description: Missing or invalid APIKEY
-        /population/q:
-          get:
-            summary: Population time series for a country
-            operationId: getCountryPopulation
-            parameters:
-              - name: country
-                in: query
-                required: true
-                schema:
-                  type: string
-                example: argentina
-            responses:
-              "200":
-                description: Population data for the country
-                content:
-                  application/json:
-                    example:
-                      error: false
-                      msg: Argentina with population
+openapi: 3.0.3
+info:
+  title: Countries API (via workshop-apis)
+  description: |
+    Kuadrant-protected proxy to [countriesnow.space](https://countriesnow.space).
+    Request an API key in Developer Hub (**Kuadrant** tab) and send `Authorization: APIKEY <key>`.
+
+    Gateway path prefix `/countries` rewrites to upstream `/api/v0.1/countries`.
+  version: v1
+  contact:
+    name: Platform Engineering
+servers:
+  - url: https://workshop-apis.__HUB_APPS_DOMAIN__/countries
+    description: Workshop APIs Gateway (Kuadrant APIKEY required)
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Kuadrant API key — format: `APIKEY <your-key>`"
+  schemas:
+    CountryName:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Argentina
+        code:
+          type: string
+          example: ARG
+        dial_code:
+          type: string
+          example: "+54"
+    CountryDialCode:
+      type: object
+      properties:
+        name:
+          type: string
+        dial_code:
+          type: string
+        code:
+          type: string
+    PopulationCount:
+      type: object
+      properties:
+        year:
+          type: string
+          example: "2020"
+        value:
+          type: integer
+          example: 45195774
+    CountryPopulation:
+      type: object
+      properties:
+        country:
+          type: string
+        code:
+          type: string
+        iso3:
+          type: string
+        populationCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PopulationCount"
+    CountryCapital:
+      type: object
+      properties:
+        name:
+          type: string
+        capital:
+          type: string
+        iso2:
+          type: string
+        iso3:
+          type: string
+    CountryCurrency:
+      type: object
+      properties:
+        country:
+          type: string
+        currency:
+          type: string
+        iso2:
+          type: string
+        iso3:
+          type: string
+    CountryFlag:
+      type: object
+      properties:
+        name:
+          type: string
+        flag:
+          type: string
+          format: uri
+        iso2:
+          type: string
+        iso3:
+          type: string
+    CountriesNowResponse:
+      type: object
+      properties:
+        error:
+          type: boolean
+        msg:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+    CountryQuery:
+      type: object
+      required: [country]
+      properties:
+        country:
+          type: string
+          example: argentina
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: boolean
+          example: true
+        msg:
+          type: string
+paths:
+  /codes:
+    get:
+      summary: List country names and dial codes
+      description: Returns all countries with ISO codes and international dial prefixes.
+      operationId: getCountryCodes
+      tags: [reference]
+      responses:
+        "200":
+          description: Country dial codes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/CountriesNowResponse"
+                  - type: object
+                    properties:
                       data:
-                        country: Argentina
-                        code: ARG
-              "401":
-                description: Missing or invalid APIKEY
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CountryDialCode"
+              example:
+                error: false
+                msg: countries and codes retrieved
+                data:
+                  - name: Argentina
+                    dial_code: "+54"
+                    code: AR
+        "401":
+          description: Missing or invalid APIKEY
+  /capital/q:
+    get:
+      summary: Get capital city for a country (query)
+      operationId: getCountryCapitalQuery
+      tags: [geography]
+      parameters:
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+          example: france
+      responses:
+        "200":
+          description: Capital city for the country
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/CountriesNowResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CountryCapital"
+              example:
+                error: false
+                msg: capital retrieved
+                data:
+                  name: France
+                  capital: Paris
+                  iso2: FR
+                  iso3: FRA
+        "401":
+          description: Missing or invalid APIKEY
+  /capital:
+    post:
+      summary: Get capital city for a country (JSON body)
+      operationId: getCountryCapitalPost
+      tags: [geography]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CountryQuery"
+            example:
+              country: Germany
+      responses:
+        "200":
+          description: Capital city for the country
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountriesNowResponse"
+        "401":
+          description: Missing or invalid APIKEY
+  /population/q:
+    get:
+      summary: Population time series for a country (query)
+      operationId: getCountryPopulationQuery
+      tags: [population]
+      parameters:
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+          example: argentina
+      responses:
+        "200":
+          description: Historical population counts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/CountriesNowResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CountryPopulation"
+              example:
+                error: false
+                msg: population retrieved
+                data:
+                  country: Argentina
+                  code: AR
+                  iso3: ARG
+                  populationCounts:
+                    - year: "2020"
+                      value: 45195774
+        "401":
+          description: Missing or invalid APIKEY
+  /population:
+    post:
+      summary: Population time series for a country (JSON body)
+      operationId: getCountryPopulationPost
+      tags: [population]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CountryQuery"
+            example:
+              country: Brazil
+      responses:
+        "200":
+          description: Historical population counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountriesNowResponse"
+        "401":
+          description: Missing or invalid APIKEY
+  /currency:
+    get:
+      summary: List countries and currencies
+      operationId: getCountryCurrencies
+      tags: [reference]
+      responses:
+        "200":
+          description: Countries with currency codes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/CountriesNowResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CountryCurrency"
+        "401":
+          description: Missing or invalid APIKEY
+  /flag/images:
+    get:
+      summary: List countries with flag image URLs
+      operationId: getCountryFlagImages
+      tags: [reference]
+      responses:
+        "200":
+          description: Flag image URLs per country
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/CountriesNowResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CountryFlag"
+        "401":
+          description: Missing or invalid APIKEY
+  /cities:
+    post:
+      summary: List cities for a country
+      operationId: getCountryCities
+      tags: [geography]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CountryQuery"
+            example:
+              country: Spain
+      responses:
+        "200":
+          description: Cities in the requested country
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountriesNowResponse"
+              example:
+                error: false
+                msg: cities retrieved
+                data:
+                  country: Spain
+                  cities:
+                    - Madrid
+                    - Barcelona
+                    - Valencia
+        "401":
+          description: Missing or invalid APIKEY

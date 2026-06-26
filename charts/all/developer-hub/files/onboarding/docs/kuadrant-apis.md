@@ -29,6 +29,8 @@ Console: **Platform Hub-Spoke → Workshop APIs (Kuadrant)** and **AI Gateway (M
 5. **Definition** tab on the same API entity for Swagger / curl examples
 6. Call with: `Authorization: APIKEY <your-key>`
 
+Swagger/OpenAPI lives in **Catalog** API entities (system **workshop-kuadrant-apis**), not on the Kuadrant API Product mirror. Open each entity (e.g. `workshop-restcountries-openapi`) and use the **Definition** tab for **Try it out**.
+
 ## Try it out (Swagger)
 
 On any **API** entity (e.g. `workshop-httpbin-openapi`):

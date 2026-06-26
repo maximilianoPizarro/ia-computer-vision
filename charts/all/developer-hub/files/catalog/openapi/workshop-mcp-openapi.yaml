@@ -1,144 +1,144 @@
-      openapi: 3.0.3
-      info:
-        title: MCP Gateway proxy
-        description: |
-          Streamable HTTP MCP gateway (ArgoCD + Kubernetes tools) via workshop-apis.
-          JSON-RPC 2.0 over HTTP POST. Kuadrant APIKEY required.
-        version: v1
-      servers:
-        - url: https://workshop-apis.__HUB_APPS_DOMAIN__/mcp
-          description: MCP Gateway endpoint
-      security:
-        - ApiKeyAuth: []
-      components:
-        securitySchemes:
-          ApiKeyAuth:
-            type: apiKey
-            in: header
-            name: Authorization
-            description: "Kuadrant API key — format: `APIKEY <your-key>`"
-        schemas:
-          JsonRpcRequest:
-            type: object
-            required: [jsonrpc, method, id]
-            properties:
-              jsonrpc:
-                type: string
-                enum: ["2.0"]
-              method:
-                type: string
-                description: MCP method name
-                enum:
-                  - initialize
-                  - tools/list
-                  - tools/call
-                  - ping
-                example: tools/list
-              params:
-                type: object
-                additionalProperties: true
-              id:
-                oneOf:
-                  - type: string
-                  - type: integer
-                example: 1
-          JsonRpcResponse:
-            type: object
-            required: [jsonrpc, id]
-            properties:
-              jsonrpc:
-                type: string
-                enum: ["2.0"]
-              result:
-                type: object
-                additionalProperties: true
-              error:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                  message:
-                    type: string
-              id:
-                oneOf:
-                  - type: string
-                  - type: integer
-          McpTool:
-            type: object
-            properties:
-              name:
-                type: string
-                example: argocd_list_applications
-              description:
-                type: string
-              inputSchema:
-                type: object
-          ToolsListResult:
-            type: object
-            properties:
-              tools:
-                type: array
-                items:
-                  $ref: "#/components/schemas/McpTool"
-      paths:
-        /:
-          post:
-            summary: MCP JSON-RPC (Streamable HTTP)
-            description: |
-              Send JSON-RPC requests for MCP protocol operations.
-              Typical flow: `initialize` → `tools/list` → `tools/call`.
-            operationId: mcpJsonRpc
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema:
-                    $ref: "#/components/schemas/JsonRpcRequest"
-                  examples:
-                    initialize:
-                      summary: Initialize session
-                      value:
-                        jsonrpc: "2.0"
-                        method: initialize
-                        params:
-                          protocolVersion: "2024-11-05"
-                          capabilities: {}
-                          clientInfo:
-                            name: developer-hub
-                            version: "1.0"
-                        id: 1
-                    toolsList:
-                      summary: List available tools
-                      value:
-                        jsonrpc: "2.0"
-                        method: tools/list
-                        id: 2
-                    toolsCall:
-                      summary: Invoke a tool
-                      value:
-                        jsonrpc: "2.0"
-                        method: tools/call
-                        params:
-                          name: argocd_list_applications
-                          arguments: {}
-                        id: 3
-            responses:
-              "200":
-                description: JSON-RPC response
-                content:
-                  application/json:
-                    schema:
-                      $ref: "#/components/schemas/JsonRpcResponse"
-                    examples:
-                      toolsList:
-                        value:
-                          jsonrpc: "2.0"
-                          id: 2
-                          result:
-                            tools:
-                              - name: argocd_list_applications
-                                description: List Argo CD applications
-                              - name: k8s_get_resources
-                                description: Query Kubernetes resources
-              "401":
-                description: Missing or invalid APIKEY
+openapi: 3.0.3
+info:
+  title: MCP Gateway proxy
+  description: |
+    Streamable HTTP MCP gateway (ArgoCD + Kubernetes tools) via workshop-apis.
+    JSON-RPC 2.0 over HTTP POST. Kuadrant APIKEY required.
+  version: v1
+servers:
+  - url: https://workshop-apis.__HUB_APPS_DOMAIN__/mcp
+    description: MCP Gateway endpoint
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Kuadrant API key — format: `APIKEY <your-key>`"
+  schemas:
+    JsonRpcRequest:
+      type: object
+      required: [jsonrpc, method, id]
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        method:
+          type: string
+          description: MCP method name
+          enum:
+            - initialize
+            - tools/list
+            - tools/call
+            - ping
+          example: tools/list
+        params:
+          type: object
+          additionalProperties: true
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+          example: 1
+    JsonRpcResponse:
+      type: object
+      required: [jsonrpc, id]
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+    McpTool:
+      type: object
+      properties:
+        name:
+          type: string
+          example: argocd_list_applications
+        description:
+          type: string
+        inputSchema:
+          type: object
+    ToolsListResult:
+      type: object
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/McpTool"
+paths:
+  /:
+    post:
+      summary: MCP JSON-RPC (Streamable HTTP)
+      description: |
+        Send JSON-RPC requests for MCP protocol operations.
+        Typical flow: `initialize` → `tools/list` → `tools/call`.
+      operationId: mcpJsonRpc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonRpcRequest"
+            examples:
+              initialize:
+                summary: Initialize session
+                value:
+                  jsonrpc: "2.0"
+                  method: initialize
+                  params:
+                    protocolVersion: "2024-11-05"
+                    capabilities: {}
+                    clientInfo:
+                      name: developer-hub
+                      version: "1.0"
+                  id: 1
+              toolsList:
+                summary: List available tools
+                value:
+                  jsonrpc: "2.0"
+                  method: tools/list
+                  id: 2
+              toolsCall:
+                summary: Invoke a tool
+                value:
+                  jsonrpc: "2.0"
+                  method: tools/call
+                  params:
+                    name: argocd_list_applications
+                    arguments: {}
+                  id: 3
+      responses:
+        "200":
+          description: JSON-RPC response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JsonRpcResponse"
+              examples:
+                toolsList:
+                  value:
+                    jsonrpc: "2.0"
+                    id: 2
+                    result:
+                      tools:
+                        - name: argocd_list_applications
+                          description: List Argo CD applications
+                        - name: k8s_get_resources
+                          description: Query Kubernetes resources
+        "401":
+          description: Missing or invalid APIKEY
