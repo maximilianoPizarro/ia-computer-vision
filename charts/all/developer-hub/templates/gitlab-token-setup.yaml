@@ -72,6 +72,38 @@ subjects:
     name: gitlab-token-setup
     namespace: developer-hub
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-token-setup-exec-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    resourceNames: ["vault-0"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-token-setup-exec-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-token-setup-exec-vault
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-token-setup
+    namespace: developer-hub
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -118,7 +150,19 @@ spec:
                   -H "PRIVATE-TOKEN: ${CURRENT}" \
                   "${GITLAB_API}/user" || echo "000")
                 if [ "${HTTP}" = "200" ]; then
-                  echo "GITLAB_TOKEN is valid (HTTP 200) — skipping."
+                  POD=$(oc get pods -n "${RHDH_NAMESPACE}" -l rhdh.redhat.com/app=backstage-developer-hub \
+                    -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | awk '{print $1}')
+                  if [ -n "${POD}" ]; then
+                    POD_TOKEN=$(oc exec -n "${RHDH_NAMESPACE}" "${POD}" -c backstage-backend -- printenv GITLAB_TOKEN 2>/dev/null || true)
+                    if [ "${POD_TOKEN}" = "${CURRENT}" ]; then
+                      echo "GITLAB_TOKEN is valid in secret and loaded by ${POD} — skipping."
+                      exit 0
+                    fi
+                    echo "Secret token valid but ${POD} still has stale GITLAB_TOKEN — restarting deployment."
+                  else
+                    echo "GITLAB_TOKEN is valid (HTTP 200) — no running pod to compare; restarting deployment."
+                  fi
+                  oc rollout restart "deployment/${RHDH_DEPLOYMENT}" -n "${RHDH_NAMESPACE}"
                   exit 0
                 fi
                 echo "Existing token invalid (HTTP ${HTTP}), creating new token..."
@@ -148,5 +192,20 @@ spec:
                 -p "{\"stringData\":{\"GITLAB_TOKEN\":\"${NEW_TOKEN}\"}}"
               echo "Patched ${OIDC_SECRET} with GITLAB_TOKEN."
 
+              if oc get pod vault-0 -n vault >/dev/null 2>&1; then
+                oc exec -n vault vault-0 -- sh -c "
+                  set -e
+                  export VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true
+                  ROOT=\$(cat /vault/data/root-token 2>/dev/null || true)
+                  if [ -n \"\${ROOT}\" ]; then
+                    export VAULT_TOKEN=\${ROOT}
+                    vault kv patch secret/hub/developer-hub-secrets gitlab-token=\"${NEW_TOKEN}\"
+                    echo 'Patched Vault secret/hub/developer-hub-secrets gitlab-token.'
+                  else
+                    echo 'WARN: Vault root token not found — patch gitlab-token in Vault manually.'
+                  fi
+                " || echo "WARN: Could not patch Vault gitlab-token (non-fatal)."
+              fi
+
               oc rollout restart "deployment/${RHDH_DEPLOYMENT}" -n "${RHDH_NAMESPACE}"
-              echo "gitlab-token-setup complete. Patch Vault gitlab-token if ApplicationSet scmProvider still returns 401."
+              echo "gitlab-token-setup complete."

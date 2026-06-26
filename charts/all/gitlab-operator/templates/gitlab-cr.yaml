@@ -19,9 +19,13 @@ spec:
           domain: {{ $appsDomain | quote }}
           hostSuffix: gitlab
           https: true
+          gitlab:
+            name: {{ include "gitlab-operator.host" . | quote }}
         ingress:
           configureCertmanager: false
           class: openshift-default
+          annotations:
+            route.openshift.io/termination: edge
           tls:
             enabled: false
         openshift:

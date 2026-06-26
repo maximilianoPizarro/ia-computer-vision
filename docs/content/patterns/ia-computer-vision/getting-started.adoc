@@ -97,7 +97,7 @@ The following table explains each secret and whether you need to provide a value
 
 | `developer-hub-secrets`
 | `session-secret`, `gitlab-token`
-| `session-secret` is auto-generated. `gitlab-token` requires a GitLab Personal Access Token (PAT) with `api` scope. You can set it after GitLab deploys — the scaffolder will not work until you provide it.
+| `session-secret` is auto-generated. `gitlab-token` can be set manually after GitLab deploys, or left as a placeholder — the `gitlab-token-setup` PostSync job (Developer Hub chart) creates a root PAT, writes it to Vault and `developer-hub-oidc-auth`, and restarts RHDH when GitLab toolbox is ready.
 
 | `maas-credentials`
 | `api-key`
@@ -479,6 +479,27 @@ secret/west-...
 ----
 
 Run the **AI Computer Vision at the Edge** template as a workshop user, then confirm GitOps and plugin tabs:
+
+[source,bash]
+----
+$ oc get job gitlab-token-setup -n developer-hub
+$ TOKEN=$(oc get secret developer-hub-oidc-auth -n developer-hub -o jsonpath='{.data.GITLAB_TOKEN}' | base64 -d)
+$ curl -skS -o /dev/null -w "GitLab API: %{http_code}\n" -H "PRIVATE-TOKEN: ${TOKEN}" \
+  "https://gitlab.apps.$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')/api/v4/user"
+$ curl -skS -X POST -H "PRIVATE-TOKEN: ${TOKEN}" -H "Content-Type: application/json" \
+  -d '{"name":"repro-check","namespace_id":69}' \
+  "https://gitlab.apps.$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')/api/v4/projects" \
+  | grep -o '"http_url_to_repo":"[^"]*"'
+----
+
+.Expected
+[source,text]
+----
+GitLab API: 200
+"http_url_to_repo":"https://gitlab.apps.<hub_domain>/ws-workshop/repro-check.git"
+----
+
+Delete the test project after verification. The clone URL must use `gitlab.apps.<hub_domain>`, not `gitlab-gitlab.apps...` (HTTPS git push fails with 503 on the operator hostname without TLS).
 
 [source,bash]
 ----
