@@ -207,6 +207,17 @@ OCP Routes use HAProxy for ingress and support only basic round-robin across mul
 
 An OCP Route cannot split traffic between two external backends by weight; it always round-robins to endpoints within a single service. RHCL HTTPRoute treats east and west as independent backends with configurable weights.
 
+=== High Availability and Gateway API Abstractions
+
+The hub gateway and policies represent a modern, highly available edge architecture. This decouples routing intent from physical infrastructure and applies security policies transparently.
+
+image::istio-gateway-api-architecture.png[Istio and Gateway API HA Architecture,align="center",width=100%]
+
+* **Providers (Authority & Identity):** Kuadrant acts as the control plane for policies, while Red Hat Build of Keycloak serves as the OIDC identity provider.
+* **Policy & Gateway API:** The `HTTPRoute` defines routing rules (L7 matching). Kuadrant's `AuthPolicy` and `RateLimitPolicy` attach to the `HTTPRoute` via `targetRef`, enforcing security without modifying the application code or routing definition.
+* **Control Plane & HA Ingress:** `GatewayClass` provisions the physical Istio Ingress Gateways across multiple Availability Zones (Zone A and Zone B) for High Availability. The Istio CNI DaemonSet manages node-level networking.
+* **Data Plane Workloads:** The HA Gateways load balance traffic to workloads running Envoy sidecars (or ztunnel in ambient mode). The control plane also supports Canary Upgrades (e.g., migrating from v1.22 to v1.23) to safely shift traffic between Istio revisions.
+
 === Why Skupper instead of VPN or network peering?
 
 Skupper operates at the application layer (Layer 7), not the network layer:
