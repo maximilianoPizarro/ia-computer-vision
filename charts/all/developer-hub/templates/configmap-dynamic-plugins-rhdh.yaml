@@ -153,7 +153,7 @@ data:
                           - hasAnnotation: backstage.io/kubernetes-id
                           - hasAnnotation: backstage.io/kubernetes-namespace
       - package: ./dynamic-plugins/dist/backstage-community-plugin-scaffolder-backend-module-kubernetes-dynamic
-        disabled: false
+        disabled: true
       # Kafka — NOT in RHDH 1.9 image and no ghcr.io OCI package available; hardcode disabled
       - package: ./dynamic-plugins/dist/backstage-community-plugin-kafka-backend-dynamic
         disabled: true
@@ -277,7 +277,7 @@ data:
                     menuItem:
                       text: Tech Radar
 {{- end }}
-{{- if .Values.plugins.mcp.enabled | default true }}
+{{- if .Values.plugins.mcp.enabled | default false }}
       {{- $mcpTag := .Values.plugins.mcp.pluginTag | default "bs_1.45.3__0.1.5" }}
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-mcp-actions-backend:{{ $mcpTag }}
         disabled: false

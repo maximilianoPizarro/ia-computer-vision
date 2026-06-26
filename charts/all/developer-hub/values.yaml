@@ -67,7 +67,7 @@ plugins:
   kuadrant:
     enabled: true
   ocm:
-    enabled: true
+    enabled: false
   topology:
     enabled: true
   keycloakCatalog:

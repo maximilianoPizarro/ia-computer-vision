@@ -38,7 +38,7 @@ data:
           - host: catfact.ninja
           - host: restcountries.com
           - host: jsonplaceholder.typicode.com
-{{- if .Values.plugins.mcp.enabled | default true }}
+{{- if .Values.plugins.mcp.enabled | default false }}
       actions:
         pluginSources:
           - software-catalog-mcp-tool
@@ -219,7 +219,7 @@ data:
     techRadar:
       url: https://raw.githubusercontent.com/backstage/community/master/plugins/tech-radar-common/src/sampleTechRadarResponse.json
 {{- end }}
-{{- if .Values.plugins.mcp.enabled | default true }}
+{{- if .Values.plugins.mcp.enabled | default false }}
     mcpActions:
       servers:
         catalog:
