@@ -89,9 +89,10 @@ spec:
       action: publish:gitlab
       input:
         repoUrl: "gitlab.apps.${{ parameters.hubClusterDomain }}?owner=ws-workshop&repo=neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}"
-        description: "NeuroFace ${{ parameters.owner | parseEntityRef | pick('name') }} on ${{ parameters.spoke }} spoke with RHBK biometric OIDC"
         defaultBranch: main
-        repoVisibility: public
+        settings:
+          description: "NeuroFace ${{ parameters.owner | parseEntityRef | pick('name') }} on ${{ parameters.spoke }} spoke with RHBK biometric OIDC"
+          visibility: public
     - id: register
       name: Register in catalog
       action: catalog:register
