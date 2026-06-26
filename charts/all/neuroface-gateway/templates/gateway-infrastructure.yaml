@@ -1,0 +1,12 @@
+{{- $replicas := int (.Values.gateway.replicas | default 2) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuroface-gateway-infrastructure
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  deployment: |
+    spec:
+      replicas: {{ $replicas }}

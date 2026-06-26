@@ -337,6 +337,8 @@ clusterGroup:
           value: "50"
         - name: gateway.weights.west
           value: "50"
+        - name: gateway.replicas
+          value: "2"
         - name: kuadrant.enabled
           value: "true"
 

@@ -7,6 +7,11 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
     networking.istio.io/service-type: ClusterIP
 spec:
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: neuroface-gateway-infrastructure
   gatewayClassName: istio
   listeners:
     - name: http

@@ -1,0 +1,12 @@
+{{- $replicas := int (.Values.spokeGateway.replicas | default 2) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuroface-spoke-gateway-infrastructure
+  namespace: neuroface
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  deployment: |
+    spec:
+      replicas: {{ $replicas }}

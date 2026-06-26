@@ -1,4 +1,6 @@
 clusterDomain: ""
+gateway:
+  replicas: 2
 clusters:
   east:
     domain: ""

@@ -1,5 +1,8 @@
 clusterName: ""
 
+spokeGateway:
+  replicas: 2
+
 neuroface:
   fullnameOverride: neuroface
   clusterName: ""

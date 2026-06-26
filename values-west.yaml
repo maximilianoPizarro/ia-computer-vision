@@ -199,6 +199,8 @@ clusterGroup:
       overrides:
         - name: clusterName
           value: west
+        - name: spokeGateway.replicas
+          value: "2"
         - name: neuroface.clusterName
           value: west
         - name: neuroface.chat.modelEndpoint
