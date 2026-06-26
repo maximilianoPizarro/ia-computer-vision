@@ -4,7 +4,7 @@
 {{- end -}}
 {{- $as := .Values.applicationSet | default dict -}}
 {{- if $as.enabled | default true }}
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: gitlab-scm-token

@@ -150,12 +150,14 @@
 
 {{- define "developer-hub.spokeDomainEast" -}}
 {{- $sc := .Values.spokeCredentials.clusters.east | default dict -}}
-{{- $d := include "developer-hub.spokeDomainFromApiUrl" ($sc.apiUrl | default "") -}}
+{{- $url := $sc.apiUrl | default ((.Values.kubernetesSpokes.east | default dict).apiUrl | default "") -}}
+{{- $d := include "developer-hub.spokeDomainFromApiUrl" $url -}}
 {{- $d | default "cluster-east.example.com" -}}
 {{- end -}}
 
 {{- define "developer-hub.spokeDomainWest" -}}
 {{- $sc := .Values.spokeCredentials.clusters.west | default dict -}}
-{{- $d := include "developer-hub.spokeDomainFromApiUrl" ($sc.apiUrl | default "") -}}
+{{- $url := $sc.apiUrl | default ((.Values.kubernetesSpokes.west | default dict).apiUrl | default "") -}}
+{{- $d := include "developer-hub.spokeDomainFromApiUrl" $url -}}
 {{- $d | default "cluster-west.example.com" -}}
 {{- end -}}
