@@ -76,20 +76,20 @@ spec:
       input:
         url: ./ai-cv-skeleton
         values:
-          name: neuroface-${{ parameters.owner }}
-          owner: ${{ parameters.owner }}
-          namespace: neuroface-${{ parameters.owner }}
+          name: neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}
+          owner: ${{ parameters.owner | parseEntityRef | pick('name') }}
+          namespace: neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}
           spoke: ${{ parameters.spoke }}
           hubClusterDomain: ${{ parameters.hubClusterDomain }}
           spokeClusterDomain: ${{ parameters.spokeClusterDomain }}
           maasEndpoint: ${{ parameters.maasEndpoint }}
-          repoUrl: https://gitlab.apps.${{ parameters.hubClusterDomain }}/ws-workshop/neuroface-${{ parameters.owner }}
+          repoUrl: https://gitlab.apps.${{ parameters.hubClusterDomain }}/ws-workshop/neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}
     - id: publish
       name: Publish to GitLab
-      action: publish:github
+      action: publish:gitlab
       input:
-        repoUrl: "gitlab.apps.${{ parameters.hubClusterDomain }}?owner=ws-workshop&repo=neuroface-${{ parameters.owner }}"
-        description: "NeuroFace ${{ parameters.owner }} on ${{ parameters.spoke }} spoke with RHBK biometric OIDC"
+        repoUrl: "gitlab.apps.${{ parameters.hubClusterDomain }}?owner=ws-workshop&repo=neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}"
+        description: "NeuroFace ${{ parameters.owner | parseEntityRef | pick('name') }} on ${{ parameters.spoke }} spoke with RHBK biometric OIDC"
         defaultBranch: main
         repoVisibility: public
     - id: register
@@ -103,9 +103,9 @@ spec:
       - title: Repository
         url: ${{ steps.publish.output.remoteUrl }}
       - title: NeuroFace (OIDC Gateway)
-        url: https://neuroface-spoke-gateway.${{ parameters.spokeClusterDomain }}/user/${{ parameters.owner }}/
+        url: https://neuroface-spoke-gateway.${{ parameters.spokeClusterDomain }}/user/${{ parameters.owner | parseEntityRef | pick('name') }}/
       - title: RHBK Admin
-        url: https://rhbk-neuroface-${{ parameters.owner }}.${{ parameters.spokeClusterDomain }}/admin
+        url: https://rhbk-neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}.${{ parameters.spokeClusterDomain }}/admin
       - title: Open in DevSpaces
         url: https://devspaces.apps.${{ parameters.hubClusterDomain }}/#${{ steps.publish.output.remoteUrl }}
       - title: Catalog entity

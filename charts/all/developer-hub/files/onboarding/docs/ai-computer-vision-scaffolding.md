@@ -21,7 +21,7 @@ A Red Hat Developer Hub **software template** (Backstage `Template` CR) that aut
 | Operator / component | Role |
 |---------------------|------|
 | **Validated Patterns Operator** | Installs Developer Hub, GitLab, GitOps, ACM; injects domains into the template form. |
-| **Developer Hub Scaffolder** | Runs `fetch:template`, `publish:github`, `catalog:register`. |
+| **Developer Hub Scaffolder** | Runs `fetch:template`, `publish:gitlab`, `catalog:register`. |
 | **GitLab Operator** | Hosts the repo in group `ws-workshop`. |
 | **OpenShift GitOps** | ApplicationSet `user-neuroface-apps` watches `^neuroface-` repos. |
 | **RHACM GitOpsCluster** | Registers `east` / `west` with hub Argo CD so spoke sync works. |
@@ -61,7 +61,7 @@ oc get pods -n neuroface-<you>  # use east/west kubeconfig or ACM console
 | Step ID | Action | Purpose |
 |---------|--------|---------|
 | `fetch` | `fetch:template` | Copy `ai-cv-skeleton` with your parameters. |
-| `publish` | `publish:github` | Push to GitLab (uses PAT from Vault via ESO). |
+| `publish` | `publish:gitlab` | Push to GitLab (uses PAT from Vault via ESO). |
 | `register` | `catalog:register` | Register `catalog-info.yaml` in Developer Hub. |
 
 Output links in the template UI point to repository, NeuroFace gateway, RHBK admin, DevSpaces, and catalog entity.
