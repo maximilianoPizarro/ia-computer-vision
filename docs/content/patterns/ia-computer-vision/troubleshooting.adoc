@@ -560,7 +560,16 @@ Components need `backstage.io/kubernetes-namespace` (and optionally `backstage.i
 
 === OCM prerequisites
 
-ACM `MultiClusterHub` healthy; `ClusterRoleBinding` `backstage-ocm-plugin` bound to SA `developer-hub`; ManagedClusters visible in ACM.
+ACM `MultiClusterHub` healthy; `ClusterRoleBinding` `backstage-ocm-plugin` bound to SA `developer-hub` (created automatically when `plugins.ocm.enabled` is true); ManagedClusters visible in ACM.
+
+=== Automated install checks
+
+On each `developer-hub` Argo CD sync:
+
+* **PreSync** job `developer-hub-plugin-ghcr-readiness` — verifies ghcr.io OCI images are pullable before the Backstage pod restarts.
+* **PostSync** job `developer-hub-plugin-readiness` — verifies `/healthcheck`, `/ocm`, and `/kiali` when those plugins are enabled.
+
+Disable ghcr pre-check for air-gapped mirrors: `pluginReadiness.ghcrCheck.enabled: false` and set `plugins.registry` to your Quay mirror.
 
 == Quay Missing (legacy installs)
 

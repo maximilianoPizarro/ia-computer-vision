@@ -1,0 +1,59 @@
+{{- $ocmEnabled := include "developer-hub.pluginEnabled" (dict "Values" .Values "plugin" "ocm" "default" true) -}}
+{{- $kialiEnabled := include "developer-hub.pluginEnabled" (dict "Values" .Values "plugin" "kiali" "default" true) -}}
+{{- $ghcrCheck := .Values.pluginReadiness.ghcrCheck | default dict -}}
+{{- if and (.Values.pluginReadiness.enabled | default true) ($ghcrCheck.enabled | default true) (or $ocmEnabled $kialiEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: developer-hub-plugin-ghcr-readiness
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: skopeo
+          image: {{ $ghcrCheck.image | default "registry.redhat.io/ubi9/skopeo:latest" | quote }}
+          env:
+            - name: PLUGIN_REGISTRY
+              value: {{ include "developer-hub.pluginRegistry" . | quote }}
+            - name: OCM_ENABLED
+              value: {{ $ocmEnabled | quote }}
+            - name: KIALI_ENABLED
+              value: {{ $kialiEnabled | quote }}
+            - name: OCM_PLUGIN_TAG
+              value: {{ .Values.plugins.ocm.pluginTag | default "bs_1.45.3__5.11.1" | quote }}
+            - name: OCM_BACKEND_TAG
+              value: {{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" | quote }}
+            - name: KIALI_PLUGIN_TAG
+              value: {{ .Values.plugins.kiali.pluginTag | default "bs_1.45.3__1.49.0" | quote }}
+            - name: KIALI_BACKEND_TAG
+              value: {{ .Values.plugins.kiali.backendTag | default "bs_1.45.3__1.28.0" | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              inspect_image() {
+                local pkg="$1"
+                local tag="$2"
+                echo "Inspecting ${PLUGIN_REGISTRY}/${pkg}:${tag}"
+                skopeo inspect --no-tags "docker://${PLUGIN_REGISTRY}/${pkg}:${tag}" >/dev/null
+                echo "OK: ${pkg}:${tag}"
+              }
+              if [ "${OCM_ENABLED}" = "true" ]; then
+                inspect_image "backstage-community-plugin-ocm-backend" "${OCM_BACKEND_TAG}"
+                inspect_image "backstage-community-plugin-ocm" "${OCM_PLUGIN_TAG}"
+              fi
+              if [ "${KIALI_ENABLED}" = "true" ]; then
+                inspect_image "backstage-community-plugin-kiali-backend" "${KIALI_BACKEND_TAG}"
+                inspect_image "backstage-community-plugin-kiali" "${KIALI_PLUGIN_TAG}"
+              fi
+              echo "ghcr.io dynamic plugin images reachable"
+{{- end }}

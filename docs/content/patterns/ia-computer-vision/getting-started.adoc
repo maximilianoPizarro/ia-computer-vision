@@ -444,7 +444,12 @@ $ echo "Developer Hub: https://$(oc get route backstage -n developer-hub -o json
 $ echo "Showroom:      https://$(oc get route showroom -n showroom -o jsonpath='{.spec.host}')"
 $ echo "GitLab:        https://$(oc get route gitlab -n gitlab-system -o jsonpath='{.spec.host}' 2>/dev/null || echo 'not yet available')"
 $ echo "Grafana:       https://$(oc get route grafana -n openshift-cluster-observability-operator -o jsonpath='{.spec.host}' 2>/dev/null || echo 'not yet available')"
+$ HUB=https://$(oc get route backstage -n developer-hub -o jsonpath='{.spec.host}')
+$ curl -sk -o /dev/null -w "Developer Hub /ocm:   %{http_code}\n" "$HUB/ocm"
+$ curl -sk -o /dev/null -w "Developer Hub /kiali: %{http_code}\n" "$HUB/kiali"
 ----
+
+OCM and Kiali plugins are enabled by default (`plugins.ocm.enabled`, `plugins.kiali.enabled` in the Developer Hub chart). Argo CD runs PreSync ghcr validation and PostSync route checks automatically; expect HTTP `200` on `/ocm` and `/kiali` after `developer-hub` is Healthy.
 
 === Step 6: Verify workshop users (if workshop mode is enabled)
 

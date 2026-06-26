@@ -33,7 +33,7 @@ data:
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
       - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-ocm-backend:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
-        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" false) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" true) }}
         pluginConfig:
           catalog:
             providers:
@@ -48,7 +48,7 @@ data:
                     frequency: { minutes: 15 }
                     timeout: { minutes: 10 }
       - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-ocm:{{ .Values.plugins.ocm.pluginTag | default "bs_1.45.3__5.11.1" }}
-        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" false) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -92,7 +92,7 @@ data:
                           - isKind: resource
                           - isType: kubernetes-cluster
       - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-kiali-backend:{{ .Values.plugins.kiali.backendTag | default "bs_1.45.3__1.28.0" }}
-        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kiali" "defaultEnabled" false) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kiali" "defaultEnabled" true) }}
         pluginConfig:
           kiali:
             providers:
@@ -102,7 +102,7 @@ data:
                 serviceAccountToken: ${KIALI_SA_TOKEN}
                 sessionTime: 60
       - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-kiali:{{ .Values.plugins.kiali.pluginTag | default "bs_1.45.3__1.49.0" }}
-        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kiali" "defaultEnabled" false) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "kiali" "defaultEnabled" true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:

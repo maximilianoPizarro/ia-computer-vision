@@ -21,6 +21,9 @@ rhacsApiToken: ""
 pluginReadiness:
   enabled: true
   image: registry.redhat.io/ubi9/ubi-minimal:latest
+  ghcrCheck:
+    enabled: true
+    image: registry.redhat.io/ubi9/skopeo:latest
 spokeTokenSync:
   enabled: true
   clusters: "east,west"

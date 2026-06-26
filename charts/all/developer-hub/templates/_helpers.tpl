@@ -26,6 +26,20 @@
 {{- else if $defaultEnabled -}}false{{- else -}}true{{- end -}}
 {{- end -}}
 
+{{/*
+  Returns true when a plugin is enabled (honors explicit bool; else uses default).
+  Pass dict: Values, plugin, default (optional, default true).
+*/}}
+{{- define "developer-hub.pluginEnabled" -}}
+{{- $cfg := index .Values.plugins .plugin | default dict -}}
+{{- $default := .default | default true -}}
+{{- if kindIs "bool" $cfg.enabled -}}
+{{- $cfg.enabled -}}
+{{- else -}}
+{{- $default -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "developer-hub.lightspeedAiModel" -}}
 {{- $ls := .Values.plugins.lightspeed | default dict -}}
 {{- $ai := $ls.aiModel | default dict -}}

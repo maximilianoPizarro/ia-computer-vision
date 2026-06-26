@@ -1,4 +1,6 @@
 {{- if .Values.pluginReadiness.enabled | default true }}
+{{- $ocmEnabled := include "developer-hub.pluginEnabled" (dict "Values" .Values "plugin" "ocm" "default" true) -}}
+{{- $kialiEnabled := include "developer-hub.pluginEnabled" (dict "Values" .Values "plugin" "kiali" "default" true) -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -55,6 +57,38 @@ spec:
                 echo "WARNING: llama-stack-secrets missing valid VLLM_API_KEY — create maas-facilitator-seed in vault"
               else
                 echo "Lightspeed MaaS key present in llama-stack-secrets"
+              fi
+              {{- end }}
+              {{- if eq $ocmEnabled "true" }}
+              echo "Checking OCM route ${BASE}/ocm"
+              if curl -sk -o /dev/null -w "%{http_code}" "$BASE/ocm" | grep -qE '200|401'; then
+                echo "OCM route OK"
+              else
+                echo "ERROR: /ocm not reachable"
+                exit 1
+              fi
+              {{- end }}
+              {{- if eq $kialiEnabled "true" }}
+              KIALI_URL="{{ include "developer-hub.kialiEndpoint" . }}"
+              echo "Waiting for Kiali route ${KIALI_URL}..."
+              for i in $(seq 1 30); do
+                CODE=$(curl -sk -o /dev/null -w "%{http_code}" "${KIALI_URL}/" || echo "000")
+                if [ "${CODE}" = "200" ] || [ "${CODE}" = "302" ] || [ "${CODE}" = "401" ]; then
+                  echo "Kiali route reachable (HTTP ${CODE})"
+                  break
+                fi
+                if [ "$i" -eq 30 ]; then
+                  echo "ERROR: Kiali route not reachable (last HTTP ${CODE})"
+                  exit 1
+                fi
+                sleep 10
+              done
+              echo "Checking Kiali plugin route ${BASE}/kiali"
+              if curl -sk -o /dev/null -w "%{http_code}" "$BASE/kiali" | grep -qE '200|401'; then
+                echo "Kiali plugin route OK"
+              else
+                echo "ERROR: /kiali not reachable"
+                exit 1
               fi
               {{- end }}
               echo "Plugin readiness checks complete"
