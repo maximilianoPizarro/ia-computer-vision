@@ -59,7 +59,7 @@ spec:
         name: Developer Hub Catalog Sync
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ $oidcSecret | quote }}
+        secret: $(OIDC_CLIENT_SECRET)
         serviceAccountsEnabled: true
         standardFlowEnabled: false
         directAccessGrantsEnabled: true
@@ -70,7 +70,7 @@ spec:
         name: DevSpaces
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ $oidcSecret | quote }}
+        secret: $(OIDC_CLIENT_SECRET)
         redirectUris:
           - "https://devspaces.{{ include "developer-hub.clusterDomain" . }}/api/oauth/callback"
           - "https://devspaces.{{ include "developer-hub.clusterDomain" . }}/api/oauth/che/callback"

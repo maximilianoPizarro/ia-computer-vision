@@ -6,8 +6,6 @@ keycloak:
   namespace: keycloak-system
   crName: keycloak
   serviceName: keycloak-service-serving
-# Fallback for realm import when Vault/ESO is unavailable. With useVault=true the
-# PostSync oidc-client-secret-sync job aligns Keycloak clients with Vault.
 keycloakOidcClientSecret: "rhdh-oidc-2026-ia-cv-pattern"
 oidcAuth:
   useVault: true
@@ -15,8 +13,7 @@ oidcAuth:
   secretStoreRef:
     name: vault-backend
     kind: ClusterSecretStore
-oidcClientSecretSync:
-  enabled: true
+keycloakOidcClientSecret: ""
 devspacesOidcClientSecret: ""
 gitlabToken: ""
 sessionSecret: ""
