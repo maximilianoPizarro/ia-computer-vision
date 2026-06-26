@@ -1,0 +1,86 @@
+clusterDomain: ""
+
+workshopGateway:
+  namespace: workshop-kuadrant-apis
+  name: workshop-apis-gateway
+  hostname: "" # default workshop-apis.<clusterDomain>
+
+aiGateway:
+  namespace: ai-gateway-system
+  name: ai-gateway
+  hostname: "" # default ai-gateway.<clusterDomain>
+
+# Public web APIs — ExternalName + ServiceEntry + Kuadrant APIProduct
+apis:
+  httpbin:
+    enabled: true
+    host: httpbin.org
+    port: 443
+    pathPrefix: /httpbin
+    rewritePathPrefix: /
+    displayName: Workshop httpbin (httpbin.org)
+  restcountries:
+    enabled: true
+    # restcountries.com v3.1 is deprecated; countriesnow.space is a stable free JSON API.
+    host: countriesnow.space
+    port: 443
+    pathPrefix: /countries
+    rewritePathPrefix: /api/v0.1/countries
+    displayName: Workshop Countries API (countriesnow.space)
+  mcp:
+    enabled: false
+    # In-cluster MCP gateway (Kuadrant MCP CRDs); exposed via workshop-apis with API key
+    serviceName: mcp-gateway-istio
+    serviceNamespace: mcp-system
+    port: 8080
+    pathPrefix: /mcp
+    rewritePathPrefix: /mcp
+    displayName: Workshop MCP Gateway (ArgoCD + k8s tools)
+  maas:
+    enabled: true
+    host: maas-rhdp.apps.maas.redhatworkshops.io
+    port: 443
+    pathPrefix: /v1
+    rewritePathPrefix: /v1
+    apiKey: "" # inject via litemaas.apiKey at deploy (never commit)
+    displayName: AI Gateway — MaaS LLM (TokenRateLimit)
+
+approvalMode: manual # manual = platform admin approves from Developer Hub; automatic = instant
+
+plans:
+  tiers:
+    - bronze
+    - silver
+    - gold
+  limits:
+    bronze:
+      custom:
+        - limit: 5
+          window: 1m
+    silver:
+      custom:
+        - limit: 15
+          window: 1m
+    gold:
+      custom:
+        - limit: 60
+          window: 1m
+
+tokenRateLimit:
+  free:
+    limit: 50
+    window: 1m
+  gold:
+    limit: 200
+    window: 1m
+
+vault:
+  # KV paths documented for workshop API credentials (see templates/vault-paths.yaml)
+  maasSecretPath: secret/workshop/maas
+  kuadrantKeysPathPrefix: secret/workshop/kuadrant
+
+# PostSync hook: restart RHCL Kuadrant operator after Istio GatewayClass exists (detection is at pod startup)
+kuadrantOperatorRestart:
+  image: registry.redhat.io/openshift4/ose-cli:latest
+  operatorNamespace: redhat-connectivity-link-operator
+  deployment: kuadrant-operator-controller-manager

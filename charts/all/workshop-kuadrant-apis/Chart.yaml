@@ -1,0 +1,6 @@
+apiVersion: v2
+name: workshop-kuadrant-apis
+description: Kuadrant workshop APIs — external public APIs via Gateway API (ServiceEntry) + TokenRateLimit
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

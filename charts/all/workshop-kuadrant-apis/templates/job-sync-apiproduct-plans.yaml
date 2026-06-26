@@ -1,0 +1,108 @@
+# Kuadrant Backstage edit UI reads APIProduct.status.discoveredPlans (from PlanPolicy tiers).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workshop-kuadrant-sync-plans
+  namespace: {{ .Values.workshopGateway.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: workshop-kuadrant-sync-plans
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+rules:
+  - apiGroups: ["devportal.kuadrant.io"]
+    resources: ["apiproducts"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["devportal.kuadrant.io"]
+    resources: ["apiproducts/status"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["extensions.kuadrant.io"]
+    resources: ["planpolicies"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: workshop-kuadrant-sync-plans
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: workshop-kuadrant-sync-plans
+subjects:
+  - kind: ServiceAccount
+    name: workshop-kuadrant-sync-plans
+    namespace: {{ .Values.workshopGateway.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: workshop-kuadrant-sync-plans
+  namespace: {{ .Values.workshopGateway.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: workshop-kuadrant-sync-plans
+      containers:
+        - name: sync
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              python3 <<'PY'
+              import json, subprocess
+              def oc(*args):
+                  return subprocess.check_output(
+                      ["oc", *args],
+                      universal_newlines=True,
+                  )
+              products = json.loads(oc("get", "apiproducts.devportal.kuadrant.io", "-A", "-o", "json"))["items"]
+              policies = json.loads(oc("get", "planpolicies.extensions.kuadrant.io", "-A", "-o", "json"))["items"]
+              by_route = {}
+              for p in policies:
+                  ref = p.get("spec", {}).get("targetRef") or {}
+                  if ref.get("kind") == "HTTPRoute" and ref.get("name"):
+                      by_route[(p["metadata"]["namespace"], ref["name"])] = p
+              synced = 0
+              for prod in products:
+                  meta = prod["metadata"]
+                  ns, name = meta["namespace"], meta["name"]
+                  route = (prod.get("spec", {}).get("targetRef") or {}).get("name")
+                  if not route:
+                      continue
+                  pol = by_route.get((ns, route))
+                  if not pol:
+                      continue
+                  plans = []
+                  for plan in pol.get("spec", {}).get("plans") or []:
+                      entry = {"tier": plan.get("tier")}
+                      if plan.get("limits"):
+                          entry["limits"] = plan["limits"]
+                      plans.append(entry)
+                  patch = json.dumps({"status": {"discoveredPlans": plans}})
+                  subprocess.run(
+                      ["oc", "patch", "apiproduct", name, "-n", ns, "--type=merge", "--subresource=status", "-p", patch],
+                      check=True,
+                  )
+                  print(f"OK {ns}/{name}: {len(plans)} plan(s)", flush=True)
+                  synced += 1
+              print(f"Synced {synced} APIProduct(s)", flush=True)
+              PY

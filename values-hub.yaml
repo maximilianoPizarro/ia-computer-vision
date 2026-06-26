@@ -30,6 +30,8 @@ clusterGroup:
       operatorGroup: true
       targetNamespaces: []
     developer-hub: {}
+    workshop-kuadrant-apis: {}
+    ai-gateway-system: {}
     keycloak-system: {}
     mailpit: {}
     showroom: {}
@@ -247,6 +249,14 @@ clusterGroup:
       overrides:
         - name: userCount
           value: "30"
+        - name: plugins.kuadrant.enabled
+          value: "true"
+        - name: plugins.notificationsEmail.enabled
+          value: "true"
+        - name: spokeTokenSync.enabled
+          value: "true"
+        - name: kubernetesSpokes.enabled
+          value: "true"
 
     openshift-ai-hub:
       name: openshift-ai-hub
@@ -321,6 +331,18 @@ clusterGroup:
           value: "50"
         - name: kuadrant.enabled
           value: "true"
+
+    workshop-kuadrant-apis:
+      name: workshop-kuadrant-apis
+      namespace: workshop-kuadrant-apis
+      argoProject: workshop
+      path: charts/all/workshop-kuadrant-apis
+      syncWave: "6"
+      overrides:
+        - name: apis.mcp.enabled
+          value: "false"
+        - name: apis.maas.host
+          value: "maas-rhdp.apps.maas.redhatworkshops.io"
 
     acm-hub-spoke:
       name: acm-hub-spoke

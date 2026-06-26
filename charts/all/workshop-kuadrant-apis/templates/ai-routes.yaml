@@ -1,0 +1,41 @@
+{{- $aiNs := .Values.aiGateway.namespace }}
+{{- $aiName := .Values.aiGateway.name }}
+{{- $hostname := .Values.aiGateway.hostname | default (printf "ai-gateway.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) }}
+{{- $api := .Values.apis.maas }}
+{{- if and $api.enabled $api.host }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ai-maas
+  namespace: {{ $aiNs }}
+  labels:
+    app: workshop-maas
+    kuadrant.io/exposed: "true"
+    workshop.kuadrant.io/external-host: {{ $api.host | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  parentRefs:
+    - name: {{ $aiName }}
+      namespace: {{ $aiNs }}
+  hostnames:
+    - {{ $hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ $api.pathPrefix | quote }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: {{ $api.host | quote }}
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: {{ $api.rewritePathPrefix | default "/v1" | quote }}
+      backendRefs:
+        - group: networking.istio.io
+          kind: Hostname
+          name: {{ $api.host | quote }}
+          port: {{ $api.port | default 443 }}
+{{- end }}

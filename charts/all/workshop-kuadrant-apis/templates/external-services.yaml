@@ -1,0 +1,66 @@
+{{- $gwNs := .Values.workshopGateway.namespace }}
+{{- $aiNs := .Values.aiGateway.namespace }}
+{{- range $name, $api := .Values.apis }}
+{{- if and $api.enabled $api.host (ne $name "maas") }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workshop-ext-{{ $name }}
+  namespace: {{ $gwNs }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+    workshop.kuadrant.io/api: {{ $name }}
+    kuadrant.io/external-backend: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ExternalName
+  externalName: {{ $api.host | quote }}
+  ports:
+    - name: https
+      port: {{ $api.port | default 443 }}
+      protocol: TCP
+{{- end }}
+{{- end }}
+{{- if and .Values.apis.mcp.enabled .Values.apis.mcp.serviceName }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workshop-ext-mcp
+  namespace: {{ $gwNs }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+    workshop.kuadrant.io/api: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ExternalName
+  externalName: {{ printf "%s.%s.svc.cluster.local" .Values.apis.mcp.serviceName (.Values.apis.mcp.serviceNamespace | default "mcp-system") | quote }}
+  ports:
+    - name: http
+      port: {{ .Values.apis.mcp.port | default 8080 }}
+      protocol: TCP
+{{- end }}
+{{- if and .Values.apis.maas.enabled .Values.apis.maas.host }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-ext-maas
+  namespace: {{ $aiNs }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+    workshop.kuadrant.io/api: maas
+    kuadrant.io/external-backend: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ExternalName
+  externalName: {{ .Values.apis.maas.host | quote }}
+  ports:
+    - name: https
+      port: {{ .Values.apis.maas.port | default 443 }}
+      protocol: TCP
+{{- end }}

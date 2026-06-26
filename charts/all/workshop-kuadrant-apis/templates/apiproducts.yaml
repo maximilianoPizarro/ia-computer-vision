@@ -1,0 +1,154 @@
+{{- $workshopNs := .Values.workshopGateway.namespace }}
+{{- $aiNs := .Values.aiGateway.namespace }}
+{{- $workshopHost := .Values.workshopGateway.hostname | default (printf "workshop-apis.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) }}
+{{- $aiHost := .Values.aiGateway.hostname | default (printf "ai-gateway.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) }}
+{{- $workshopBase := printf "https://%s" $workshopHost }}
+{{- $aiBase := printf "https://%s" $aiHost }}
+{{- $dhHost := printf "developer-hub.%s" (include "workshop-kuadrant-apis.clusterDomain" .) -}}
+{{- $dhApiDef := printf "https://%s/api/catalog/entities/by-name/api/default" $dhHost -}}
+{{- if .Values.apis.httpbin.enabled }}
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: workshop-httpbin
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    backstage.io/owner: group:default/platform-engineering
+spec:
+  displayName: {{ .Values.apis.httpbin.displayName | default "Workshop httpbin (external)" }}
+  description: Public httpbin.org via dedicated workshop-apis Gateway API. ExternalName backend + PlanPolicy tiers.
+  publishStatus: Published
+  approvalMode: {{ .Values.approvalMode | default "manual" }}
+  version: v1
+  tags: [workshop, httpbin, external-api]
+  documentation:
+    openAPISpecURL: {{ printf "%s/workshop-httpbin-openapi/definition" $dhApiDef | quote }}
+  contact:
+    email: platform@example.com
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-httpbin
+{{- end }}
+{{- if .Values.apis.restcountries.enabled }}
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: workshop-restcountries
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    backstage.io/owner: group:default/platform-engineering
+spec:
+  displayName: {{ .Values.apis.restcountries.displayName | default "Workshop REST Countries (external)" }}
+  description: External countriesnow.space via workshop-apis gateway. Kuadrant API keys + PlanPolicy.
+  publishStatus: Published
+  approvalMode: {{ .Values.approvalMode | default "manual" }}
+  version: v1
+  tags: [workshop, restcountries, external-api]
+  documentation:
+    openAPISpecURL: {{ printf "%s/workshop-restcountries-openapi/definition" $dhApiDef | quote }}
+    docsURL: https://countriesnow.space
+  contact:
+    email: platform@example.com
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-restcountries
+{{- end }}
+{{- if .Values.apis.mcp.enabled }}
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: workshop-mcp-gateway
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    backstage.io/owner: group:default/platform-engineering
+spec:
+  displayName: {{ .Values.apis.mcp.displayName | default "Workshop MCP Gateway" }}
+  description: >
+    Kuadrant MCP Gateway (ArgoCD + Kubernetes MCP tools) exposed via workshop-apis with API key auth.
+    Use Developer Hub Kuadrant plugin to request keys; consume from MCP clients at /mcp.
+  publishStatus: Published
+  approvalMode: {{ .Values.approvalMode | default "manual" }}
+  version: v1
+  tags: [workshop, mcp, gateway-api, external-api]
+  documentation:
+    openAPISpecURL: {{ printf "%s/workshop-mcp-openapi/definition" $dhApiDef | quote }}
+    docsURL: https://docs.kuadrant.io
+  contact:
+    email: platform@example.com
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-mcp
+{{- end }}
+{{- if .Values.apis.maas.enabled }}
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: workshop-llm-tokens
+  namespace: {{ $aiNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    backstage.io/owner: group:default/platform-engineering
+spec:
+  displayName: {{ .Values.apis.maas.displayName | default "AI Gateway — MaaS LLM (TokenRateLimit)" }}
+  description: >
+    OpenAI-compatible MaaS on dedicated ai-gateway. ExternalName to MaaS RHDP; TokenRateLimitPolicy on chat completions.
+    Workshop users use Kuadrant API keys; gateway injects upstream MaaS Bearer token.
+  publishStatus: Published
+  approvalMode: {{ .Values.approvalMode | default "manual" }}
+  version: v1
+  tags: [workshop, llm, maas, ai-gateway, token-rate-limit]
+  documentation:
+    openAPISpecURL: {{ printf "%s/workshop-maas-openapi/definition" $dhApiDef | quote }}
+  contact:
+    email: platform@example.com
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: ai-maas
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workshop-kuadrant-apis-readme
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  README.md: |
+    # Kuadrant workshop APIs — dedicated gateways
+
+    | Gateway | Host | APIs |
+    |---------|------|------|
+    | **workshop-apis** | {{ $workshopBase }} | httpbin, REST Countries, MCP |
+    | **ai-gateway** | {{ $aiBase }} | MaaS LLM `/v1/chat/completions` |
+
+    External backends: Kubernetes **ExternalName** Services + Istio ServiceEntry (TLS origination).
+
+    ## Developer Hub
+    1. `/kuadrant` → API Products → request API key (auto-approved)
+    2. Catalog → **workshop-kuadrant-apis** → OpenAPI entities → Swagger
+    3. Vault (optional): upstream MaaS at `{{ .Values.vault.maasSecretPath }}`; consumer keys at `{{ .Values.vault.kuadrantKeysPathPrefix }}/<user>/<product>`
+
+    ## Examples
+    ```bash
+    curl -H "Authorization: APIKEY $KEY" {{ $workshopBase }}/httpbin/get
+    curl -H "Authorization: APIKEY $KEY" {{ $workshopBase }}/countries/population/q?country=argentina
+    curl -H "Authorization: APIKEY $KEY" -H "Content-Type: application/json" \
+      -X POST {{ $aiBase }}/v1/chat/completions \
+      -d '{"model":"granite-3-2-8b-instruct","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
+    ```

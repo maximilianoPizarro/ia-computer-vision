@@ -1,0 +1,93 @@
+# Kuadrant operator must restart after Istio/Gateway API is installed so it detects the
+# gateway provider. Without this, AuthPolicy/PlanPolicy stay Accepted=False (MissingDependency).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kuadrant-operator-restart
+  namespace: {{ .Values.workshopGateway.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kuadrant-operator-restart
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gatewayclasses"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kuadrant-operator-restart
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kuadrant-operator-restart
+subjects:
+  - kind: ServiceAccount
+    name: kuadrant-operator-restart
+    namespace: {{ .Values.workshopGateway.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kuadrant-operator-restart-hook
+  namespace: {{ .Values.workshopGateway.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: kuadrant-operator-restart
+      containers:
+        - name: restart
+          image: {{ .Values.kuadrantOperatorRestart.image | default "registry.redhat.io/openshift4/ose-cli:latest" | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              NS="{{ .Values.kuadrantOperatorRestart.operatorNamespace | default "redhat-connectivity-link-operator" }}"
+              DEP="{{ .Values.kuadrantOperatorRestart.deployment | default "kuadrant-operator-controller-manager" }}"
+              echo "Waiting for GatewayClass istio (Istio mesh ready)..."
+              for i in $(seq 1 60); do
+                if oc get gatewayclass istio -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}' 2>/dev/null | grep -qx True; then
+                  echo "GatewayClass istio is Accepted"
+                  break
+                fi
+                sleep 10
+              done
+              oc get gatewayclass istio >/dev/null 2>&1 || { echo "WARN: GatewayClass istio not found; skipping restart"; exit 0; }
+              echo "Restarting $DEP in $NS (Kuadrant detects Gateway API provider at pod startup)..."
+              oc rollout restart "deployment/$DEP" -n "$NS"
+              oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s
+              echo "Waiting for Kuadrant CR Ready..."
+              for i in $(seq 1 36); do
+                ready=$(oc get kuadrant kuadrant -n kuadrant-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                if [[ "$ready" == "True" ]]; then
+                  echo "Kuadrant Ready"
+                  exit 0
+                fi
+                sleep 10
+              done
+              echo "WARN: Kuadrant not Ready within timeout (policies may still reconcile)"
+              exit 0

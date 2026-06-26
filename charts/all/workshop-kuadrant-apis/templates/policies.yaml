@@ -1,0 +1,261 @@
+{{- $workshopNs := .Values.workshopGateway.namespace }}
+{{- $aiNs := .Values.aiGateway.namespace }}
+{{- $planPredicate := `has(auth.identity) && auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "%s"` }}
+{{- if .Values.apis.httpbin.enabled }}
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: workshop-httpbin-auth
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-httpbin
+  rules:
+    authentication:
+      api-key-users:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: APIKEY
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: PlanPolicy
+metadata:
+  name: workshop-httpbin-plans
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-httpbin
+  plans:
+    {{- range $tier := .Values.plans.tiers }}
+    - tier: {{ $tier }}
+      predicate: |
+        {{ printf $planPredicate $tier }}
+      limits:
+        {{- toYaml (index $.Values.plans.limits $tier) | nindent 8 }}
+    {{- end }}
+{{- end }}
+{{- if .Values.apis.restcountries.enabled }}
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: workshop-restcountries-auth
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-restcountries
+  rules:
+    authentication:
+      api-key-users:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: APIKEY
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: PlanPolicy
+metadata:
+  name: workshop-restcountries-plans
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-restcountries
+  plans:
+    {{- range $tier := .Values.plans.tiers }}
+    - tier: {{ $tier }}
+      predicate: |
+        {{ printf $planPredicate $tier }}
+      limits:
+        {{- toYaml (index $.Values.plans.limits $tier) | nindent 8 }}
+    {{- end }}
+{{- end }}
+{{- if .Values.apis.mcp.enabled }}
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: workshop-mcp-auth
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-mcp
+  rules:
+    authentication:
+      api-key-users:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: APIKEY
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: PlanPolicy
+metadata:
+  name: workshop-mcp-plans
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-mcp
+  plans:
+    - tier: bronze
+      predicate: |
+        {{ printf $planPredicate "bronze" }}
+      limits:
+        {{- toYaml (index .Values.plans.limits "bronze") | nindent 8 }}
+    - tier: gold
+      predicate: |
+        {{ printf $planPredicate "gold" }}
+      limits:
+        {{- toYaml (index .Values.plans.limits "gold") | nindent 8 }}
+{{- end }}
+{{- if .Values.apis.maas.enabled }}
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: ai-maas-auth
+  namespace: {{ $aiNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: ai-maas
+  rules:
+    authentication:
+      api-key-users:
+        apiKey:
+          allNamespaces: true
+          selector:
+            matchLabels:
+              app: workshop-llm-tokens
+              kuadrant.io/apikey: "true"
+        credentials:
+          authorizationHeader:
+            prefix: APIKEY
+        {{- $maasKey := include "workshop-kuadrant-apis.maasApiKey" . }}
+    response:
+      success:
+        headers:
+          Authorization:
+            plain:
+              value: {{ printf "Bearer %s" ($maasKey | default "SYNC_FROM_VAULT_ESO") | quote }}
+    authorization:
+      allow-groups:
+        opa:
+          rego: |
+            groups := split(object.get(input.auth.identity.metadata.annotations, "kuadrant.io/groups", ""), ",")
+            allow { groups[_] == "free" }
+            allow { groups[_] == "gold" }
+            plan := object.get(input.auth.identity.metadata.annotations, "secret.kuadrant.io/plan-id", "")
+            allow { plan == "free" }
+            allow { plan == "gold" }
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: PlanPolicy
+metadata:
+  name: ai-maas-plans
+  namespace: {{ $aiNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: ai-maas
+  plans:
+    - tier: free
+      predicate: |
+        has(auth.identity) && auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "free"
+      limits:
+        custom:
+          - limit: 100
+            window: 1h
+    - tier: gold
+      predicate: |
+        has(auth.identity) && auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "gold"
+      limits:
+        custom:
+          - limit: 500
+            window: 1h
+---
+apiVersion: kuadrant.io/v1alpha1
+kind: TokenRateLimitPolicy
+metadata:
+  name: ai-maas-token-limits
+  namespace: {{ $aiNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: ai-maas
+  limits:
+    free:
+      rates:
+        - limit: {{ .Values.tokenRateLimit.free.limit }}
+          window: {{ .Values.tokenRateLimit.free.window | quote }}
+      when:
+        - predicate: request.path == "/v1/chat/completions"
+        - predicate: |
+            auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "free" ||
+            auth.identity.groups.split(",").exists(g, g == "free")
+      counters:
+        - expression: auth.identity.userid
+    gold:
+      rates:
+        - limit: {{ .Values.tokenRateLimit.gold.limit }}
+          window: {{ .Values.tokenRateLimit.gold.window | quote }}
+      when:
+        - predicate: request.path == "/v1/chat/completions"
+        - predicate: |
+            auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "gold" ||
+            auth.identity.groups.split(",").exists(g, g == "gold")
+      counters:
+        - expression: auth.identity.userid
+{{- end }}

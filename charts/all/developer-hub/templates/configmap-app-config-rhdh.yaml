@@ -48,6 +48,7 @@ data:
       kubernetes: true
       argocd: true
       ocm: true
+      kuadrant: true
     kubernetes:
       serviceLocatorMethod:
         type: multiTenant
@@ -178,6 +179,18 @@ data:
             schedule:
               frequency: { minutes: 30 }
               timeout: { minutes: 3 }
+{{- if .Values.plugins.ocm.enabled | default true }}
+        ocm:
+          default:
+            name: hub
+            kubernetesPluginRef: hub
+            url: https://kubernetes.default.svc.cluster.local:443
+            skipTLSVerify: true
+            owner: group:platform-engineering
+            schedule:
+              frequency: { minutes: 15 }
+              timeout: { minutes: 10 }
+{{- end }}
     argocd:
       appLocatorMethods:
         - type: config

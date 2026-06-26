@@ -40,7 +40,7 @@ metadata:
     backstage.io/kubernetes-namespace: workshop-kuadrant-apis
     backstage.io/kubernetes-cluster: hub
     backstage.io/kubernetes-id: workshop-apis-gateway
-    argocd/app-name: field-content-workshop-kuadrant-apis
+    argocd/app-name: workshop-kuadrant-apis
   links:
     - url: https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get
       title: Gateway (401 without API key)
@@ -73,7 +73,7 @@ metadata:
     backstage.io/kubernetes-namespace: ai-gateway-system
     backstage.io/kubernetes-cluster: hub
     backstage.io/kubernetes-id: ai-gateway
-    argocd/app-name: field-content-workshop-kuadrant-apis
+    argocd/app-name: workshop-kuadrant-apis
     kuadrant.io/api-product: workshop-llm-tokens
   links:
     - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens

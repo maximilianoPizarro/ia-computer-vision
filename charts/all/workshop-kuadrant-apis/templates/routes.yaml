@@ -1,0 +1,70 @@
+{{- $gwNs := .Values.workshopGateway.namespace }}
+{{- $gwName := .Values.workshopGateway.name }}
+{{- $hostname := .Values.workshopGateway.hostname | default (printf "workshop-apis.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) }}
+{{- range $name, $api := .Values.apis }}
+{{- if and $api.enabled (ne $name "maas") }}
+{{- if $api.host }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: workshop-{{ $name }}
+  namespace: {{ $gwNs }}
+  labels:
+    app: workshop-{{ $name }}
+    kuadrant.io/exposed: "true"
+    workshop.kuadrant.io/external-host: {{ $api.host | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  parentRefs:
+    - name: {{ $gwName }}
+      namespace: {{ $gwNs }}
+  hostnames:
+    - {{ $hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ $api.pathPrefix | quote }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: {{ $api.host | quote }}
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: {{ $api.rewritePathPrefix | default "/" | quote }}
+      backendRefs:
+        - group: networking.istio.io
+          kind: Hostname
+          name: {{ $api.host | quote }}
+          port: {{ $api.port | default 443 }}
+{{- else if $api.serviceName }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: workshop-{{ $name }}
+  namespace: {{ $gwNs }}
+  labels:
+    app: workshop-{{ $name }}
+    kuadrant.io/exposed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  parentRefs:
+    - name: {{ $gwName }}
+      namespace: {{ $gwNs }}
+  hostnames:
+    - {{ $hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ $api.pathPrefix | quote }}
+      backendRefs:
+        - name: workshop-ext-{{ $name }}
+          port: {{ $api.port | default 8080 }}
+{{- end }}
+{{- end }}
+{{- end }}

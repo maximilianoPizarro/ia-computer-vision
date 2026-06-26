@@ -1,0 +1,43 @@
+{{- $maasKey := include "workshop-kuadrant-apis.maasApiKey" . }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workshop-api-vault-paths
+  namespace: {{ .Values.workshopGateway.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  README.md: |
+    # Vault paths for workshop API credentials
+
+    | Path | Purpose |
+    |------|---------|
+    | `{{ .Values.vault.maasSecretPath }}` | Upstream MaaS Bearer token (platform; injected into ai-gateway AuthPolicy) |
+    | `{{ .Values.vault.kuadrantKeysPathPrefix }}/<username>/<api-product>` | Optional copy of Kuadrant consumer API keys for apps/scripts |
+
+    Kuadrant API keys created in Developer Hub are Kubernetes Secrets labeled `kuadrant.io/api-key` in the user namespace.
+    Platform admins can mirror them to Vault for CI/CD consumption.
+
+    ```bash
+    # Example: store MaaS upstream key in Vault (hub)
+    oc exec -n vault vault-0 -- vault kv put {{ .Values.vault.maasSecretPath }} api-key="<maas-token>"
+    ```
+
+    Developer Hub: **Kuadrant** plugin → API Products → My API Keys → use `Authorization: APIKEY <key>` header.
+{{- if $maasKey }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-maas-upstream-credentials
+  namespace: {{ .Values.aiGateway.namespace }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    vault.hashicorp.com/path: {{ .Values.vault.maasSecretPath | quote }}
+type: Opaque
+stringData:
+  api-key: {{ $maasKey | quote }}
+{{- end }}

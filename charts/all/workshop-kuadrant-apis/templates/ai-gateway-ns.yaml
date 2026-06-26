@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.aiGateway.namespace }}
+  labels:
+    istio.io/dataplane-mode: ambient
+    kuadrant.io/managed: "true"
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"

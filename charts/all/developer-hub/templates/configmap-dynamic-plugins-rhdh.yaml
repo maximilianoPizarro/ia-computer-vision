@@ -32,7 +32,7 @@ data:
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
         disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
       - package: ./dynamic-plugins/dist/backstage-community-plugin-ocm-backend-dynamic
-        disabled: true
+        disabled: {{ not (.Values.plugins.ocm.enabled | default true) }}
         pluginConfig:
           catalog:
             providers:
@@ -47,7 +47,7 @@ data:
                     frequency: { minutes: 15 }
                     timeout: { minutes: 10 }
       - package: ./dynamic-plugins/dist/backstage-community-plugin-ocm
-        disabled: true
+        disabled: {{ not (.Values.plugins.ocm.enabled | default true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -91,7 +91,7 @@ data:
                           - isKind: resource
                           - isType: kubernetes-cluster
       - package: ./dynamic-plugins/dist/backstage-community-plugin-rbac
-        disabled: true
+        disabled: {{ not (.Values.plugins.rbac.enabled | default false) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes
@@ -122,7 +122,7 @@ data:
       - package: ./dynamic-plugins/dist/backstage-community-plugin-argocd
         disabled: true
       - package: ./dynamic-plugins/dist/backstage-community-plugin-topology
-        disabled: true
+        disabled: {{ not (.Values.plugins.topology.enabled | default true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -153,7 +153,7 @@ data:
                           - hasAnnotation: backstage.io/kubernetes-id
                           - hasAnnotation: backstage.io/kubernetes-namespace
       - package: ./dynamic-plugins/dist/backstage-community-plugin-scaffolder-backend-module-kubernetes-dynamic
-        disabled: true
+        disabled: false
       # Kafka — NOT in RHDH 1.9 image and no ghcr.io OCI package available; hardcode disabled
       - package: ./dynamic-plugins/dist/backstage-community-plugin-kafka-backend-dynamic
         disabled: true
@@ -236,7 +236,7 @@ data:
                         allOf:
                           - hasAnnotation: kuadrant.io/api-product
       - package: ./dynamic-plugins/dist/backstage-community-plugin-tekton
-        disabled: true
+        disabled: {{ not (.Values.plugins.tekton.enabled | default true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -346,7 +346,7 @@ data:
       - package: ./dynamic-plugins/dist/roadiehq-scaffolder-backend-module-http-request-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-community-plugin-catalog-backend-module-keycloak-dynamic
-        disabled: true
+        disabled: {{ not (.Values.plugins.keycloakCatalog.enabled | default true) }}
         pluginConfig:
           catalog:
             providers:
@@ -401,9 +401,9 @@ data:
                           - isGitlabAvailable
 {{- end }}
       - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-gitlab-dynamic
-        disabled: true
+        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-catalog-backend-module-gitlab-dynamic
-        disabled: true
+        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-github-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-plugin-notifications

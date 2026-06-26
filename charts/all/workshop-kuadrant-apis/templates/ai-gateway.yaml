@@ -1,0 +1,64 @@
+{{- $ns := .Values.aiGateway.namespace }}
+{{- $name := .Values.aiGateway.name }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    networking.istio.io/service-type: ClusterIP
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 8080
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-istio
+  namespace: {{ $ns }}
+  labels:
+    gateway.networking.k8s.io/gateway-name: {{ $name }}
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  type: ClusterIP
+  selector:
+    gateway.networking.k8s.io/gateway-name: {{ $name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    haproxy.router.openshift.io/timeout: 3600s
+spec:
+  host: {{ .Values.aiGateway.hostname | default (printf "ai-gateway.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) }}
+  port:
+    targetPort: http
+  to:
+    kind: Service
+    name: {{ $name }}-istio
+    weight: 100
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

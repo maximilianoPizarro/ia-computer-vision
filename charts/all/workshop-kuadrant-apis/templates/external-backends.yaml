@@ -1,0 +1,96 @@
+{{- $gwNs := .Values.workshopGateway.namespace }}
+{{- $aiNs := .Values.aiGateway.namespace }}
+{{- range $name, $api := .Values.apis }}
+{{- if and $api.enabled $api.host (ne $name "maas") }}
+---
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: workshop-ext-{{ $name }}
+  namespace: {{ $gwNs }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+    workshop.kuadrant.io/api: {{ $name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  hosts:
+    - {{ $api.host | quote }}
+  ports:
+    - number: {{ $api.port | default 443 }}
+      name: https
+      protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: workshop-ext-{{ $name }}
+  namespace: {{ $gwNs }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  host: {{ $api.host | quote }}
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: {{ $api.host | quote }}
+{{- end }}
+{{- end }}
+{{- if and .Values.apis.maas.enabled .Values.apis.maas.host }}
+---
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: ai-ext-maas
+  namespace: {{ $aiNs }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  hosts:
+    - {{ .Values.apis.maas.host | quote }}
+  ports:
+    - number: {{ .Values.apis.maas.port | default 443 }}
+      name: https
+      protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: ai-ext-maas
+  namespace: {{ $aiNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  host: {{ .Values.apis.maas.host | quote }}
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: {{ .Values.apis.maas.host | quote }}
+{{- end }}
+{{- if and .Values.apis.mcp.enabled .Values.apis.mcp.serviceName }}
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: workshop-to-mcp-gateway
+  namespace: {{ .Values.apis.mcp.serviceNamespace | default "mcp-system" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ $gwNs }}
+  to:
+    - group: ""
+      kind: Service
+      name: {{ .Values.apis.mcp.serviceName }}
+{{- end }}

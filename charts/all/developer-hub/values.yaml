@@ -13,7 +13,6 @@ oidcAuth:
   secretStoreRef:
     name: vault-backend
     kind: ClusterSecretStore
-keycloakOidcClientSecret: ""
 devspacesOidcClientSecret: ""
 gitlabToken: ""
 sessionSecret: ""
@@ -23,9 +22,12 @@ pluginReadiness:
   enabled: true
   image: registry.redhat.io/ubi9/ubi-minimal:latest
 spokeTokenSync:
-  enabled: false
+  enabled: true
+  clusters: "east,west"
+  schedule: "0 */6 * * *"
+  image: registry.redhat.io/ubi9/python-311:latest
 kubernetesSpokes:
-  enabled: false
+  enabled: true
   east:
     apiUrl: ""
   west:
@@ -63,10 +65,16 @@ plugins:
   tekton:
     enabled: true
   kuadrant:
-    enabled: false
+    enabled: true
+  ocm:
+    enabled: true
+  topology:
+    enabled: true
+  keycloakCatalog:
+    enabled: true
   kafka:
     enabled: false
   notificationsEmail:
-    enabled: false
+    enabled: true
   lightspeed:
     enabled: false
