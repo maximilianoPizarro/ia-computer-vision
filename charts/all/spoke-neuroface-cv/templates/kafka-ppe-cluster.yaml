@@ -1,5 +1,4 @@
 {{- $cn := include "spoke-neuroface-cv.clusterName" . }}
-{{- if eq $cn "east" }}
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaNodePool
@@ -42,7 +41,7 @@ spec:
         configuration:
           brokers:
             - broker: 0
-              advertisedHost: kafka-east-tst.service-interconnect.svc.cluster.local
+              advertisedHost: kafka-{{ $cn }}-tst.service-interconnect.svc.cluster.local
               advertisedPort: 9092
     config:
       offsets.topic.replication.factor: 1
@@ -71,4 +70,3 @@ spec:
   replicas: 1
   config:
     retention.ms: "604800000"
-{{- end }}

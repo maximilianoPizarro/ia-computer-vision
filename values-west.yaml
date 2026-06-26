@@ -211,7 +211,12 @@ clusterGroup:
         - name: clusterName
           value: west
 
-    # kafka-console: disabled on west (no Kafka cluster; only east has cv-kafka)
+    kafka-console:
+      name: kafka-console
+      namespace: neuroface-cv
+      argoProject: ai
+      path: charts/all/kafka-console
+      syncWave: "7"
 
     console-links:
       name: console-links

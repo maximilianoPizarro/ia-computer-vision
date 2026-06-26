@@ -1,0 +1,11 @@
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: kafka-west-tst
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  routingKey: kafka-west-tst
+  host: kafka-west-tst
+  port: 9092

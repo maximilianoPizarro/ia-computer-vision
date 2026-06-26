@@ -1,0 +1,12 @@
+{{- $cn := include "spoke-neuroface-cv.clusterName" . }}
+apiVersion: skupper.io/v2alpha1
+kind: Connector
+metadata:
+  name: kafka-{{ $cn }}-tst
+  namespace: service-interconnect
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  routingKey: kafka-{{ $cn }}-tst
+  host: cv-kafka-kafka-bootstrap.neuroface-cv.svc.cluster.local
+  port: 9093
