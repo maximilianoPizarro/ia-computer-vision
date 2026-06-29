@@ -53,6 +53,60 @@ neuroface-cv-status
 neuroface-cv-traffic
 ----
 
+=== Troubleshooting showroom pod
+
+If the showroom pod is not running, check the deployment status:
+
+[source,bash]
+----
+$ oc get deploy,pods -n showroom
+$ oc describe pod -n showroom -l app.kubernetes.io/name=showroom
+$ oc logs -n showroom deploy/showroom -c git-cloner
+$ oc logs -n showroom deploy/showroom -c antora-builder
+----
+
+Common failure causes:
+
+* **git-cloner init container fails** — the content Git repository is unreachable or the branch ref does not exist. Verify `showroom.content.repoUrl` and `showroom.content.repoRef` in `charts/all/showroom/values.yaml`.
+* **antora-builder fails** — `site.yml` in the content repo is misconfigured. Check the antora-builder logs.
+* **PVC not bound** — the `showroom-terminal-lab-user-home` PVC requires a default StorageClass. Verify with `oc get pvc -n showroom`.
+* **Terminal image pull fails** — the `quay.io/rhpds/openshift-showroom-terminal-ocp:latest` image may not be accessible from the cluster.
+
+== Demo routes and OIDC integration
+
+The pattern exposes two main routes on the hub gateway:
+
+[cols="3,2,3",options="header"]
+|===
+| Route | OIDC protection | Purpose
+
+| `https://neuroface.apps.<hub_domain>`
+| None (public)
+| Main demo frontend and backend — no login required
+
+| `https://neuroface-cv.apps.<hub_domain>`
+| Keycloak realm `cv`
+| PPE detection API — requires SSO authentication
+|===
+
+The SSO login page is served at:
+
+[source,text]
+----
+https://sso.apps.<hub_domain>
+----
+
+Users authenticate with `user1` / `Welcome123!` (or `userN` for workshop participants). The SSO realm is `cv`, provisioned by the `rhbk-iam` chart.
+
+=== Cluster badge (top-right corner)
+
+When accessing `neuroface.apps.<hub_domain>`, the frontend displays a cluster badge in the top-right corner of the page:
+
+* **EAST** (green badge) — the request was served by the east spoke
+* **WEST** (yellow badge) — the request was served by the west spoke
+
+The badge indicates which spoke cluster is handling the current request through the 50/50 HTTPRoute weight distribution. Refresh the page to observe traffic switching between spokes.
+
 == Module 02 — Scaffold NeuroFace with RHBK biometric OIDC
 
 Showroom module 02 walks through the AI Computer Vision software template journey:
@@ -65,11 +119,12 @@ Showroom module 02 walks through the AI Computer Vision software template journe
 . Verify ApplicationSet: `oc get applicationset -n vp-gitops user-neuroface-apps`
 
 For operator interaction diagrams and expected results, see link:../scaffolding-and-secrets/[Scaffolding and secrets].
+
 . Open your catalog entity → tab **API** → NeuroFace OpenAPI spec with **Try It Out**
 . Click **Open in DevSpaces** to edit NeuroFace source
 . Tab **CI** shows Tekton pipeline run status (when Tekton plugin is enabled)
-. Access NeuroFace: `https://neuroface.apps.<hub_domain>/user/userN/` (hub gateway, 50/50 to spokes for shared app; per-user path routed to the spoke chosen at scaffold time)
-. RHCL redirects to RHBK OIDC — login `userN` / `Welcome123!`
+. Access the main demo at `https://neuroface.apps.<hub_domain>` (no login required; 50/50 traffic split to spokes)
+. Access the protected CV API at `https://neuroface-cv.apps.<hub_domain>` — SSO redirects to `https://sso.apps.<hub_domain>`, login with `userN` / `Welcome123!`
 . First login: complete biometric enrollment (webcam, 3–5 images)
 . Subsequent logins: password + facial 2FA verification
 . Test PPE detection and MaaS chat in the NeuroFace UI

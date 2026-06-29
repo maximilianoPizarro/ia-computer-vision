@@ -272,6 +272,61 @@ The Vault path follows the convention `secret/data/hub/{secret-name}` where `{se
 15. **Gateway HA via parametersRef**: Istio Gateway API ignores `spec.replicas`. Use `spec.infrastructure.parametersRef` pointing to a ConfigMap with `deployment: | spec: replicas: N`.
 16. **ApplicationSet scmProvider SSH error**: When GitLab repos are in `deletion_scheduled` state, ArgoCD scmProvider tries to clone them and fails with `SSH_AUTH_SOCK not-specified`. This is transient and self-resolves when repos finish deletion.
 17. **Vault root token path**: VP Vault chart stores the root token at `/vault/data/root-token` inside the `vault-0` pod. Use this for automated `vault kv patch` operations from PostSync jobs.
+18. **GitLab 18+ namespace_settings nil**: Groups created via `gitlab-rails runner` do NOT auto-create `namespace_settings`. Login to group pages returns 500. Always call `group.create_namespace_settings!` after `Group.find_or_create_by!` in bootstrap scripts.
+19. **Minio credentials in GitLab**: GitLab's bundled Minio generates random access keys stored in `gitlab-minio-secret`. Never hardcode `minio/minio123`. Extract real keys from the secret and sync to Vault for spoke consumption.
+20. **Spoke namespace pre-creation**: Spokes need `vault`, `istio-system`, and other infrastructure namespaces declared in `clusterGroup.namespaces`. Missing namespaces cause ESO and Istio failures at higher waves.
+
+## Critical values-hub.yaml constraints (Jun 29, 2026)
+
+### keycloak-system must NOT have ambient mesh labels
+Do NOT add `istio.io/dataplane-mode: ambient` labels to the `keycloak-system` namespace. The ztunnel proxy breaks DNS resolution inside Keycloak pods, causing `UnknownHostException: postgresql-db` and CrashLoopBackOff. Keycloak must remain outside the service mesh.
+
+```yaml
+# WRONG - causes CrashLoopBackOff
+keycloak-system:
+  labels:
+    istio.io/dataplane-mode: ambient
+
+# CORRECT - no mesh labels
+keycloak-system:
+```
+
+### keycloak.hostname must be "sso"
+The AuthPolicy `extAuth` redirects to `sso.apps.<domain>`. The Keycloak CR hostname MUST match. Override via `rhbk` chart overrides:
+
+```yaml
+rhbk:
+  overrides:
+    - name: keycloak.hostname
+      value: sso
+```
+
+Without this, cookies are issued on `keycloak.apps.<domain>` but validated on `sso.apps.<domain>`, causing "Restart login cookie not found" errors.
+
+### spoke-neuroface-cv modelStorage should use useVault: true
+GitLab's bundled Minio auto-generates credentials. Hardcoded `minio/minio123` will always get S3 403. The gitlab-bootstrap job syncs real Minio credentials to Vault. Spoke values must reference Vault:
+
+```yaml
+spoke-neuroface-cv:
+  overrides:
+    - name: modelStorage.useVault
+      value: "true"
+```
+
+### kuadrant.oidc.enabled controls AuthPolicy on main demo route
+The `kuadrant.oidc.enabled` flag (default `false`) in `neuroface-gateway/values.yaml` determines whether the `neuroface-app-lb` HTTPRoute gets an OIDC AuthPolicy. When enabled, XHR calls to `/api/health` are blocked (the frontend can't determine cluster identity). Keep disabled unless SSO on the main demo page is explicitly required. OIDC remains active on `neuroface-cv-lb` only.
+
+```yaml
+# neuroface-gateway/values.yaml
+kuadrant:
+  oidc:
+    enabled: false    # true = AuthPolicy on neuroface-app-lb (blocks API calls)
+  rateLimitPolicy:
+    limit: 120        # req/min (increased from 30 for multi-user demos)
+```
+
+### ArgoCD hook annotations on Jobs cause duplicates
+Do NOT use `argocd.argoproj.io/hook: PostSync` on Jobs that should persist across syncs (like `download-model`). ArgoCD creates a separate hook Job AND a regular resource Job, causing conflicts. Use plain sync-wave ordering instead.
 
 ## Porting from hybrid-mesh-platform
 

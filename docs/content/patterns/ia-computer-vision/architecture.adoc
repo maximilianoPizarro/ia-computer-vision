@@ -270,24 +270,66 @@ For operator interaction diagrams, scaffolder module descriptions, and expected 
 
 Skupper creates a **virtual application network (VAN)** that links services across clusters at the application layer.
 
-On each spoke, the `spoke-interconnect` chart deploys:
+=== Hub-side resources
 
-* A **Site** resource that identifies the cluster as a Skupper participant
-* **Listener** resources that expose remote services locally (for example, exposing hub services on the spoke)
-* **Connector** resources that expose local services to the VAN (for example, making spoke NeuroFace reachable from the hub)
+The `hub-interconnect` chart deploys on the hub cluster (`service-interconnect` namespace):
 
-Skupper enables:
+* A **Site** resource (`hub`) with `linkAccess: route` that establishes the hub as the Skupper mesh origin
+* An **AccessGrant** (`spoke-link`) that generates a one-time code, URL, and CA for spoke enrollment
+* **Listener** resources that create local DNS entries (ExternalName services) for remote spoke backends:
+** `neuroface-app-east`, `neuroface-app-west` (port 8080) — NeuroFace frontend/backend
+** `neuroface-cv-east`, `neuroface-cv-west` (port 8080) — YOLO PPE inference
+** `prometheus-east`, `prometheus-west` (port 9091) — metrics federation
+* A **CronJob** (`skupper-accesstoken-sync`) that pushes AccessTokens to spokes via ACM `ManagedClusterAction`
 
-* Hub RHCL Gateway to reach NeuroFace and OVMS endpoints on spokes without VPN
-* Cross-spoke service visibility for inference backends
-* Encrypted links that tolerate NAT and firewall boundaries at edge sites
+=== AccessToken distribution flow
 
-Verify Skupper resources:
+The CronJob runs every 30 minutes (and once on PostSync hook) and performs:
+
+. Reads the `spoke-link` AccessGrant status (code, URL, CA) from the hub
+. For each spoke (`east`, `west`): checks whether a healthy Skupper Link already exists via `ManagedClusterView`
+. If no healthy link, creates a `ManagedClusterAction` that applies an `AccessToken` resource on the spoke in the `service-interconnect` namespace
+. The spoke Skupper controller processes the token and establishes a TLS link back to the hub
+
+=== Spoke-side resources
+
+The `spoke-interconnect` chart deploys on each spoke (`service-interconnect` namespace):
+
+* A **Site** resource (`east` or `west`) with `linkAccess: route`
+* **Connector** resources that expose local services to the VAN:
+** `neuroface-app-<cluster>` → `neuroface-spoke-gateway-istio.neuroface.svc.cluster.local:8080`
+** `neuroface-cv-<cluster>` → `yolo-ppe-serving.neuroface-cv.svc.cluster.local:8080`
+** `prometheus-<cluster>` → `prometheus-auth-proxy.service-interconnect.svc.cluster.local:9091`
+
+=== End-to-end connectivity diagram
+
+[source,text]
+----
+User → neuroface-cv.apps.<hub> (Route)
+     → neuroface-gateway (Istio Gateway, hub)
+     → HTTPRoute neuroface-cv-lb (50/50 weight)
+         ├─ backendRef: neuroface-cv-east:8080
+         └─ backendRef: neuroface-cv-west:8080
+     → Skupper Listener (hub, service-interconnect ns)
+     → Skupper Router mesh (TLS/AMQP tunnel)
+     → Skupper Connector (spoke, service-interconnect ns)
+         → neuroface-spoke-gateway-istio (spoke Gateway)
+         → NeuroFace Frontend/Backend (spoke)
+         → YOLO PPE OVMS (spoke, neuroface-cv ns)
+----
+
+=== HTTPRoute backend resolution
+
+The hub HTTPRoute `backendRefs` point to Skupper Listener hostnames. Skupper creates ExternalName services in the `service-interconnect` namespace that resolve to the Skupper router pod. The router tunnels requests over the encrypted AMQP link to the matching Connector on the spoke, which forwards to the local `ClusterIP` service.
+
+=== Verification
 
 [source,bash]
 ----
 $ oc get site -n service-interconnect
+$ oc get accessgrant -n service-interconnect
 $ oc get listener,connector -n service-interconnect
+$ oc get jobs -n service-interconnect -l app=skupper-accesstoken-sync
 ----
 
 == Connectivity: RHACM managed clusters

@@ -264,6 +264,42 @@ The ConfigMap contains `deployment: | spec: replicas: 2`. This works on both hub
 ### OwnerPicker entity ref format
 The Backstage `OwnerPicker` field returns `user:default/user1`, not `user1`. Use the Nunjucks filter `parseEntityRef | pick('name')` throughout the template to extract just the username. Without this, repo names and namespaces contain `user-default-user1` instead of `user1`.
 
+## Lessons learned from workshop deployment and spoke onboarding (Jun 29, 2026)
+
+### GitLab 500 on session login (namespace_settings nil)
+In GitLab 18+, groups created programmatically via `gitlab-rails runner` do NOT auto-create `namespace_settings`. When a user logs in and accesses a group page, GitLab calls `namespace_settings` which returns nil and triggers a 500.
+**Fix**: Call `create_namespace_settings!` on every group in the `ensure_group()` function inside `charts/all/gitlab-operator/templates/job-gitlab-bootstrap.yaml`. Also add an `ensure_developer()` function to grant Developer role to all workshop users on the `ws-workshop` group.
+
+### Keycloak CrashLoopBackOff (ambient mesh breaks DNS)
+Adding Istio ambient mesh labels (`istio.io/dataplane-mode: ambient`) to `keycloak-system` namespace causes DNS resolution failures inside Keycloak pods (`UnknownHostException: postgresql-db`). The ztunnel proxy intercepts DNS before CoreDNS responds.
+**Fix**: Do NOT add ambient mesh labels to `keycloak-system` namespace in `values-hub.yaml`. Keycloak must remain outside the mesh.
+
+### SSO hostname mismatch (cookie domain)
+The Keycloak CR defaults to `hostname: keycloak.apps.<domain>` but the AuthPolicy `extAuth` redirects users to `sso.apps.<domain>`. This mismatch causes "Restart login cookie not found" because cookies are scoped to the wrong hostname.
+**Fix**: Override `keycloak.hostname: sso` in `values-hub.yaml` so Keycloak issues cookies on the `sso.apps.<domain>` hostname. Update console links to use `sso.<domain>` as well.
+
+### OIDC blocking frontend API calls
+AuthPolicy on `neuroface-app-lb` HTTPRoute blocks XHR calls to `/api/health` (and other backend endpoints). The frontend badge logic needs `/api/health` to determine cluster identity (HUB/EAST/WEST).
+**Fix**: Add `kuadrant.oidc.enabled` flag (default `false`) in the neuroface-gateway chart. When false, exclude `neuroface-app-lb` from gateway OIDC realms list. Keep OIDC only on `neuroface-cv-lb` (the CV inference route).
+
+### YOLO PPE S3 403 (Minio credential mismatch)
+GitLab's bundled Minio auto-generates access keys at install time. Hardcoded `minio/minio123` credentials in the YOLO PPE inference container don't match.
+**Fix**: Set `useVault: true` in `spoke-neuroface-cv` values for model storage. Add Minio credential extraction and Vault sync to the `gitlab-bootstrap` job so the real credentials propagate to spokes via ESO.
+
+### East spoke deployment blockers
+Multiple issues deploying spokes:
+- `vault` namespace missing on spoke (ESO fails)
+- Duplicate Job resources: ArgoCD hook annotations (`argocd.argoproj.io/hook: PostSync`) cause ArgoCD to count them separately from the regular Job, creating conflicts
+- `istio-system` namespace not auto-created on spokes (Istio operator expects it)
+
+**Fix**: Remove ArgoCD hook annotations from the `download-model` Job (let it run as a normal sync resource). Pre-create missing namespaces (`vault`, `istio-system`) in `clusterGroup.namespaces`. For manual emergency deploys: `helm template charts/all/spoke-neuroface-cv | oc apply -f -`.
+
+### Skupper east connection
+Spokes need a Skupper `Site` CR and an `AccessToken` to link back to the hub. The `hub-interconnect` chart has an `accesstoken-sync` CronJob that pushes tokens to spokes via ACM `ManagedClusterAction`. Verify the CronJob runs successfully after spoke import completes.
+
+### Rate limiting
+Default Kuadrant `RateLimitPolicy` of 30 req/min is too low for the demo (multiple users hitting the CV inference endpoint simultaneously). Increased to 120 req/min in `neuroface-gateway/values.yaml`.
+
 ## Key constraints
 
 - Developer Hub: only `ai-computer-vision` software template
