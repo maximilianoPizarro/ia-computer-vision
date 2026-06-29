@@ -1,4 +1,4 @@
-{{- if .Values.kuadrant.enabled | default false }}
+{{- if and (.Values.kuadrant.enabled | default false) (.Values.kuadrant.oidc.enabled | default false) }}
 {{- $ssoHost := .Values.kuadrant.ssoHost | default (printf "sso.%s" (include "neuroface-gateway.clusterDomain" .)) -}}
 {{- $realm := .Values.kuadrant.realm | default "backstage" -}}
 {{- $clientId := .Values.kuadrant.clientId | default "neuroface" -}}

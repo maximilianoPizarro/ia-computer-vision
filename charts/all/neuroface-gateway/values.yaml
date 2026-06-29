@@ -26,6 +26,8 @@ gateway:
 
 kuadrant:
   enabled: false
+  oidc:
+    enabled: false
   ssoHost: ""
   realm: backstage
   clientId: neuroface

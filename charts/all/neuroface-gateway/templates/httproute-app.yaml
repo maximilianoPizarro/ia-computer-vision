@@ -1,4 +1,6 @@
 {{- if or .Values.clusters.east.domain .Values.clusters.west.domain }}
+{{- $w := .Values.gateway.weights | default dict }}
+{{- $host := printf "neuroface.%s" (include "neuroface-gateway.clusterDomain" .) }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -11,9 +13,8 @@ spec:
     - name: neuroface-gateway
       namespace: neuroface-gateway-system
   hostnames:
-    - neuroface.{{ include "neuroface-gateway.clusterDomain" . }}
+    - {{ $host }}
   rules:
-    {{- $w := .Values.gateway.weights | default dict }}
     {{- if and .Values.clusters.east.domain .Values.clusters.west.domain }}
     - timeouts:
         request: 120s
