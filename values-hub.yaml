@@ -32,10 +32,7 @@ clusterGroup:
     developer-hub: {}
     workshop-kuadrant-apis: {}
     ai-gateway-system: {}
-    keycloak-system:
-      labels:
-        istio.io/dataplane-mode: ambient
-        istio.io/rev: default
+    keycloak-system: {}
     mailpit: {}
     showroom: {}
     redhat-ods-operator:
