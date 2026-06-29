@@ -368,12 +368,8 @@ clusterGroup:
         - name: kuadrant.enabled
           value: "true"
         - name: kuadrant.realms[0].name
-          value: neuroface
-        - name: kuadrant.realms[0].httpRoute
-          value: neuroface-app-lb
-        - name: kuadrant.realms[1].name
           value: cv
-        - name: kuadrant.realms[1].httpRoute
+        - name: kuadrant.realms[0].httpRoute
           value: neuroface-cv-lb
 
     workshop-kuadrant-apis:
