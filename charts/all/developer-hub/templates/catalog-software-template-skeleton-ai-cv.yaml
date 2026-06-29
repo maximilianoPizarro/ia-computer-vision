@@ -9,9 +9,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 data:
+{{- /* Helm .Files.Glob excludes .md files; skeleton uses .mdx which are renamed back to .md at mount */ -}}
 {{- range $pattern := list "*" "docs/*" "k8s/*" }}
 {{- range $path, $_ := $.Files.Glob (printf "%s%s" $root $pattern) }}
-  {{ $path | trimPrefix $root | replace "/" "__" }}: |
+  {{ $path | trimPrefix $root | replace "/" "__" | replace ".mdx" ".md" }}: |
 {{ $.Files.Get $path | indent 4 }}
 {{- end }}
 {{- end }}
