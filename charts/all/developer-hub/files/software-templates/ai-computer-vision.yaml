@@ -74,7 +74,7 @@ spec:
       name: Fetch skeleton
       action: fetch:template
       input:
-        url: ./ai-cv-skeleton
+        url: https://github.com/maximilianoPizarro/ia-computer-vision/tree/main/charts/all/developer-hub/files/software-templates/ai-cv-skeleton
         values:
           name: neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}
           owner: ${{ parameters.owner | parseEntityRef | pick('name') }}
