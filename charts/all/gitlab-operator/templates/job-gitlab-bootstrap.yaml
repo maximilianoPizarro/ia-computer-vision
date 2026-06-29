@@ -143,8 +143,11 @@ spec:
 
                 def ensure_group(path, name, desc, org)
                   g = Group.find_by_full_path(path)
-                  return g if g
-                  Group.create!(name: name, path: path, visibility_level: Gitlab::VisibilityLevel::PUBLIC, description: desc, organization: org)
+                  unless g
+                    g = Group.create!(name: name, path: path, visibility_level: Gitlab::VisibilityLevel::PUBLIC, description: desc, organization: org)
+                  end
+                  g.create_namespace_settings! if g.namespace_settings.nil?
+                  g
                 end
 
                 def ensure_user(username, email, password, admin, org)
@@ -168,6 +171,11 @@ spec:
                   group.add_member(user, Gitlab::Access::OWNER)
                 end
 
+                def ensure_developer(group, user)
+                  return if group.members.where(user_id: user.id).exists?
+                  group.add_member(user, Gitlab::Access::DEVELOPER)
+                end
+
                 [
                   ['{{ .Values.bootstrap.workshopDemosGroup }}', '{{ .Values.bootstrap.workshopDemosGroup }}', 'Hybrid Mesh AI shared Plan B repos'],
                   ['{{ .Values.bootstrap.developerHubGroup }}', 'Developer Hub', 'Developer Hub scaffolder repos'],
@@ -180,17 +188,21 @@ spec:
                   puts \"group #{path}\"
                 end
 
+                neuroface_group = Group.find_by_full_path('{{ .Values.bootstrap.neurofaceGroup }}')
+
                 (1..user_count).each do |i|
                   u = \"user#{i}\"
                   gpath = \"ws-#{u}\"
                   group = ensure_group(gpath, gpath, \"Workshop repos for #{u}\", org)
                   user = ensure_user(u, \"#{u}@developer-hub.local\", default_pass, admin, org)
                   ensure_owner(group, user)
+                  ensure_developer(neuroface_group, user) if neuroface_group
                   puts \"user #{u} -> #{gpath}\"
                 end
 
                 platformadmin_user = ensure_user('platformadmin', 'platformadmin@developer-hub.local', default_pass, admin, org)
                 ensure_owner(Group.find_by_full_path('ws-platformadmin'), platformadmin_user)
+                ensure_developer(neuroface_group, platformadmin_user) if neuroface_group
                 # GitLab 18+ reserves username 'admin'; scaffolder uses root PAT into ws-admin.
                 puts 'skip GitLab user admin (reserved username); ws-admin group ready for scaffolder'
                 puts \"users #{User.where('username LIKE ?', 'user%').count} workshop users\"

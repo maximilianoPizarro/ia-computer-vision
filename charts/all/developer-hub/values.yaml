@@ -99,6 +99,31 @@ plugins:
     enabled: true
   keycloakCatalog:
     enabled: true
+
+iamCatalog:
+  enabled: true
+  realms:
+    - name: neuroface
+      displayName: NeuroFace API
+      componentName: neuroface-api
+      apiName: neuroface-openapi
+      kubernetesId: neuroface
+      swaggerUrl: ""
+      openapiUrl: ""
+    - name: cv
+      displayName: Computer Vision API
+      componentName: neuroface-cv-api
+      apiName: neuroface-cv-openapi
+      kubernetesId: neuroface-cv
+      swaggerUrl: ""
+      openapiUrl: ""
+    - name: maas
+      displayName: Model as a Service
+      componentName: maas-api
+      apiName: maas-openapi
+      kubernetesId: ai-gateway
+      swaggerUrl: ""
+      openapiUrl: ""
   kafka:
     enabled: false
   notificationsEmail:

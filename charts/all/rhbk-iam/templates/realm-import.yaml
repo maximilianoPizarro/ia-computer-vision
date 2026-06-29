@@ -1,0 +1,79 @@
+{{- $count := int (.Values.userCount | default 30) -}}
+{{- $password := .Values.defaultPassword | default "Welcome123!" -}}
+{{- range $realm := .Values.realms }}
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: realm-{{ $realm.name }}
+  namespace: {{ $.Values.keycloak.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  keycloakCRName: {{ $.Values.keycloak.crName }}
+  placeholders:
+    secrets:
+{{- range $i := until $count }}
+{{- $userNum := add $i 1 }}
+      CLIENT_SECRET_USER{{ $userNum }}:
+        name: keycloak-client-{{ $realm.name }}-user{{ $userNum }}
+        key: clientSecret
+{{- end }}
+  realm:
+    realm: {{ $realm.name | quote }}
+    enabled: true
+    displayName: {{ $realm.displayName | quote }}
+    registrationAllowed: false
+    loginWithEmailAllowed: true
+    adminPermissionsEnabled: {{ $realm.adminPermissionsEnabled | default true }}
+    sslRequired: external
+    roles:
+      realm:
+        - name: realm-viewer
+          description: Can view resources in this realm only
+        - name: api-consumer
+          description: Can consume APIs protected by this realm
+    groups:
+{{- range $i := until $count }}
+{{- $userNum := add $i 1 }}
+      - name: {{ include "rhbk-iam.groupName" (dict "userNum" $userNum) }}
+        realmRoles:
+          - api-consumer
+          - realm-viewer
+{{- end }}
+    clients:
+{{- range $i := until $count }}
+{{- $userNum := add $i 1 }}
+{{- $clientId := include "rhbk-iam.clientId" (dict "realm" $realm.name "userNum" $userNum) }}
+      - clientId: {{ $clientId | quote }}
+        name: {{ printf "%s user%d" $realm.displayName $userNum | quote }}
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: $(CLIENT_SECRET_USER{{ $userNum }})
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: true
+        publicClient: false
+        protocol: openid-connect
+        defaultClientScopes:
+          - openid
+          - profile
+        attributes:
+          access.token.lifespan: "3600"
+{{- end }}
+    users:
+{{- range $i := until $count }}
+{{- $userNum := add $i 1 }}
+      - username: {{ printf "user%d" $userNum | quote }}
+        enabled: true
+        emailVerified: true
+        email: {{ printf "user%d@developer-hub.local" $userNum | quote }}
+        credentials:
+          - type: password
+            value: {{ $password | quote }}
+            temporary: false
+        groups:
+          - {{ include "rhbk-iam.groupName" (dict "userNum" $userNum) | quote }}
+{{- end }}
+{{- end }}

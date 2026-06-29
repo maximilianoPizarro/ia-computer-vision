@@ -1,0 +1,8 @@
+apiVersion: v2
+name: rhbk-iam
+description: Keycloak realm provisioning, Vault/ESO client credentials, and mesh policies for hub IAM
+type: application
+version: 0.1.0
+maintainers:
+  - name: Maximiliano Pizarro
+    email: mapizarr@redhat.com

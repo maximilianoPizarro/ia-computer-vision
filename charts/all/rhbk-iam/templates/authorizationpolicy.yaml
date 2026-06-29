@@ -1,0 +1,20 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateway-to-keycloak
+  namespace: {{ .Values.keycloak.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app: keycloak
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - neuroface-gateway-system
+              - developer-hub
+              - workshop-kuadrant-apis

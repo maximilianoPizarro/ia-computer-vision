@@ -1,0 +1,43 @@
+{{- if .Values.kuadrant.enabled | default false }}
+{{- $root := . -}}
+{{- $ssoHost := .Values.kuadrant.ssoHost | default (printf "sso.%s" (include "neuroface-gateway.clusterDomain" .)) -}}
+{{- range .Values.kuadrant.realms | default list }}
+{{- $realm := .name -}}
+{{- $httpRoute := .httpRoute | default "neuroface-app-lb" -}}
+{{- $clientId := .clientId | default (printf "client-%s-user1" $realm) -}}
+{{- $appHost := printf "neuroface.%s" (include "neuroface-gateway.clusterDomain" $root) -}}
+{{- if eq $realm "cv" }}
+{{- $appHost = printf "neuroface-cv.%s" (include "neuroface-gateway.clusterDomain" $root) -}}
+{{- end }}
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: OIDCPolicy
+metadata:
+  name: oidc-{{ $realm }}
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  provider:
+    issuerURL: "https://{{ $ssoHost }}/realms/{{ $realm }}"
+    clientID: {{ $clientId | quote }}
+    {{- if .clientSecret }}
+    clientSecret: {{ .clientSecret | quote }}
+    {{- end }}
+    authorizationEndpoint: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/auth"
+    tokenEndpoint: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/token"
+    redirectURI: "https://{{ $appHost }}/auth/callback"
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: {{ $httpRoute }}
+  auth:
+    tokenSource:
+      authorizationHeader:
+        prefix: Bearer
+        name: Authorization
+      cookie:
+        name: jwt
+{{- end }}
+{{- end }}

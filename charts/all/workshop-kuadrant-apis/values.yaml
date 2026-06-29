@@ -75,9 +75,20 @@ tokenRateLimit:
     window: 1m
 
 vault:
-  # KV paths documented for workshop API credentials (see templates/vault-paths.yaml)
   maasSecretPath: secret/workshop/maas
   kuadrantKeysPathPrefix: secret/workshop/kuadrant
+  keycloakRealmsPathPrefix: secret/data/hub/keycloak/realms
+
+keycloak:
+  ssoHost: ""
+  realms:
+    enabled: false
+    userCount: 30
+    vaultPathPrefix: secret/data/hub/keycloak/realms
+    names:
+      - maas
+    maasRealm: maas
+    maasClientId: client-maas-user1
 
 # PostSync hook: restart RHCL Kuadrant operator after Istio GatewayClass exists (detection is at pod startup)
 kuadrantOperatorRestart:

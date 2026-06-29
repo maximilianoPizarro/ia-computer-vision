@@ -26,7 +26,15 @@ gateway:
 
 kuadrant:
   enabled: false
+  ssoHost: ""
   realm: backstage
   clientId: neuroface
+  realms:
+    - name: neuroface
+      httpRoute: neuroface-app-lb
+      clientId: client-neuroface-user1
+    - name: cv
+      httpRoute: neuroface-cv-lb
+      clientId: client-cv-user1
   rateLimit:
     predictPerMinute: 30

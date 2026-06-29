@@ -1,0 +1,41 @@
+{{- if .Values.iamCatalog.enabled | default true }}
+{{- $domain := include "developer-hub.clusterDomain" . -}}
+{{- $sso := include "developer-hub.ssoHost" . -}}
+{{- range .Values.iamCatalog.realms | default list }}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: {{ .componentName | default (printf "%s-api" .name) }}
+  title: {{ .displayName | default .name }}
+  description: {{ .description | default (printf "API protected by Keycloak realm %s and RHCL OIDC" .name) }}
+  tags: [iam, kuadrant, keycloak, {{ .name }}]
+  annotations:
+    backstage.io/kubernetes-id: {{ .kubernetesId | default .name }}
+    kuadrant/realm: {{ .name | quote }}
+    kuadrant/oidc-issuer: {{ printf "https://%s/realms/%s" $sso .name | quote }}
+    backstage.io/swagger-ui: {{ .swaggerUrl | default (printf "https://neuroface.%s/" $domain) | quote }}
+    kuadrant/client-id-secret: {{ printf "keycloak-client-%s-user1" .name | quote }}
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/developers
+  providesApis:
+    - {{ .apiName | default (printf "%s-openapi" .name) }}
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: {{ .apiName | default (printf "%s-openapi" .name) }}
+  title: {{ printf "%s OpenAPI" (.displayName | default .name) }}
+  annotations:
+    kuadrant/realm: {{ .name | quote }}
+    kuadrant/client-id-secret: {{ printf "keycloak-client-%s-user1" .name | quote }}
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/developers
+  definition:
+    $text: {{ .openapiUrl | default (printf "https://neuroface.%s/" $domain) | quote }}
+{{- end }}
+{{- end }}

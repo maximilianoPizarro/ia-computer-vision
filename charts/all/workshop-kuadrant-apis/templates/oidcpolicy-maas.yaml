@@ -1,0 +1,31 @@
+{{- if and (.Values.apis.maas.enabled) (.Values.keycloak.realms.enabled | default false) }}
+{{- $ssoHost := .Values.keycloak.ssoHost | default (printf "sso.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) -}}
+{{- $realm := .Values.keycloak.realms.maasRealm | default "maas" -}}
+{{- $clientId := .Values.keycloak.realms.maasClientId | default "client-maas-user1" -}}
+{{- $host := .Values.aiGateway.hostname | default (printf "ai-gateway.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) -}}
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: OIDCPolicy
+metadata:
+  name: oidc-maas
+  namespace: {{ .Values.aiGateway.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  provider:
+    issuerURL: "https://{{ $ssoHost }}/realms/{{ $realm }}"
+    clientID: {{ $clientId | quote }}
+    authorizationEndpoint: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/auth"
+    tokenEndpoint: "https://{{ $ssoHost }}/realms/{{ $realm }}/protocol/openid-connect/token"
+    redirectURI: "https://{{ $host }}/auth/callback"
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: ai-gateway-maas
+  auth:
+    tokenSource:
+      authorizationHeader:
+        prefix: Bearer
+        name: Authorization
+{{- end }}

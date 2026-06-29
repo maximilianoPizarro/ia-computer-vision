@@ -1,0 +1,24 @@
+clusterDomain: ""
+keycloak:
+  namespace: keycloak-system
+  crName: keycloak
+  # SSO alias route lives in developer-hub (sso.<apps-domain>); issuer uses this host.
+  ssoHost: ""
+
+userCount: 30
+defaultPassword: Welcome123!
+
+vault:
+  secretStore: vault-backend
+  pathPrefix: secret/data/hub/keycloak/realms
+
+realms:
+  - name: neuroface
+    displayName: NeuroFace API
+    adminPermissionsEnabled: true
+  - name: maas
+    displayName: Model as a Service
+    adminPermissionsEnabled: true
+  - name: cv
+    displayName: Computer Vision
+    adminPermissionsEnabled: true

@@ -32,7 +32,10 @@ clusterGroup:
     developer-hub: {}
     workshop-kuadrant-apis: {}
     ai-gateway-system: {}
-    keycloak-system: {}
+    keycloak-system:
+      labels:
+        istio.io/dataplane-mode: ambient
+        istio.io/rev: default
     mailpit: {}
     showroom: {}
     redhat-ods-operator:
@@ -230,6 +233,28 @@ clusterGroup:
         - name: keycloak.postgresqlDb.passwordVaultKey
           value: secret/data/hub/rhbk-credentials
 
+    rhbk-iam:
+      name: rhbk-iam
+      namespace: keycloak-system
+      argoProject: workshop
+      path: charts/all/rhbk-iam
+      syncWave: "2"
+      overrides:
+        - name: userCount
+          value: "30"
+        - name: realms[0].name
+          value: neuroface
+        - name: realms[0].displayName
+          value: NeuroFace API
+        - name: realms[1].name
+          value: maas
+        - name: realms[1].displayName
+          value: Model as a Service
+        - name: realms[2].name
+          value: cv
+        - name: realms[2].displayName
+          value: Computer Vision
+
     gitlab-operator:
       name: gitlab-operator
       namespace: gitlab-system
@@ -262,6 +287,8 @@ clusterGroup:
         - name: kubernetesSpokes.enabled
           value: "true"
         - name: applicationSet.enabled
+          value: "true"
+        - name: iamCatalog.enabled
           value: "true"
         # Spoke domains for AI CV template: derived from Pattern CR extraParameters
         # spokeCredentials.clusters.east.apiUrl / west.apiUrl (same as acm-hub-spoke)
@@ -341,6 +368,14 @@ clusterGroup:
           value: "2"
         - name: kuadrant.enabled
           value: "true"
+        - name: kuadrant.realms[0].name
+          value: neuroface
+        - name: kuadrant.realms[0].httpRoute
+          value: neuroface-app-lb
+        - name: kuadrant.realms[1].name
+          value: cv
+        - name: kuadrant.realms[1].httpRoute
+          value: neuroface-cv-lb
 
     workshop-kuadrant-apis:
       name: workshop-kuadrant-apis
@@ -353,6 +388,12 @@ clusterGroup:
           value: "false"
         - name: apis.maas.host
           value: "maas-rhdp.apps.maas.redhatworkshops.io"
+        - name: keycloak.realms.enabled
+          value: "true"
+        - name: keycloak.realms.userCount
+          value: "30"
+        - name: keycloak.realms.names[0]
+          value: maas
 
     acm-hub-spoke:
       name: acm-hub-spoke
