@@ -6,8 +6,8 @@ yoloPpeServing:
   storageSecretName: aws-connection-ppe-models
   storagePath: ppe-detection/model
   modelStorage:
-    accessKeyId: minio
-    secretAccessKey: minio123
+    useVault: true
+    vaultKey: secret/data/hub/minio-credentials
     region: us-east-1
     bucket: models
     endpoint: http://minio-hub.service-interconnect.svc:9000

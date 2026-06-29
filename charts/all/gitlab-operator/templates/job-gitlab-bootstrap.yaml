@@ -245,4 +245,21 @@ spec:
               else
                 echo "Runner secret already exists — skipping."
               fi
+              echo "Syncing Minio credentials to Vault for spoke ESO..."
+              MINIO_AK=$(oc get secret gitlab-minio-secret -n "${GITLAB_NS}" -o jsonpath='{.data.accesskey}' | base64 -d)
+              MINIO_SK=$(oc get secret gitlab-minio-secret -n "${GITLAB_NS}" -o jsonpath='{.data.secretkey}' | base64 -d)
+              if [ -n "${MINIO_AK}" ] && [ -n "${MINIO_SK}" ]; then
+                VAULT_POD=$(oc get pods -n vault -l app.kubernetes.io/name=vault --field-selector=status.phase=Running -o name 2>/dev/null | head -1)
+                if [ -n "${VAULT_POD}" ]; then
+                  oc exec -n vault "${VAULT_POD}" -- vault kv put secret/hub/minio-credentials \
+                    accesskey="${MINIO_AK}" secretkey="${MINIO_SK}" 2>/dev/null \
+                    && echo "Minio credentials written to Vault." \
+                    || echo "WARN: could not write to Vault (may need unseal or policy)."
+                else
+                  echo "WARN: Vault pod not found — Minio creds not synced."
+                fi
+              else
+                echo "WARN: gitlab-minio-secret not found — Minio creds not synced."
+              fi
+
               echo "gitlab-workshop-bootstrap complete."
