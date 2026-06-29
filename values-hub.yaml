@@ -360,9 +360,9 @@ clusterGroup:
         - name: clusters.west.domain
           value: "west"
         - name: gateway.weights.east
-          value: "50"
+          value: "0"
         - name: gateway.weights.west
-          value: "50"
+          value: "100"
         - name: gateway.replicas
           value: "2"
         - name: kuadrant.enabled
