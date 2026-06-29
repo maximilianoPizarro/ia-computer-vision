@@ -86,6 +86,23 @@ spec:
           - email
           - roles
           - basic
+      - clientId: neuroface
+        name: NeuroFace AI Computer Vision
+        enabled: true
+        publicClient: true
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: true
+        redirectUris:
+          - "https://neuroface.{{ include "developer-hub.clusterDomain" . }}/*"
+          - "https://neuroface-cv.{{ include "developer-hub.clusterDomain" . }}/*"
+        webOrigins:
+          - "https://neuroface.{{ include "developer-hub.clusterDomain" . }}"
+          - "https://neuroface-cv.{{ include "developer-hub.clusterDomain" . }}"
+        protocol: openid-connect
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
     users:
       # Service account for KeycloakOrgEntityProvider — needs realm-management roles to list users/groups
       - username: service-account-developer-hub-catalog

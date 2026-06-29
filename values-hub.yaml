@@ -229,6 +229,8 @@ clusterGroup:
           value: secret/data/hub/rhbk-credentials
         - name: keycloak.postgresqlDb.passwordVaultKey
           value: secret/data/hub/rhbk-credentials
+        - name: keycloak.hostname
+          value: sso
 
     rhbk-iam:
       name: rhbk-iam

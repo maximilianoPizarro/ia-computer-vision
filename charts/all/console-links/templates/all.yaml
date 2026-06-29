@@ -125,7 +125,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://keycloak.{{ $domain }}"
+  href: "https://sso.{{ $domain }}"
   location: ApplicationMenu
   text: "Keycloak (SSO)"
 ---
