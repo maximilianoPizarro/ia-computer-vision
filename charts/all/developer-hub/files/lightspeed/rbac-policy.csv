@@ -53,7 +53,7 @@ p, role:default/authenticated, kuadrant.apiproduct.list, read, allow
 p, role:default/authenticated, kuadrant.apiproduct.read.own, read, allow
 p, role:default/authenticated, kuadrant.apiproduct.read.all, read, allow
 p, role:default/authenticated, kuadrant.apiproduct.update.own, update, allow
-p, role:default/authenticated, kuadrant.apikey.create, create, allow
+p, role:default/authenticated, kuadrant.apikey.create, create, allow, apiproduct:*/*
 p, role:default/authenticated, kuadrant.apikey.read.own, read, allow
 p, role:default/authenticated, kuadrant.apikey.read.all, read, allow
 p, role:default/authenticated, kuadrant.apikey.update.own, update, allow
@@ -99,7 +99,7 @@ p, role:default/admin, kuadrant.apiproduct.read.all, read, allow
 p, role:default/admin, kuadrant.apiproduct.update.all, update, allow
 p, role:default/admin, kuadrant.apiproduct.delete.all, delete, allow
 p, role:default/admin, kuadrant.apiproduct.list, read, allow
-p, role:default/admin, kuadrant.apikey.create, create, allow
+p, role:default/admin, kuadrant.apikey.create, create, allow, apiproduct:*/*
 p, role:default/admin, kuadrant.apikey.read.all, read, allow
 p, role:default/admin, kuadrant.apikey.update.all, update, allow
 p, role:default/admin, kuadrant.apikey.approve, update, allow
