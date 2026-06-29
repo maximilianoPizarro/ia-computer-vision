@@ -1,3 +1,4 @@
+{{- if .Values.spokeGateway.exposeRoute | default false }}
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
@@ -6,7 +7,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:
-  host: neuroface-spoke-gateway.{{ include "spoke-neuroface.clusterDomainBase" . }}
+  host: neuroface-spoke-gateway.{{ include "spoke-neuroface.clusterDomain" . }}
   to:
     kind: Service
     name: neuroface-spoke-gateway-istio
@@ -16,3 +17,4 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
+{{- end }}

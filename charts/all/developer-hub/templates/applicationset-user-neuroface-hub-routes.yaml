@@ -6,62 +6,10 @@
 {{- $gitlabGroup := $as.gitlabGroup | default "ws-workshop" -}}
 {{- $gitlabHost := include "developer-hub.gitlabHost" . -}}
 {{- if $as.enabled | default true }}
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: gitlab-scm-token
-  namespace: {{ $argoNs }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: {{ $as.secretStoreName | default "vault-backend" }}
-  target:
-    name: gitlab-scm-token
-    creationPolicy: Owner
-  data:
-    - secretKey: token
-      remoteRef:
-        key: {{ $as.vaultKey | default "secret/data/hub/developer-hub-secrets" }}
-        property: gitlab-token
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: gitlab-https-repo-creds
-  namespace: {{ $argoNs }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: {{ $as.secretStoreName | default "vault-backend" }}
-  target:
-    name: gitlab-https-repo-creds
-    creationPolicy: Owner
-    template:
-      engineVersion: v2
-      metadata:
-        labels:
-          argocd.argoproj.io/secret-type: repo-creds
-      data:
-        type: git
-        url: "https://{{ $gitlabHost }}"
-        username: oauth2
-        password: "{{`{{ .gitlab_token }}`}}"
-  data:
-    - secretKey: gitlab_token
-      remoteRef:
-        key: {{ $as.vaultKey | default "secret/data/hub/developer-hub-secrets" }}
-        property: gitlab-token
----
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: user-neuroface-apps
+  name: user-neuroface-hub-routes
   namespace: {{ $argoNs }}
   annotations:
     argocd.argoproj.io/sync-wave: "3"
@@ -88,7 +36,7 @@ spec:
                 - path: k8s/target-cluster.yaml
   template:
     metadata:
-      name: "{{`{{ .repository }}`}}"
+      name: "{{`{{ .repository }}`}}-hub-route"
       labels:
         app.kubernetes.io/part-of: neuroface-workshop
     spec:
@@ -96,14 +44,12 @@ spec:
       source:
         repoURL: "https://{{ $gitlabHost }}/{{ $gitlabGroup }}/{{`{{ .repository }}`}}.git"
         targetRevision: HEAD
-        path: k8s
+        path: k8s/hub
       destination:
-        name: "{{`{{ .cluster }}`}}"
-        namespace: "{{`{{ .repository }}`}}"
+        server: https://kubernetes.default.svc
+        namespace: neuroface-gateway-system
       syncPolicy:
         automated:
           prune: true
           selfHeal: true
-        syncOptions:
-          - CreateNamespace=true
 {{- end }}

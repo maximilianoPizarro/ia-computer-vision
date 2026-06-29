@@ -94,6 +94,11 @@ clusterGroup:
       namespace: redhat-connectivity-link-operator
       channel: stable
       source: redhat-operators
+    kiali:
+      name: kiali-ossm
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
     pipelines:
       name: openshift-pipelines-operator-rh
       namespace: openshift-operators

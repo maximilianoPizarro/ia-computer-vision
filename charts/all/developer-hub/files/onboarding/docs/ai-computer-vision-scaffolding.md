@@ -45,7 +45,7 @@ After a successful run (typically 5–15 minutes for GitOps sync):
 | GitLab | Repo `https://gitlab.apps.<hub>/ws-workshop/neuroface-<you>` |
 | Argo CD | Application `neuroface-<you>` in `vp-gitops`, destination `east` or `west` |
 | Spoke pods | `neuroface-backend`, `neuroface-frontend`, `rhbk-neuroface-<you>` |
-| Gateway | `https://neuroface-spoke-gateway.<spoke>/user/<you>/` (OIDC via RHBK) |
+| Gateway | `https://neuroface.apps.<hub>/user/<you>/` (hub RHCL gateway, OIDC via RHBK) |
 | RHBK admin | `https://rhbk-neuroface-<you>.<spoke>/admin` |
 | Catalog | Entity with plugin tabs populated |
 

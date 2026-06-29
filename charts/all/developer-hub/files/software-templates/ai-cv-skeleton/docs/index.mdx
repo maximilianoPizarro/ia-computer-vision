@@ -12,7 +12,7 @@ Personal NeuroFace instance on the **${{ values.spoke }}** spoke with RHBK biome
 
 | URL | Purpose |
 |-----|---------|
-| `https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}/` | NeuroFace UI (OIDC) |
+| `https://neuroface.apps.${{ values.hubClusterDomain }}/user/${{ values.owner }}/` | NeuroFace UI (OIDC, hub gateway) |
 | `https://rhbk-${{ values.name }}.${{ values.spokeClusterDomain }}/admin` | RHBK admin |
 | `https://gitlab.apps.${{ values.hubClusterDomain }}/ws-workshop/${{ values.name }}` | GitLab repo |
 

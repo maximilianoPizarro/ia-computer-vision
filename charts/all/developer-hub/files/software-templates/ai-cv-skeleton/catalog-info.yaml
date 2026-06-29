@@ -18,7 +18,7 @@ metadata:
     devspaces.io/factory: ${{ values.repoUrl }}
     openshift.io/deployment-name: neuroface-backend
   links:
-    - url: https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}/
+    - url: https://neuroface.apps.${{ values.hubClusterDomain }}/user/${{ values.owner }}/
       title: NeuroFace (OIDC Gateway)
       icon: dashboard
     - url: https://rhbk-${{ values.name }}.${{ values.spokeClusterDomain }}/admin
@@ -65,7 +65,7 @@ metadata:
     backstage.io/kubernetes-id: neuroface-frontend
     argocd/app-name: ${{ values.name }}
   links:
-    - url: https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}/
+    - url: https://neuroface.apps.${{ values.hubClusterDomain }}/user/${{ values.owner }}/
       title: NeuroFace UI (OIDC Gateway)
       icon: dashboard
 spec:

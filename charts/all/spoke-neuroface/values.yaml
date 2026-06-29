@@ -2,6 +2,8 @@ clusterName: ""
 
 spokeGateway:
   replicas: 2
+  # Public OpenShift Route per spoke is disabled; use hub neuroface.apps.<hub> (50/50 LB).
+  exposeRoute: false
 
 neuroface:
   fullnameOverride: neuroface

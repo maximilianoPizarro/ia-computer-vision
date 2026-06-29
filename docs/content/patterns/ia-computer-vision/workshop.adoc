@@ -68,7 +68,7 @@ For operator interaction diagrams and expected results, see link:../scaffolding-
 . Open your catalog entity → tab **API** → NeuroFace OpenAPI spec with **Try It Out**
 . Click **Open in DevSpaces** to edit NeuroFace source
 . Tab **CI** shows Tekton pipeline run status (when Tekton plugin is enabled)
-. Access NeuroFace: `https://neuroface-spoke-gateway.<spoke_domain>/user/userN/`
+. Access NeuroFace: `https://neuroface.apps.<hub_domain>/user/userN/` (hub gateway, 50/50 to spokes for shared app; per-user path routed to the spoke chosen at scaffold time)
 . RHCL redirects to RHBK OIDC — login `userN` / `Welcome123!`
 . First login: complete biometric enrollment (webcam, 3–5 images)
 . Subsequent logins: password + facial 2FA verification

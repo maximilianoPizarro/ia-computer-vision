@@ -197,7 +197,7 @@ Expected: hosts `neuroface.$HUB_DOMAIN`, `neuroface-cv.$HUB_DOMAIN`.
 
 ```bash
 oc login --token=<east-token> --server=<east-api> --insecure-skip-tls-verify
-oc get route neuroface-spoke-gateway -n neuroface -o jsonpath='{.spec.host}{"\n"}'
+oc get route neuroface-gateway -n neuroface-gateway-system -o jsonpath='{.spec.host}{"\n"}'
 oc get gateway -n neuroface
 ```
 
@@ -250,7 +250,7 @@ oc get application -n $VP_NS | grep "neuroface-${DEMO_USER}"
 ```bash
 oc get pods,httproute,route -n "neuroface-${DEMO_USER}" 2>/dev/null || oc get ns | grep neuroface
 curl -sk -o /dev/null -w '%{http_code}\n' \
-  "https://neuroface-spoke-gateway.${EAST_DOMAIN#apps.}/user/${DEMO_USER}/"
+  "https://neuroface.apps.${HUB_DOMAIN#apps.}/user/${DEMO_USER}/"
 ```
 
 Expected: pods Running; HTTP `200`/`302`.
@@ -354,7 +354,7 @@ Expected: status JSON con servicio healthy.
 Duración: 30–45 min. Usuario: `$DEMO_USER` en **east**.
 
 - [ ] **Acto 1** — RHDH login + scaffold (Task 3) ☐
-- [ ] **Acto 2** — Abrir `https://neuroface-spoke-gateway.<east>/user/$DEMO_USER/`
+- [ ] **Acto 2** — Abrir `https://neuroface.apps.<hub>/user/$DEMO_USER/`
 - [ ] **Acto 3** — Login RHBK per-user → enrollment facial (3–5 fotos) → re-login con 2FA ☐
 - [ ] **Acto 4** — Webcam PPE: casco detectado ☐
 - [ ] **Acto 5** — Quitar casco → evento Kafka `cv.ppe.detections` ☐

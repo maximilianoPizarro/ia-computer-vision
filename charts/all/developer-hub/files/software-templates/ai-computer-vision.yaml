@@ -105,7 +105,7 @@ spec:
       - title: Repository
         url: ${{ steps.publish.output.remoteUrl }}
       - title: NeuroFace (OIDC Gateway)
-        url: https://neuroface-spoke-gateway.${{ parameters.spokeClusterDomain }}/user/${{ parameters.owner | parseEntityRef | pick('name') }}/
+        url: https://neuroface.apps.${{ parameters.hubClusterDomain }}/user/${{ parameters.owner | parseEntityRef | pick('name') }}/
       - title: RHBK Admin
         url: https://rhbk-neuroface-${{ parameters.owner | parseEntityRef | pick('name') }}.${{ parameters.spokeClusterDomain }}/admin
       - title: Open in DevSpaces

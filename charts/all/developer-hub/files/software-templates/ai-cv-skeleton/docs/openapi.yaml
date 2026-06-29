@@ -6,7 +6,7 @@ info:
     Access via RHCL Gateway at /user/${{ values.owner }}/ with RHBK OIDC authentication.
   version: v1.5.1
 servers:
-  - url: https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/user/${{ values.owner }}
+  - url: https://neuroface.apps.${{ values.hubClusterDomain }}/user/${{ values.owner }}
     description: RHCL Gateway (OIDC via RHBK biometric)
   - url: http://neuroface-backend.${{ values.namespace }}.svc.cluster.local:8080
     description: In-cluster backend service

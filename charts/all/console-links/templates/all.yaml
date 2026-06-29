@@ -219,16 +219,30 @@ spec:
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
 metadata:
-  name: platform-neuroface-spoke
+  name: platform-neuroface
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://neuroface-spoke-gateway.{{ $domain }}"
+  href: "https://neuroface.{{ $hubDomain }}"
   location: ApplicationMenu
-  text: "NeuroFace Spoke Gateway"
+  text: "NeuroFace API Gateway"
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-neuroface-cv
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://neuroface-cv.{{ $hubDomain }}"
+  location: ApplicationMenu
+  text: "NeuroFace CV Gateway"
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink

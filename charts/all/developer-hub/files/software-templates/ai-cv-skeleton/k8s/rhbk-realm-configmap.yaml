@@ -77,8 +77,8 @@ data:
           "standardFlowEnabled": true,
           "directAccessGrantsEnabled": true,
           "redirectUris": [
-            "https://neuroface-spoke-gateway.${{ values.spokeClusterDomain }}/*",
-            "https://*.${{ values.spokeClusterDomain }}/*"
+            "https://neuroface.apps.${{ values.hubClusterDomain }}/user/${{ values.owner }}/*",
+            "https://neuroface.apps.${{ values.hubClusterDomain }}/*"
           ],
           "webOrigins": ["+"],
           "protocol": "openid-connect",
