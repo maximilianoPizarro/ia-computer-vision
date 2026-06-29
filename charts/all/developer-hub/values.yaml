@@ -99,6 +99,10 @@ plugins:
     enabled: true
   keycloakCatalog:
     enabled: true
+  lightspeed:
+    enabled: false
+  notificationsEmail:
+    enabled: true
 
 iamCatalog:
   enabled: true

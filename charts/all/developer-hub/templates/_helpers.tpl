@@ -11,7 +11,8 @@
 {{- end -}}
 
 {{- define "developer-hub.lightspeedEnabled" -}}
-{{- if .Values.plugins.lightspeed.enabled -}}true{{- end -}}
+{{- $ls := .Values.plugins.lightspeed | default dict -}}
+{{- if $ls.enabled -}}true{{- end -}}
 {{- end -}}
 
 {{/*
