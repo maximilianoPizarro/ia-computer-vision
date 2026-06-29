@@ -37,4 +37,4 @@ kuadrant:
       httpRoute: neuroface-cv-lb
       clientId: client-cv-user1
   rateLimit:
-    predictPerMinute: 30
+    predictPerMinute: 120
