@@ -31,6 +31,7 @@ Platform secrets flow: **Vault → ESO → OpenShift Secret → Pods** (never st
 4. Pick **east** or **west**; your repo deploys via Argo CD ApplicationSet.
 5. Open catalog entity links: NeuroFace gateway, RHBK admin, DevSpaces, Tekton.
 6. Optional: [Vault and ESO](vault-eso-secrets.md) for operators; [Kuadrant MaaS keys](kuadrant-apis.md) for chat.
+7. [IAM and OIDC realms](iam-oidc-realms.md) — Keycloak realms, JWT curl, self-service clients.
 
 ## Workshop users
 

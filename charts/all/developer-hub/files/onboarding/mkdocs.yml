@@ -9,5 +9,6 @@ nav:
   - Pipelines and Quay: pipelines.md
   - Observability: observability.md
   - Kuadrant API keys: kuadrant-apis.md
+  - IAM and OIDC realms: iam-oidc-realms.md
 plugins:
   - techdocs-core

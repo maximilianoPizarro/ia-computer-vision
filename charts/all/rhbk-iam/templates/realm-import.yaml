@@ -34,6 +34,8 @@ spec:
           description: Can view resources in this realm only
         - name: api-consumer
           description: Can consume APIs protected by this realm
+        - name: manage-clients
+          description: Can create and manage own OIDC clients
     groups:
 {{- range $i := until $count }}
 {{- $userNum := add $i 1 }}
@@ -41,6 +43,7 @@ spec:
         realmRoles:
           - api-consumer
           - realm-viewer
+          - manage-clients
 {{- end }}
     clients:
 {{- range $i := until $count }}
@@ -75,5 +78,9 @@ spec:
             temporary: false
         groups:
           - {{ include "rhbk-iam.groupName" (dict "userNum" $userNum) | quote }}
+        clientRoles:
+          realm-management:
+            - view-clients
+            - manage-clients
 {{- end }}
 {{- end }}

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: workshop-registration
+description: Self-service workshop registration portal — assigns userN and redirects to Showroom
+type: application
+version: 0.1.0
+maintainers:
+  - name: Maximiliano Pizarro
+    email: mapizarr@redhat.com

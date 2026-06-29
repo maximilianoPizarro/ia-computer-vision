@@ -21,6 +21,7 @@ rules:
   - apiGroups: ["extensions.kuadrant.io"]
     resources:
       - planpolicies
+      - oidcpolicies
     verbs: [get, list, watch]
   - apiGroups: ["devportal.kuadrant.io"]
     resources:

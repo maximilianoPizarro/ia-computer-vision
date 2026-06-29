@@ -43,6 +43,17 @@ The Showroom deployment serves an Antora lab guide from link:https://github.com/
 https://showroom-showroom.apps.<hub_domain>
 ----
 
+=== Self-service registration
+
+Attendees self-assign a workshop user at the registration portal (chart `workshop-registration`, sync wave 5):
+
+[source,text]
+----
+https://workshop-registration.apps.<hub_domain>/
+----
+
+`POST /api/register` with `{email}` assigns the first free `userN` and redirects to Showroom with `?USER_NAME=userN`. Admin token and Keycloak credentials come from Vault via External Secrets Operator (`secret/data/hub/workshop-registration`).
+
 Embedded terminal helpers:
 
 [source,bash]
@@ -97,6 +108,10 @@ https://sso.apps.<hub_domain>
 ----
 
 Users authenticate with `user1` / `Welcome123!` (or `userN` for workshop participants). The SSO realm is `cv`, provisioned by the `rhbk-iam` chart.
+
+Workshop users can create their own OIDC clients in Keycloak (roles `view-clients`, `manage-clients` on `realm-management`). The Showroom module *OIDC & Keycloak Lab* (`04b-oidc-keycloak.adoc`) walks through client_credentials curl and Swagger UI testing.
+
+Developer Hub catalog system *IAM / OIDC Realms* exposes OpenAPI specs for realms `neuroface`, `cv`, and `maas`.
 
 === Cluster badge (top-right corner)
 

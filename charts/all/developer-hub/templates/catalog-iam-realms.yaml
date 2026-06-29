@@ -1,41 +1,22 @@
 {{- if .Values.iamCatalog.enabled | default true }}
-{{- $domain := include "developer-hub.clusterDomain" . -}}
-{{- $sso := include "developer-hub.ssoHost" . -}}
-{{- range .Values.iamCatalog.realms | default list }}
----
-apiVersion: backstage.io/v1alpha1
-kind: Component
+{{- $hub := include "developer-hub.clusterDomain" . }}
+{{- $catalog := .Files.Get "files/catalog/iam-realms.yaml" | replace "__HUB_APPS_DOMAIN__" $hub }}
+{{- $neurofaceSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/iam-neuroface-openapi.yaml" "hub" $hub) | nindent 4 }}
+{{- $cvSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/iam-cv-openapi.yaml" "hub" $hub) | nindent 4 }}
+{{- $maasSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/iam-maas-openapi.yaml" "hub" $hub) | nindent 4 }}
+{{- $catalog = $catalog | replace "__IAM_NEUROFACE_OPENAPI_SPEC__" $neurofaceSpec }}
+{{- $catalog = $catalog | replace "__IAM_CV_OPENAPI_SPEC__" $cvSpec }}
+{{- $catalog = $catalog | replace "__IAM_MAAS_OPENAPI_SPEC__" $maasSpec }}
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: {{ .componentName | default (printf "%s-api" .name) }}
-  title: {{ .displayName | default .name }}
-  description: {{ .description | default (printf "API protected by Keycloak realm %s and RHCL OIDC" .name) }}
-  tags: [iam, kuadrant, keycloak, {{ .name }}]
+  name: developer-hub-catalog-iam-realms
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
   annotations:
-    backstage.io/kubernetes-id: {{ .kubernetesId | default .name }}
-    kuadrant/realm: {{ .name | quote }}
-    kuadrant/oidc-issuer: {{ printf "https://%s/realms/%s" $sso .name | quote }}
-    backstage.io/swagger-ui: {{ .swaggerUrl | default (printf "https://neuroface.%s/" $domain) | quote }}
-    kuadrant/client-id-secret: {{ printf "keycloak-client-%s-user1" .name | quote }}
-spec:
-  type: service
-  lifecycle: production
-  owner: group:default/developers
-  providesApis:
-    - {{ .apiName | default (printf "%s-openapi" .name) }}
----
-apiVersion: backstage.io/v1alpha1
-kind: API
-metadata:
-  name: {{ .apiName | default (printf "%s-openapi" .name) }}
-  title: {{ printf "%s OpenAPI" (.displayName | default .name) }}
-  annotations:
-    kuadrant/realm: {{ .name | quote }}
-    kuadrant/client-id-secret: {{ printf "keycloak-client-%s-user1" .name | quote }}
-spec:
-  type: openapi
-  lifecycle: production
-  owner: group:default/developers
-  definition:
-    $text: {{ .openapiUrl | default (printf "https://neuroface.%s/" $domain) | quote }}
-{{- end }}
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  iam-realms.yaml: |
+{{ $catalog | nindent 4 }}
 {{- end }}

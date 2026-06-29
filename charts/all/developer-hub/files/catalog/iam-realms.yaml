@@ -1,0 +1,121 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: iam-realms
+  title: IAM / OIDC Realms
+  description: Keycloak realms (neuroface, cv, maas) with RHCL OIDCPolicy on Gateway API routes
+  tags: [iam, keycloak, kuadrant, oidc, workshop]
+spec:
+  owner: group:default/developers
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: neuroface-api
+  title: NeuroFace API
+  description: API protected by Keycloak realm neuroface and RHCL OIDCPolicy
+  tags: [iam, kuadrant, keycloak, neuroface]
+  annotations:
+    backstage.io/kubernetes-id: neuroface
+    kuadrant/realm: neuroface
+    kuadrant/oidc-issuer: https://sso.__HUB_APPS_DOMAIN__/realms/neuroface
+    backstage.io/swagger-ui: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-openapi
+    kuadrant/client-id-secret: keycloak-client-neuroface-user1
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/developers
+  system: iam-realms
+  providesApis:
+    - neuroface-openapi
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: neuroface-openapi
+  title: NeuroFace OpenAPI
+  annotations:
+    kuadrant/realm: neuroface
+    kuadrant/client-id-secret: keycloak-client-neuroface-user1
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/developers
+  system: iam-realms
+  definition: |
+__IAM_NEUROFACE_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: neuroface-cv-api
+  title: Computer Vision API
+  description: CV inference API protected by Keycloak realm cv and OIDCPolicy on neuroface-cv-lb
+  tags: [iam, kuadrant, keycloak, cv]
+  annotations:
+    backstage.io/kubernetes-id: neuroface-cv
+    kuadrant/realm: cv
+    kuadrant/oidc-issuer: https://sso.__HUB_APPS_DOMAIN__/realms/cv
+    backstage.io/swagger-ui: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-cv-openapi
+    kuadrant/client-id-secret: keycloak-client-cv-user1
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/developers
+  system: iam-realms
+  providesApis:
+    - neuroface-cv-openapi
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: neuroface-cv-openapi
+  title: Computer Vision OpenAPI
+  annotations:
+    kuadrant/realm: cv
+    kuadrant/client-id-secret: keycloak-client-cv-user1
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/developers
+  system: iam-realms
+  definition: |
+__IAM_CV_OPENAPI_SPEC__
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: maas-api
+  title: Model as a Service
+  description: MaaS LLM endpoint protected by Keycloak realm maas (OIDC) or Kuadrant APIKEY
+  tags: [iam, kuadrant, keycloak, maas]
+  annotations:
+    backstage.io/kubernetes-id: ai-gateway
+    kuadrant/realm: maas
+    kuadrant/oidc-issuer: https://sso.__HUB_APPS_DOMAIN__/realms/maas
+    backstage.io/swagger-ui: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/maas-openapi
+    kuadrant/client-id-secret: keycloak-client-maas-user1
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/developers
+  system: iam-realms
+  providesApis:
+    - maas-openapi
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: maas-openapi
+  title: MaaS OpenAPI
+  annotations:
+    kuadrant/realm: maas
+    kuadrant/client-id-secret: keycloak-client-maas-user1
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/developers
+  system: iam-realms
+  definition: |
+__IAM_MAAS_OPENAPI_SPEC__

@@ -1,0 +1,23 @@
+clusterDomain: ""
+hubClusterDomain: ""
+
+registration:
+  enabled: true
+  maxUsers: 30
+  # adminToken synced from Vault via ExternalSecret when useVault is true
+  adminToken: ""
+  useVault: true
+  vaultKey: secret/data/hub/workshop-registration
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+
+showroom:
+  url: ""
+
+keycloak:
+  url: ""
+  realm: backstage
+  adminUser: admin
+  adminPassword: ""
+  passwordVaultKey: secret/data/hub/rhbk-credentials

@@ -22,7 +22,7 @@ spec:
   targetRef:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
-    name: ai-gateway-maas
+    name: ai-maas
   auth:
     tokenSource:
       authorizationHeader:

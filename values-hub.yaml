@@ -304,6 +304,18 @@ clusterGroup:
         - name: maas.endpoint
           value: "https://maas-rhdp.apps.maas.redhatworkshops.io"
 
+    workshop-registration:
+      name: workshop-registration
+      namespace: showroom
+      argoProject: workshop
+      path: charts/all/workshop-registration
+      syncWave: "5"
+      overrides:
+        - name: registration.maxUsers
+          value: "30"
+        - name: registration.enabled
+          value: "true"
+
     showroom:
       name: showroom
       namespace: showroom

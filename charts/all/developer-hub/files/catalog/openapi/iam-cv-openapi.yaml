@@ -1,0 +1,65 @@
+openapi: 3.0.3
+info:
+  title: Computer Vision API (OIDC — cv realm)
+  description: |
+    PPE inference API on the NeuroFace CV gateway, protected by Red Hat Connectivity Link OIDCPolicy.
+
+    **Authentication**: Obtain a JWT from Keycloak realm `cv` using client_credentials or your own client, then send `Authorization: Bearer <token>`.
+
+    Pre-provisioned client: `client-cv-userN` (secret in Vault/ESO).
+  version: v1
+servers:
+  - url: https://neuroface-cv.__HUB_APPS_DOMAIN__
+    description: RHCL Gateway — CV route with OIDC
+security:
+  - BearerAuth: []
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Keycloak access token from realm `cv` (issuer sso.apps.<hub>/realms/cv)
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        cluster:
+          type: string
+          example: east
+paths:
+  /api/health:
+    get:
+      summary: Gateway health (OIDC protected)
+      operationId: cvHealth
+      responses:
+        "200":
+          description: Healthy upstream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        "401":
+          description: Missing or invalid Bearer token
+  /v1/predict:
+    post:
+      summary: YOLO PPE detection (base64 image)
+      operationId: cvPredict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  description: Base64-encoded image
+      responses:
+        "200":
+          description: Detection results
+        "401":
+          description: Missing or invalid Bearer token

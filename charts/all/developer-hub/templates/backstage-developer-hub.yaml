@@ -46,6 +46,11 @@ spec:
           mountPath: /opt/app-root/src/catalog-data/kuadrant-apis
           containers:
             - "*"
+        - name: developer-hub-catalog-iam-realms
+          key: iam-realms.yaml
+          mountPath: /opt/app-root/src/catalog-data/iam-realms
+          containers:
+            - "*"
         - name: developer-hub-catalog-public-apis
           key: public-apis.yaml
           mountPath: /opt/app-root/src/catalog-data/public-apis

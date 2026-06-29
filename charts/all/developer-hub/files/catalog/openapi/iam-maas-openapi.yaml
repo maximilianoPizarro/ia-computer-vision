@@ -1,0 +1,53 @@
+openapi: 3.0.3
+info:
+  title: MaaS LLM (OIDC — maas realm)
+  description: |
+    OpenAI-compatible chat completions via AI Gateway, protected by OIDCPolicy on HTTPRoute `ai-maas`.
+
+    **Authentication**: JWT from Keycloak realm `maas` (client `client-maas-userN`) **or** Kuadrant APIKEY on route `ai-gateway`.
+  version: v1
+servers:
+  - url: https://ai-gateway.__HUB_APPS_DOMAIN__
+    description: AI Gateway (OIDC on ai-maas route; APIKEY on ai-gateway route)
+security:
+  - BearerAuth: []
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Keycloak access token from realm `maas`
+  schemas:
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          example: llama-scout-17b
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+paths:
+  /v1/chat/completions:
+    post:
+      summary: Chat completions (OIDC protected on ai-maas route)
+      operationId: maasChatCompletions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+      responses:
+        "200":
+          description: Completion response
+        "401":
+          description: Missing or invalid Bearer token

@@ -159,6 +159,9 @@ link:architecture/[Read the full architecture document &rarr;]
 | link:workshop/[Workshop mode]
 | Enable 30 lab users with Showroom guide
 
+| link:crd-reference/[CRD reference]
+| Annotated YAML for Kuadrant, Gateway API, RHBK, Skupper, RHDH, and OpenShift AI CRs
+
 | link:ideas-for-customization/[Ideas for customization]
 | Extend the pattern for your environment
 

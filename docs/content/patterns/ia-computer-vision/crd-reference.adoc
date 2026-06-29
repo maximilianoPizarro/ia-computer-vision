@@ -1,0 +1,399 @@
+---
+title: CRD reference
+date: 2026-06-29
+summary: Annotated YAML examples for custom resources used in the AI Computer Vision pattern.
+:_content-type: REFERENCE
+---
+
+= CRD reference
+:toc:
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
+
+Helm templates under `charts/all/` are the source of truth. This guide shows simplified examples with links to official product documentation.
+
+== Red Hat Connectivity Link (Kuadrant)
+
+Product documentation: link:https://docs.redhat.com/en/documentation/red_hat_connectivity_link[Red Hat Connectivity Link]
+
+=== OIDCPolicy
+
+`extensions.kuadrant.io/v1alpha1` — OIDC authentication on Gateway API HTTPRoutes.
+
+[source,yaml]
+----
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: OIDCPolicy
+metadata:
+  name: oidc-cv
+  namespace: neuroface-gateway-system
+spec:
+  provider:
+    issuerURL: https://sso.apps.<hub-domain>/realms/cv
+    clientID: client-cv-user1
+    authorizationEndpoint: https://sso.apps.<hub-domain>/realms/cv/protocol/openid-connect/auth
+    tokenEndpoint: https://sso.apps.<hub-domain>/realms/cv/protocol/openid-connect/token
+    redirectURI: https://neuroface-cv.apps.<hub-domain>/auth/callback
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: neuroface-cv-lb
+  auth:
+    tokenSource:
+      authorizationHeader:
+        prefix: Bearer
+        name: Authorization
+----
+
+*Connection*: OIDCPolicy → HTTPRoute → Gateway → backend Service (Skupper listeners on hub reach spoke connectors).
+
+Chart: `charts/all/neuroface-gateway/templates/oidcpolicy-realms.yaml`, `charts/all/workshop-kuadrant-apis/templates/oidcpolicy-maas.yaml`
+
+=== AuthPolicy
+
+`kuadrant.io/v1` — API key authentication.
+
+[source,yaml]
+----
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: workshop-httpbin-auth
+  namespace: workshop-kuadrant-apis
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-httpbin
+  authRules:
+    apikey:
+      apiKeySelector:
+        selector:
+          matchLabels:
+            kuadrant.io/auth-policy: workshop-httpbin
+      credentials:
+        authorizationHeader:
+          prefix: APIKEY
+          name: Authorization
+----
+
+*Connection*: AuthPolicy → HTTPRoute → APIProduct (Developer Hub catalog) → API key Secret.
+
+=== RateLimitPolicy
+
+[source,yaml]
+----
+apiVersion: kuadrant.io/v1
+kind: RateLimitPolicy
+metadata:
+  name: neuroface-cv-ratelimit
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: neuroface-cv-lb
+  rateLimits:
+    - when:
+        - predicate: true
+      limits:
+        - maxValue: 120
+          unit: minute
+          requestsPerUnit: 120
+          selector:
+            selector:
+              matchLabels:
+                kuadrant.io/ratelimit: neuroface-cv
+----
+
+=== APIProduct
+
+`devportal.kuadrant.io/v1beta1` — API catalog entry for the Kuadrant Developer Hub plugin.
+
+[source,yaml]
+----
+apiVersion: devportal.kuadrant.io/v1beta1
+kind: APIProduct
+metadata:
+  name: workshop-httpbin
+  namespace: workshop-kuadrant-apis
+spec:
+  reference:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-httpbin
+  docsURL: https://developer-hub.apps.<hub-domain>/catalog/default/api/workshop-httpbin-openapi
+----
+
+== Kubernetes Gateway API
+
+Documentation: link:https://gateway-api.sigs.k8s.io/[Gateway API]
+
+=== Gateway
+
+[source,yaml]
+----
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: neuroface-gateway
+  namespace: neuroface-gateway-system
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 8080
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+----
+
+Hub gateways are the external entry point; spoke gateways route to local backends.
+
+=== HTTPRoute
+
+[source,yaml]
+----
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: neuroface-app-lb
+  namespace: neuroface-gateway-system
+spec:
+  parentRefs:
+    - name: neuroface-gateway
+  hostnames:
+    - neuroface.apps.<hub-domain>
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: neuroface-app-east
+          port: 8080
+          weight: 50
+        - name: neuroface-app-west
+          port: 8080
+          weight: 50
+----
+
+== Red Hat Build of Keycloak (RHBK)
+
+Documentation: link:https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak[Red Hat Build of Keycloak]
+
+=== KeycloakRealmImport
+
+[source,yaml]
+----
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: realm-cv
+  namespace: keycloak-system
+spec:
+  keycloakCRName: keycloak
+  placeholders:
+    secrets:
+      CLIENT_SECRET_USER1:
+        name: keycloak-client-cv-user1
+        key: clientSecret
+  realm:
+    realm: cv
+    enabled: true
+    roles:
+      realm:
+        - name: manage-clients
+          description: Can create and manage own OIDC clients
+    users:
+      - username: user1
+        clientRoles:
+          realm-management:
+            - view-clients
+            - manage-clients
+----
+
+*Connection*: KeycloakRealmImport → Keycloak CR → ExternalSecret (Vault client secrets).
+
+Chart: `charts/all/rhbk-iam/templates/realm-import.yaml`
+
+== External Secrets Operator
+
+Documentation: link:https://external-secrets.io/[External Secrets Operator]
+
+=== ExternalSecret
+
+[source,yaml]
+----
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-client-cv-user1
+  namespace: keycloak-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: keycloak-client-cv-user1
+  data:
+    - secretKey: clientSecret
+      remoteRef:
+        key: secret/data/hub/keycloak/realms/cv/user1
+        property: clientSecret
+----
+
+== Red Hat Service Interconnect (Skupper)
+
+Documentation: link:https://docs.redhat.com/en/documentation/red_hat_service_interconnect[Red Hat Service Interconnect]
+
+=== Site
+
+[source,yaml]
+----
+apiVersion: skupper.io/v2alpha1
+kind: Site
+metadata:
+  name: hub-site
+  namespace: service-interconnect
+----
+
+=== Listener
+
+[source,yaml]
+----
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: neuroface-app-east
+  namespace: service-interconnect
+spec:
+  routingKey: neuroface-app-east
+  port: 8080
+----
+
+=== Connector
+
+[source,yaml]
+----
+apiVersion: skupper.io/v2alpha1
+kind: Connector
+metadata:
+  name: neuroface-app-east
+  namespace: neuroface
+spec:
+  routingKey: neuroface-app-east
+  selector: app=neuroface-backend
+  port: 8080
+----
+
+*Connection*: Connector (spoke) ↔ Listener (hub) matched by `routingKey`.
+
+=== AccessGrant / AccessToken
+
+Hub creates `AccessGrant`; ACM `ManagedClusterAction` pushes `AccessToken` to spokes. Chart: `charts/all/hub-interconnect/`.
+
+== OpenShift Service Mesh 3 (Istio)
+
+Documentation: link:https://docs.redhat.com/en/documentation/openshift_service_mesh[OpenShift Service Mesh]
+
+=== Istio
+
+[source,yaml]
+----
+apiVersion: sailoperator.io/v1alpha1
+kind: Istio
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  profile: ambient
+----
+
+*Connection*: Istio → istiod → Gateway controller → ztunnel (ambient dataplane).
+
+== Cluster Observability Operator
+
+=== Grafana / GrafanaDashboard / GrafanaDatasource
+
+Grafana instances and dashboards are defined in `charts/all/observability/`.
+
+=== ServiceMonitor
+
+[source,yaml]
+----
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neuroface-backend
+  namespace: neuroface
+spec:
+  selector:
+    matchLabels:
+      app: neuroface-backend
+  endpoints:
+    - port: http
+      path: /metrics
+----
+
+== Kiali
+
+[source,yaml]
+----
+apiVersion: kiali.io/v1alpha1
+kind: Kiali
+metadata:
+  name: kiali
+  namespace: openshift-cluster-observability-operator
+----
+
+== Red Hat Developer Hub
+
+Documentation: link:https://docs.redhat.com/en/documentation/red_hat_developer_hub[Red Hat Developer Hub]
+
+=== Backstage CR
+
+Catalog entities are mounted via `spec.application.extraFiles.configMaps` and registered in `catalog.locations` (`configmap-app-config-rhdh.yaml`).
+
+IAM realm catalog: `developer-hub-catalog-iam-realms` ConfigMap → `/opt/app-root/src/catalog-data/iam-realms/iam-realms.yaml`.
+
+== Red Hat OpenShift AI
+
+Documentation: link:https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed[Red Hat OpenShift AI]
+
+=== InferenceService
+
+[source,yaml]
+----
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: yolo-ppe-serving
+  namespace: neuroface-cv
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: openvino
+      storageUri: s3://models/yolo-ppe
+----
+
+=== ServingRuntime
+
+[source,yaml]
+----
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: neuroface
+  namespace: neuroface-cv
+spec:
+  supportedModelFormats:
+    - name: openvino
+----
+
+== See also
+
+* link:architecture/[Architecture]
+* link:workshop/[Workshop mode]
+* link:scaffolding-and-secrets/[Scaffolding and secrets]

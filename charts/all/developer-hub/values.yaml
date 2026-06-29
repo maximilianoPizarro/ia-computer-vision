@@ -108,22 +108,22 @@ iamCatalog:
       componentName: neuroface-api
       apiName: neuroface-openapi
       kubernetesId: neuroface
-      swaggerUrl: ""
-      openapiUrl: ""
+      swaggerUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-openapi"
+      openapiUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-openapi/definition"
     - name: cv
       displayName: Computer Vision API
       componentName: neuroface-cv-api
       apiName: neuroface-cv-openapi
       kubernetesId: neuroface-cv
-      swaggerUrl: ""
-      openapiUrl: ""
+      swaggerUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-cv-openapi"
+      openapiUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-cv-openapi/definition"
     - name: maas
       displayName: Model as a Service
       componentName: maas-api
       apiName: maas-openapi
       kubernetesId: ai-gateway
-      swaggerUrl: ""
-      openapiUrl: ""
+      swaggerUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/maas-openapi"
+      openapiUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/maas-openapi/definition"
   kafka:
     enabled: false
   notificationsEmail:

@@ -121,6 +121,9 @@ data:
         - group: devportal.kuadrant.io
           apiVersion: v1alpha1
           plural: apikeys
+        - group: extensions.kuadrant.io
+          apiVersion: v1alpha1
+          plural: oidcpolicies
         - group: camel.apache.org
           apiVersion: v1
           plural: integrations
@@ -154,6 +157,10 @@ data:
             - allow: [System, Component, API, Resource]
         - type: file
           target: /opt/app-root/src/catalog-data/kuadrant-apis/workshop-kuadrant-apis.yaml
+          rules:
+            - allow: [System, Component, API]
+        - type: file
+          target: /opt/app-root/src/catalog-data/iam-realms/iam-realms.yaml
           rules:
             - allow: [System, Component, API]
         - type: file
