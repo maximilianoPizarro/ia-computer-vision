@@ -281,6 +281,8 @@ clusterGroup:
           value: "true"
         - name: plugins.notificationsEmail.enabled
           value: "true"
+        - name: plugins.lightspeed.enabled
+          value: "true"
         - name: spokeTokenSync.enabled
           value: "true"
         - name: kubernetesSpokes.enabled

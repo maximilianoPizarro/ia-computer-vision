@@ -1,0 +1,32 @@
+{{- $vaultKey := .Values.vault.platformApiKeyPath | default "secret/data/hub/ai-gateway-platform-keys" -}}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: platform-ai-gateway-key
+  namespace: {{ .Values.aiGateway.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-backend
+  target:
+    name: platform-ai-gateway-key
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      metadata:
+        labels:
+          app: workshop-llm-tokens
+          kuadrant.io/apikey: "true"
+        annotations:
+          secret.kuadrant.io/plan-id: gold
+      data:
+        api_key: "{{`{{ .platformApiKey }}`}}"
+  data:
+    - secretKey: platformApiKey
+      remoteRef:
+        key: {{ $vaultKey | quote }}
+        property: platformApiKey

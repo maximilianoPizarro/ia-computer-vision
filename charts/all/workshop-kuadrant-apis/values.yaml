@@ -76,6 +76,7 @@ tokenRateLimit:
 
 vault:
   maasSecretPath: secret/workshop/maas
+  platformApiKeyPath: secret/data/hub/ai-gateway-platform-keys
   kuadrantKeysPathPrefix: secret/workshop/kuadrant
   keycloakRealmsPathPrefix: secret/data/hub/keycloak/realms
 

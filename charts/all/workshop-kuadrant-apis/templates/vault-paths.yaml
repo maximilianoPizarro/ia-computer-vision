@@ -14,6 +14,7 @@ data:
     | Path | Purpose |
     |------|---------|
     | `{{ .Values.vault.maasSecretPath }}` | Upstream MaaS Bearer token (platform; injected into ai-gateway AuthPolicy) |
+    | `{{ .Values.vault.platformApiKeyPath }}` | Platform API key for AI Gateway (Lightspeed, NeuroFace; auto-generated per install) |
     | `{{ .Values.vault.kuadrantKeysPathPrefix }}/<username>/<api-product>` | Optional copy of Kuadrant consumer API keys for apps/scripts |
 
     Kuadrant API keys created in Developer Hub are Kubernetes Secrets labeled `kuadrant.io/api-key` in the user namespace.

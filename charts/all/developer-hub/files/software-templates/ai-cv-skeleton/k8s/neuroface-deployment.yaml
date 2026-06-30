@@ -60,6 +60,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: neuroface-config
+          env:
+            - name: NEUROFACE_CHAT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: neuroface-ai-gateway-key
+                  key: platformApiKey
           resources:
             requests:
               cpu: 100m

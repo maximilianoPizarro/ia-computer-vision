@@ -6,29 +6,16 @@
 {{- $ai = mergeOverwrite (dict) $rootAi $ai -}}
 {{- end -}}
 {{- if not $ai.apiURL -}}
-{{- $lm := .Values.litemaas | default dict -}}
-{{- if $lm.apiUrl -}}
-{{- $url := $lm.apiUrl -}}
-{{- if not (regexMatch "/v1" $url) -}}
-{{- $url = printf "%s/v1/chat/completions" (trimSuffix "/" $url) -}}
-{{- else if not (regexMatch "chat/completions" $url) -}}
-{{- $url = printf "%s/chat/completions" (trimSuffix "/" $url) -}}
-{{- end -}}
-{{- $ai = mergeOverwrite $ai (dict "apiURL" $url) -}}
-{{- end -}}
-{{- end -}}
-{{- if not $ai.apiURL -}}
-{{- $ai = mergeOverwrite $ai (dict "apiURL" "https://isvc-granite-31-8b-fp8-predictor.sandbox-shared-models.svc.cluster.local:8443/v1/chat/completions" "model" "granite-31-8b") -}}
+{{- $hubDomain := include "developer-hub.clusterDomain" . -}}
+{{- $ai = mergeOverwrite $ai (dict "apiURL" (printf "https://ai-gateway.%s/v1/chat/completions" $hubDomain)) -}}
 {{- end -}}
 {{- if not $ai.model -}}
-{{- $lm := .Values.litemaas | default dict -}}
-{{- if $lm.model -}}
-{{- $ai = mergeOverwrite $ai (dict "model" $lm.model) -}}
-{{- end -}}
+{{- $ai = mergeOverwrite $ai (dict "model" "llama-scout-17b") -}}
 {{- end -}}
 {{- $vllmURL := include "developer-hub.vllmBaseUrl" (dict "apiURL" $ai.apiURL) -}}
-{{- $model := $ai.model | default "granite-3-2-8b-instruct" -}}
+{{- $model := $ai.model | default "llama-scout-17b" -}}
 {{- $tag := $ls.pluginTag | default "bs_1.45.3__1.2.3" -}}
+{{- $vaultKey := $ls.vaultPlatformApiKeyPath | default "secret/data/hub/ai-gateway-platform-keys" -}}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -115,6 +102,27 @@ data:
   run.yaml: |
 {{ .Files.Get "files/lightspeed/llama-stack-run.yaml" | indent 4 }}
 ---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: lightspeed-ai-gateway-key
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-backend
+  target:
+    name: lightspeed-ai-gateway-key
+    creationPolicy: Owner
+  data:
+    - secretKey: VLLM_API_KEY
+      remoteRef:
+        key: {{ $vaultKey | quote }}
+        property: platformApiKey
+---
 apiVersion: v1
 kind: Secret
 metadata:
@@ -128,7 +136,7 @@ type: Opaque
 stringData:
   ENABLE_VLLM: "true"
   VLLM_URL: {{ $vllmURL | quote }}
-  VLLM_API_KEY: "sync-from-kairos-ai-credentials"
+  VLLM_AUTH_PREFIX: {{ $ls.vllmAuthPrefix | default "APIKEY" | quote }}
   VLLM_MAX_TOKENS: {{ $ls.vllmMaxTokens | default "4096" | quote }}
   VLLM_TLS_VERIFY: {{ $ls.vllmTlsVerify | default "false" | quote }}
   VALIDATION_PROVIDER: "vllm"
@@ -151,113 +159,4 @@ stringData:
   LLM_SERVER_ID: {{ $model | quote }}
   LLM_SERVER_URL: "http://localhost:8080"
   LLM_SERVER_TOKEN: ""
----
-{{- $credName := $ai.credentialsSecretName | default "kairos-ai-credentials" -}}
-{{- if and ($ls.syncApiKeyFromKairos | default true) $credName }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: developer-hub-lightspeed-ai-sync
-  namespace: developer-hub
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: developer-hub-lightspeed-ai-sync
-  namespace: developer-hub
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "patch", "update"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: developer-hub-lightspeed-ai-sync
-  namespace: developer-hub
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: developer-hub-lightspeed-ai-sync
-subjects:
-  - kind: ServiceAccount
-    name: developer-hub-lightspeed-ai-sync
-    namespace: developer-hub
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: developer-hub-lightspeed-ai-sync-kairos-read
-  namespace: {{ $ai.credentialsSecretNamespace | default "kairos-system" }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: ["{{ $credName }}"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: developer-hub-lightspeed-ai-sync-kairos-read
-  namespace: {{ $ai.credentialsSecretNamespace | default "kairos-system" }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: developer-hub-lightspeed-ai-sync-kairos-read
-subjects:
-  - kind: ServiceAccount
-    name: developer-hub-lightspeed-ai-sync
-    namespace: developer-hub
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: developer-hub-lightspeed-ai-sync
-  namespace: developer-hub
-  annotations:
-    argocd.argoproj.io/sync-wave: "4"
-    argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-spec:
-  backoffLimit: 6
-  template:
-    spec:
-      serviceAccountName: developer-hub-lightspeed-ai-sync
-      restartPolicy: OnFailure
-      containers:
-        - name: sync
-          image: {{ $ls.syncImage | default "registry.redhat.io/openshift4/ose-cli:latest" | quote }}
-          command:
-            - /bin/bash
-            - -ec
-            - |
-              set -euo pipefail
-              SRC_NS="{{ $ai.credentialsSecretNamespace | default "kairos-system" }}"
-              SRC="{{ $credName }}"
-              KEY="{{ $ai.credentialsSecretKey | default "api-key" }}"
-
-              if ! oc get secret "$SRC" -n "$SRC_NS" >/dev/null 2>&1; then
-                echo "ERROR: Secret ${SRC_NS}/${SRC} not found — create maas-facilitator-seed in vault namespace"
-                exit 1
-              fi
-
-              API_KEY="$(oc get secret "$SRC" -n "$SRC_NS" -o json | python3 -c "import sys,json,base64; d=json.load(sys.stdin)['data']; print(base64.b64decode(d['${KEY}']).decode())")"
-              if [ -z "$API_KEY" ] || [ "$API_KEY" = "CHANGEME-inject-via-RHDP" ]; then
-                echo "ERROR: Empty or placeholder api key in ${SRC_NS}/${SRC}."
-                exit 1
-              fi
-              oc patch secret llama-stack-secrets -n developer-hub --type merge \
-                -p "{\"stringData\":{\"VLLM_API_KEY\":\"${API_KEY}\"}}"
-              echo "Synced VLLM_API_KEY from Kairos credentials."
-{{- end }}
 {{- end }}

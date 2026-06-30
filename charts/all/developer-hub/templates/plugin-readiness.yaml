@@ -50,13 +50,13 @@ spec:
               if curl -sk -o /dev/null -w "%{http_code}" "$BASE/lightspeed" | grep -qE '200|302'; then
                 echo "Lightspeed route reachable"
               else
-                echo "WARNING: /lightspeed not reachable (check plugin + MaaS key sync)"
+                echo "WARNING: /lightspeed not reachable (check plugin + AI Gateway key sync)"
               fi
-              KEY="$(oc get secret llama-stack-secrets -n developer-hub -o jsonpath='{.data.VLLM_API_KEY}' 2>/dev/null | base64 -d 2>/dev/null || true)"
-              if [ -z "$KEY" ] || [ "$KEY" = "CHANGEME-inject-via-RHDP" ]; then
-                echo "WARNING: llama-stack-secrets missing valid VLLM_API_KEY — create maas-facilitator-seed in vault"
+              KEY="$(oc get secret lightspeed-ai-gateway-key -n developer-hub -o jsonpath='{.data.VLLM_API_KEY}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+              if [ -z "$KEY" ]; then
+                echo "WARNING: lightspeed-ai-gateway-key missing VLLM_API_KEY — run load-secrets and verify ExternalSecret sync"
               else
-                echo "Lightspeed MaaS key present in llama-stack-secrets"
+                echo "Lightspeed AI Gateway key present (lightspeed-ai-gateway-key)"
               fi
               {{- end }}
               {{- if eq $ocmEnabled "true" }}
