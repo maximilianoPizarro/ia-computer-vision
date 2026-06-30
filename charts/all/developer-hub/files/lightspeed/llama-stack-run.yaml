@@ -1,5 +1,5 @@
 version: '2'
-image_name: llama-stack
+image_name: "llama-stack"
 container_image: null
 external_providers_dir: null
 storage:
