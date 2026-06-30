@@ -220,9 +220,6 @@ spec:
                       name: lightspeed-ai-gateway-key
                 volumeMounts:
                   - name: llama-stack-config
-                    mountPath: /app-root/run.yaml
-                    subPath: run.yaml
-                  - name: llama-stack-config
                     mountPath: /app-root/config/run.yaml
                     subPath: run.yaml
                   - name: lightspeed-stack
