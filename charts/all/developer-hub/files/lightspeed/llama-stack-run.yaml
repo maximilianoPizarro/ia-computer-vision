@@ -39,7 +39,7 @@ providers:
       provider_type: remote::vllm
       config:
         url: ${env.VLLM_URL}
-        api_token: ${env.VLLM_API_KEY}
+        api_token: ${env.VLLM_AUTH_PREFIX:=APIKEY} ${env.VLLM_API_KEY}
         max_tokens: ${env.VLLM_MAX_TOKENS:=4096}
         tls_verify: ${env.VLLM_TLS_VERIFY:=false}
     - provider_id: sentence-transformers
