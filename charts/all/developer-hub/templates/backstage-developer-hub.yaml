@@ -164,13 +164,6 @@ spec:
                         name: developer-hub-sa-token
                         key: token
                         optional: true
-                envFrom:
-                  - secretRef:
-                      name: developer-hub-oidc-auth
-                      optional: true
-                  - secretRef:
-                      name: developer-hub-spoke-tokens
-                      optional: true
 {{- if .Values.plugins.kiali.enabled | default false }}
                   - name: KIALI_SA_TOKEN
                     valueFrom:
@@ -179,6 +172,13 @@ spec:
                         key: token
                         optional: true
 {{- end }}
+                envFrom:
+                  - secretRef:
+                      name: developer-hub-oidc-auth
+                      optional: true
+                  - secretRef:
+                      name: developer-hub-spoke-tokens
+                      optional: true
 {{- if .Values.plugins.rbac.enabled | default false }}
                 volumeMounts:
                   - name: rhdh-rbac-policy

@@ -13,10 +13,10 @@ metadata:
 spec:
   keycloakCRName: {{ $.Values.keycloak.crName }}
   placeholders:
-    secrets:
 {{- range $i := until $count }}
 {{- $userNum := add $i 1 }}
-      CLIENT_SECRET_USER{{ $userNum }}:
+    CLIENT_SECRET_USER{{ $userNum }}:
+      secret:
         name: keycloak-client-{{ $realm.name }}-user{{ $userNum }}
         key: clientSecret
 {{- end }}
@@ -28,6 +28,13 @@ spec:
     loginWithEmailAllowed: true
     adminPermissionsEnabled: {{ $realm.adminPermissionsEnabled | default true }}
     sslRequired: external
+    verifyEmail: false
+    requiredActions:
+      - alias: VERIFY_PROFILE
+        name: Verify Profile
+        enabled: false
+        defaultAction: false
+        priority: 90
     roles:
       realm:
         - name: realm-viewer
@@ -69,6 +76,8 @@ spec:
 {{- range $i := until $count }}
 {{- $userNum := add $i 1 }}
       - username: {{ printf "user%d" $userNum | quote }}
+        firstName: Workshop
+        lastName: {{ printf "user%d" $userNum | quote }}
         enabled: true
         emailVerified: true
         email: {{ printf "user%d@developer-hub.local" $userNum | quote }}
@@ -79,6 +88,9 @@ spec:
         groups:
           - {{ include "rhbk-iam.groupName" (dict "userNum" $userNum) | quote }}
         clientRoles:
+          account:
+            - manage-account
+            - view-profile
           realm-management:
             - view-clients
             - manage-clients

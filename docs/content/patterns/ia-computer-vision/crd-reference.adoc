@@ -193,8 +193,8 @@ metadata:
 spec:
   keycloakCRName: keycloak
   placeholders:
-    secrets:
-      CLIENT_SECRET_USER1:
+    CLIENT_SECRET_USER1:
+      secret:
         name: keycloak-client-cv-user1
         key: clientSecret
   realm:

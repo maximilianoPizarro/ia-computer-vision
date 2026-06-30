@@ -183,7 +183,7 @@ data:
                     users = load_users()
                     for u in users:
                         if u['email'] == email:
-                            redirect = f'{SHOWROOM_URL}/?USER_NAME={u["username"]}&CLUSTER_DOMAIN={CLUSTER_DOMAIN}'
+                            redirect = f'{SHOWROOM_URL.rstrip("/")}/modules/main/index.html?USER_NAME={u["username"]}&CLUSTER_DOMAIN={CLUSTER_DOMAIN}'
                             self.send_json({'username': u['username'], 'redirect': redirect, 'existing': True})
                             return
                     assigned = set(u['username'] for u in users)
@@ -204,7 +204,7 @@ data:
                     users.append(entry)
                     save_users(users)
                 threading.Thread(target=keycloak_update_email, args=(username, email), daemon=True).start()
-                redirect = f'{SHOWROOM_URL}/?USER_NAME={username}&CLUSTER_DOMAIN={CLUSTER_DOMAIN}'
+                redirect = f'{SHOWROOM_URL.rstrip("/")}/modules/main/index.html?USER_NAME={username}&CLUSTER_DOMAIN={CLUSTER_DOMAIN}'
                 self.send_json({'username': username, 'redirect': redirect, 'existing': False})
 
             elif path == '/api/reset':
