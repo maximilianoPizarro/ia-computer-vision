@@ -219,7 +219,7 @@ spec:
           name: showroom-files
           subPath: www
       - name: antora-html-subst
-        image: "docker.io/mikefarah/yq:4"
+        image: "registry.redhat.io/ubi9/python-311:latest"
         command: ["/bin/sh", "-c"]
         args:
           - |
@@ -230,10 +230,10 @@ spec:
               echo "skip html subst — missing user_data or www"
               exit 0
             fi
-            HUB=$(yq -r '.hub_domain // ""' "$UD")
-            EAST=$(yq -r '.east_domain // ""' "$UD")
-            WEST=$(yq -r '.west_domain // ""' "$UD")
-            REG=$(yq -r '.registration_url // ""' "$UD")
+            HUB=$(grep "hub_domain:" "$UD" | awk '{print $2}')
+            EAST=$(grep "east_domain:" "$UD" | awk '{print $2}')
+            WEST=$(grep "west_domain:" "$UD" | awk '{print $2}')
+            REG=$(grep "registration_url:" "$UD" | awk '{print $2}')
             for f in $(find "$WWW" -name '*.html' 2>/dev/null); do
               if [ -n "$HUB" ]; then sed -i "s|%HUB_DOMAIN%|${HUB}|g" "$f"; fi
               if [ -n "$EAST" ]; then sed -i "s|%EAST_DOMAIN%|${EAST}|g" "$f"; fi
