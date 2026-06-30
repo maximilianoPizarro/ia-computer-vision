@@ -209,6 +209,9 @@ spec:
               - name: lightspeed-core
                 image: {{ .Values.plugins.lightspeed.lightspeedCoreImage | default "quay.io/lightspeed-core/lightspeed-stack:0.4.0" | quote }}
                 volumeMounts:
+                  - name: llama-stack-config
+                    mountPath: /app-root/config.yaml
+                    subPath: run.yaml
                   - name: lightspeed-stack
                     mountPath: /app-root/lightspeed-stack.yaml
                     subPath: lightspeed-stack.yaml
