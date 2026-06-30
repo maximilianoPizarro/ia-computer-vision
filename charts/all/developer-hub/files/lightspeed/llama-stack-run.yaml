@@ -1,5 +1,33 @@
 version: '2'
 image_name: redhat-ai-dev-llama-stack
+container_image: null
+external_providers_dir: null
+storage:
+  backends:
+    kv_default:
+      type: kv_sqlite
+      db_path: /tmp/kvstore.db
+    sql_default:
+      type: sql_sqlite
+      db_path: /tmp/sql_store.db
+    sql_files:
+      type: sql_sqlite
+      db_path: /rag-content/vector_db/rhdh_product_docs/1.9/files_metadata.db
+    faiss_kv:
+      type: kv_sqlite
+      db_path: /rag-content/vector_db/rhdh_product_docs/1.9/faiss_store.db
+  stores:
+    metadata:
+      namespace: registry
+      backend: faiss_kv
+    inference:
+      table_name: inference_store
+      backend: sql_default
+      max_write_queue_size: 10000
+      num_writers: 4
+    conversations:
+      table_name: openai_conversations
+      backend: sql_default
 apis:
   - agents
   - inference
