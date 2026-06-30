@@ -239,6 +239,9 @@ spec:
               if [ -n "$EAST" ]; then python3 -c "import sys; c=sys.stdin.read(); sys.stdout.write(c.replace('%EAST_DOMAIN%', '$EAST'))" < "$f" > "$f.tmp" && mv "$f.tmp" "$f"; fi
               if [ -n "$WEST" ]; then python3 -c "import sys; c=sys.stdin.read(); sys.stdout.write(c.replace('%WEST_DOMAIN%', '$WEST'))" < "$f" > "$f.tmp" && mv "$f.tmp" "$f"; fi
               if [ -n "$REG" ]; then python3 -c "import sys; c=sys.stdin.read(); sys.stdout.write(c.replace('%REGISTRATION_URL%', '$REG'))" < "$f" > "$f.tmp" && mv "$f.tmp" "$f"; fi
+              if [ -n "$REG" ] && [ -n "$HUB" ]; then
+                 python3 -c "import sys; c=sys.stdin.read(); sys.stdout.write(c.replace('https://workshop-registration.' + '$HUB', '$REG'))" < "$f" > "$f.tmp" && mv "$f.tmp" "$f" || true
+              fi
             done
             IDX="$WWW/index.html"
             if [ -f "$IDX" ]; then
