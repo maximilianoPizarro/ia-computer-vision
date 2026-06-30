@@ -208,6 +208,11 @@ spec:
                     subPath: run.yaml
               - name: lightspeed-core
                 image: {{ .Values.plugins.lightspeed.lightspeedCoreImage | default "quay.io/lightspeed-core/lightspeed-stack:0.4.0" | quote }}
+                env:
+                  - name: LLAMA_STACK_DIR
+                    value: "/app-root/config"
+                  - name: LLAMA_STACK_CONFIG_FILE
+                    value: "/app-root/config/run.yaml"
                 envFrom:
                   - secretRef:
                       name: llama-stack-secrets
@@ -215,7 +220,7 @@ spec:
                       name: lightspeed-ai-gateway-key
                 volumeMounts:
                   - name: llama-stack-config
-                    mountPath: /app-root/run.yaml
+                    mountPath: /app-root/config/run.yaml
                     subPath: run.yaml
                   - name: lightspeed-stack
                     mountPath: /app-root/lightspeed-stack.yaml
