@@ -239,7 +239,10 @@ spec:
               [ -n "$EAST" ] && sed -i "s|%EAST_DOMAIN%|${EAST}|g" "$f"
               [ -n "$WEST" ] && sed -i "s|%WEST_DOMAIN%|${WEST}|g" "$f"
               [ -n "$REG" ] && sed -i "s|%REGISTRATION_URL%|${REG}|g" "$f"
-              [ -n "$REG" ] && sed -i "s|https://workshop-registration.${HUB}|${REG}|g" "$f"
+              # Ensure we don't try to replace an empty string if HUB is empty
+              if [ -n "$REG" ] && [ -n "$HUB" ]; then
+                 sed -i "s|https://workshop-registration.${HUB}|${REG}|g" "$f"
+              fi
             done
             IDX="$WWW/index.html"
             if [ -f "$IDX" ]; then
