@@ -212,6 +212,9 @@ spec:
                   - name: llama-stack-config
                     mountPath: /app-root/run.yaml
                     subPath: run.yaml
+                  - name: llama-stack-config
+                    mountPath: /app-root/config.yaml
+                    subPath: run.yaml
                   - name: lightspeed-stack
                     mountPath: /app-root/lightspeed-stack.yaml
                     subPath: lightspeed-stack.yaml
