@@ -97,20 +97,18 @@ providers:
       provider_type: inline::rag-runtime
       config: {}
   vector_io:
-    - config:
-        kvstore:
-          db_path: .llama/distributions/ollama/faiss_store.db
-          namespace: null
-          type: sqlite
-      provider_id: faiss
+    - provider_id: faiss
       provider_type: inline::faiss
+      config:
+        persistence:
+          namespace: vector_io::faiss
+          backend: faiss_kv
     - provider_id: rhdh-docs
       provider_type: inline::faiss
       config:
-        kvstore:
-          type: sqlite
-          namespace:
-          db_path: /rag-content/vector_db/rhdh_product_docs/1.9/faiss_store.db
+        persistence:
+          namespace: rhdh_docs::faiss
+          backend: faiss_kv
 scoring_fns: []
 server:
   port: 8321
