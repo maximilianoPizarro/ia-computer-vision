@@ -571,6 +571,65 @@ On each `developer-hub` Argo CD sync:
 
 Disable ghcr pre-check for air-gapped mirrors: `pluginReadiness.ghcrCheck.enabled: false` and set `plugins.registry` to your Quay mirror.
 
+== Developer Hub CrashLoopBackOff (Lightspeed sidecars)
+
+=== Symptom
+
+Pod `backstage-developer-hub-*` shows `1/3` or `3/3` with `CrashLoopBackOff`. Containers `llama-stack` and/or `lightspeed-core` fail. Route returns HTTP 503.
+
+=== Cause
+
+Hub enables Lightspeed via `plugins.lightspeed.enabled: true` in `values-hub.yaml`. Sidecar images (`llama-stack:0.1.4`, `lightspeed-stack:0.4.0`) require a compatible `llama-stack-run.yaml`. Mismatched safety providers or missing grant fields cause startup failure. The main `backstage-backend` container is often healthy; sidecar crashes mark the whole pod unhealthy.
+
+=== Solution
+
+This pattern ships with Lightspeed **disabled** on the hub (`plugins.lightspeed.enabled: false` in `values-hub.yaml`). Re-enable only after validating llama-stack config and image pins on a test cluster.
+
+If already deployed with sidecars:
+
+[source,bash]
+----
+# Confirm failing containers
+oc logs -n developer-hub -l rhdh.redhat.com/app=backstage-developer-hub -c llama-stack --tail=20
+oc logs -n developer-hub -l rhdh.redhat.com/app=backstage-developer-hub -c lightspeed-core --tail=20
+
+# Sync developer-hub after setting plugins.lightspeed.enabled=false in values-hub.yaml
+oc patch application developer-hub -n vp-gitops --type merge \
+  -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"revision":"main"}}}'
+----
+
+== NeuroFace hub route: no healthy upstream
+
+=== Symptom
+
+`https://neuroface.apps.<hub_domain>/dashboard` returns HTTP 503 with body `no healthy upstream` (istio-envoy).
+
+=== Cause
+
+The hub gateway load-balances to `neuroface-app-east` and `neuroface-app-west` via Skupper (`service-interconnect`). Listeners on the hub show `Pending` / `No matching connectors` when spoke **links** are not `Ready`. Common triggers:
+
+* AccessGrant `spoke-link` exhausted all redemptions (sync job retried token apply in a loop)
+* Stale AccessToken on a spoke (grant URL rotated but token still references old URL)
+* `hub-link` secret left on spoke after failed token apply
+
+=== Solution
+
+[source,bash]
+----
+# Hub: listener/connector pairing
+oc get listener,connector -n service-interconnect | grep neuroface
+
+# Spokes: link must be Ready
+oc get link hub-link -n service-interconnect
+
+# Check grant redemptions (hub)
+oc get accessgrant spoke-link -n service-interconnect
+----
+
+If redemptions are exhausted, delete and recreate the grant (hub), then re-apply tokens on each spoke (delete `accesstoken`, `link`, and secret `hub-link` first). The hardened `skupper-accesstoken-sync` job skips re-redemption when the token is already `Ready` and increases `redemptionsAllowed` to 50.
+
+After links are `Ready`, hub listeners should show `Ready` and the dashboard should return HTTP 200.
+
 == Quay Missing (legacy installs)
 
 === Symptom
@@ -610,8 +669,11 @@ $ oc exec vault-0 -n vault -- sh -c '
     root-password="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
     runner-token="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)"
   vault kv put secret/hub/developer-hub-secrets \
+    oidc-client-secret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)" \
     session-secret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)" \
-    gitlab-token="placeholder"
+    gitlab-token="placeholder-until-gitlab-token-setup"
+  vault kv put secret/hub/ai-gateway-platform-keys \
+    platformApiKey="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)"
 '
 ----
 

@@ -67,7 +67,8 @@ data:
     TOKEN_NAME = os.environ.get("TOKEN_NAME", "hub-link")
     MCA_NAME = os.environ.get("MCA_NAME", "skupper-hub-link-token")
     CLUSTERS = [c.strip() for c in os.environ.get("CLUSTERS", "east,west").split(",") if c.strip()]
-    MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "12"))
+    TOKEN_VIEW = os.environ.get("TOKEN_VIEW", "skupper-hub-link-accesstoken")
+    MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "6"))
     RETRY_INTERVAL = int(os.environ.get("RETRY_INTERVAL", "30"))
     LINK_VIEW = os.environ.get("LINK_VIEW", "skupper-hub-link-status")
 
@@ -99,10 +100,37 @@ data:
         ca = (status.get("ca") or "").strip()
         if not code or not url or not ca:
             raise RuntimeError(f"AccessGrant {GRANT_NAME} status not ready (code/url/ca)")
-        return code, url, ca
+        return code, url, ca, grant
 
-    def delete_mcv(cluster):
-        path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{LINK_VIEW}"
+    def grant_redemptions_remaining(grant):
+        allowed = int((grant.get("spec") or {}).get("redemptionsAllowed") or 0)
+        used = int((grant.get("status") or {}).get("redemptions") or 0)
+        return max(0, allowed - used)
+
+    def fetch_remote_resource(cluster, view_name, scope):
+        delete_mcv(cluster, view_name)
+        body = {
+            "apiVersion": "view.open-cluster-management.io/v1beta1",
+            "kind": "ManagedClusterView",
+            "metadata": {"name": view_name},
+            "spec": {"scope": scope},
+        }
+        api_request(
+            "POST",
+            f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews",
+            body,
+        )
+        view_path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{view_name}"
+        for _ in range(30):
+            view = api_request("GET", view_path)
+            result = view.get("status", {}).get("result") or {}
+            if result:
+                return result
+            time.sleep(2)
+        return {}
+
+    def delete_mcv(cluster, view_name=LINK_VIEW):
+        path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{view_name}"
         try:
             api_request("DELETE", path)
         except urllib.error.HTTPError as e:
@@ -110,35 +138,38 @@ data:
                 raise
 
     def fetch_link(cluster):
-        delete_mcv(cluster)
-        body = {
-            "apiVersion": "view.open-cluster-management.io/v1beta1",
-            "kind": "ManagedClusterView",
-            "metadata": {"name": LINK_VIEW},
-            "spec": {
-                "scope": {
-                    "apiGroup": "skupper.io",
-                    "version": "v2alpha1",
-                    "resource": "links",
-                    "kind": "Link",
-                    "name": TOKEN_NAME,
-                    "namespace": HUB_NS,
-                }
-            },
+        scope = {
+            "apiGroup": "skupper.io",
+            "version": "v2alpha1",
+            "resource": "links",
+            "kind": "Link",
+            "name": TOKEN_NAME,
+            "namespace": HUB_NS,
         }
-        api_request(
-            "POST",
-            f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews",
-            body,
-        )
-        view_path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{LINK_VIEW}"
-        for _ in range(30):
-            view = api_request("GET", view_path)
-            result = view.get("status", {}).get("result") or {}
-            if result:
-                return result.get("status", {})
-            time.sleep(2)
-        return {}
+        result = fetch_remote_resource(cluster, LINK_VIEW, scope)
+        return (result.get("status") or {}) if result else {}
+
+    def fetch_accesstoken(cluster):
+        scope = {
+            "apiGroup": "skupper.io",
+            "version": "v2alpha1",
+            "resource": "accesstokens",
+            "kind": "AccessToken",
+            "name": TOKEN_NAME,
+            "namespace": HUB_NS,
+        }
+        return fetch_remote_resource(cluster, TOKEN_VIEW, scope)
+
+    def token_is_healthy(token):
+        if not token:
+            return False
+        return (token.get("status") or {}).get("status") == "Ready"
+
+    def token_matches_grant(token, url):
+        if not token:
+            return False
+        token_url = ((token.get("spec") or {}).get("url") or "").strip()
+        return token_url == url.strip()
 
     def link_is_healthy(link_status):
         if not link_status:
@@ -167,14 +198,14 @@ data:
             time.sleep(2)
         raise RuntimeError(f"timeout waiting for ManagedClusterAction on {cluster}")
 
-    def apply_accesstoken(cluster, code, url, ca):
+    def apply_accesstoken(cluster, code, url, ca, action_type="Create"):
         delete_mca(cluster)
         body = {
             "apiVersion": "action.open-cluster-management.io/v1beta1",
             "kind": "ManagedClusterAction",
             "metadata": {"name": MCA_NAME, "namespace": cluster},
             "spec": {
-                "actionType": "Create",
+                "actionType": action_type,
                 "kube": {
                     "resource": "accesstokens",
                     "name": TOKEN_NAME,
@@ -200,8 +231,27 @@ data:
         if link_is_healthy(link_status):
             print(f"{cluster}: link {TOKEN_NAME} already Ready", file=sys.stderr)
             return True
-        print(f"{cluster}: applying AccessToken via ManagedClusterAction", file=sys.stderr)
-        apply_accesstoken(cluster, code, url, ca)
+
+        token = fetch_accesstoken(cluster)
+        if token_is_healthy(token) and token_matches_grant(token, url):
+            print(
+                f"{cluster}: AccessToken Ready (link status={link_status.get('status')}); not re-redeeming grant",
+                file=sys.stderr,
+            )
+            return link_is_healthy(link_status)
+
+        action_type = "Update" if token else "Create"
+        print(f"{cluster}: {action_type} AccessToken via ManagedClusterAction", file=sys.stderr)
+        try:
+            apply_accesstoken(cluster, code, url, ca, action_type=action_type)
+        except RuntimeError as exc:
+            msg = str(exc)
+            if action_type == "Create" and "already exists" in msg:
+                print(f"{cluster}: token exists, retrying as Update", file=sys.stderr)
+                apply_accesstoken(cluster, code, url, ca, action_type="Update")
+            else:
+                raise
+
         link_status = fetch_link(cluster)
         if link_is_healthy(link_status):
             print(f"{cluster}: link Ready after token apply", file=sys.stderr)
@@ -213,12 +263,25 @@ data:
         pending = CLUSTERS
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                code, url, ca = get_grant()
+                code, url, ca, grant = get_grant()
             except Exception as exc:
                 print(f"Attempt {attempt}/{MAX_RETRIES}: grant not ready: {exc}", file=sys.stderr)
                 if attempt < MAX_RETRIES:
                     time.sleep(RETRY_INTERVAL)
                     continue
+                sys.exit(1)
+
+            remaining = grant_redemptions_remaining(grant)
+            print(f"AccessGrant redemptions remaining: {remaining}", file=sys.stderr)
+            if remaining == 0:
+                unhealthy = [c for c in CLUSTERS if not link_is_healthy(fetch_link(c))]
+                if not unhealthy:
+                    print("Grant exhausted but all links Ready", file=sys.stderr)
+                    return
+                print(
+                    f"AccessGrant {GRANT_NAME} has no redemptions left; recreate the grant on the hub",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
 
             pending = []

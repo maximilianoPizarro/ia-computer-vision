@@ -281,8 +281,10 @@ clusterGroup:
           value: "true"
         - name: plugins.notificationsEmail.enabled
           value: "true"
+        # Lightspeed sidecars (llama-stack 0.1.4 + lightspeed-core 0.4.0) crash on hub;
+        # re-enable when llama-stack-run.yaml and image pins are validated end-to-end.
         - name: plugins.lightspeed.enabled
-          value: "true"
+          value: "false"
         - name: spokeTokenSync.enabled
           value: "true"
         - name: kubernetesSpokes.enabled
