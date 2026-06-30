@@ -1,5 +1,5 @@
 version: '2'
-image_name: rhdh-lightspeed-granite
+image_name: redhat-ai-dev-llama-stack
 apis:
   - agents
   - inference
