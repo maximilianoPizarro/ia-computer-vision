@@ -16,6 +16,7 @@ spec:
       taskRef:
         kind: ClusterTask
         name: buildah
+        apiVersion: tekton.dev/v1beta1
       params:
         - name: IMAGE
           value: image-registry.openshift-image-registry.svc:5000/${{ values.namespace }}/neuroface-backend:$(params.image-tag)
