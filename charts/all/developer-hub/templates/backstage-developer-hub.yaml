@@ -218,6 +218,11 @@ spec:
                     value: "/app-root/config/run.yaml"
                   - name: PYTHONPATH
                     value: "/app-root"
+                envFrom:
+                  - secretRef:
+                      name: llama-stack-secrets
+                  - secretRef:
+                      name: lightspeed-ai-gateway-key
                 volumeMounts:
                   - name: llama-stack-config
                     mountPath: /app-root/run.yaml
