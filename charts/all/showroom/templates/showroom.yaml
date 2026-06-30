@@ -219,7 +219,7 @@ spec:
           name: showroom-files
           subPath: www
       - name: antora-html-subst
-        image: "docker.io/mikefarah/yq:4"
+        image: "registry.redhat.io/ubi9/python-311:latest"
         command: ["/bin/sh", "-c"]
         args:
           - |
