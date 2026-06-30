@@ -99,10 +99,10 @@ providers:
       provider_type: inline::sentence-transformers
       config: {}
   safety:
-    - provider_id: lightspeed_question_validity
-      provider_type: inline::lightspeed_question_validity
+    - provider_id: llama-guard
+      provider_type: inline::llama-guard
       config:
-        model_id: ${env.VALIDATION_PROVIDER:=vllm}/${env.VALIDATION_MODEL_NAME}
+        excluded_categories: []
   scoring:
     - config: {}
       provider_id: basic
@@ -137,8 +137,9 @@ scoring_fns: []
 server:
   port: 8321
 shields:
-  - shield_id: lightspeed_question_validity-shield
-    provider_id: lightspeed_question_validity
+  - shield_id: llama-guard-shield
+    provider_id: llama-guard
+    provider_shield_id: safety-guard/llama-guard3:8b
 tool_groups:
   - provider_id: rag-runtime
     toolgroup_id: builtin::rag
