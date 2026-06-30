@@ -58,6 +58,7 @@ apis:
   - safety
   - tool_runtime
   - vector_io
+  - files
 inference_store:
   db_path: .llama/distributions/ollama/inference_store.db
   type: sqlite
@@ -96,7 +97,14 @@ providers:
     - provider_id: rag-runtime
       provider_type: inline::rag-runtime
       config: {}
-  files: []
+  files:
+    - provider_id: localfs
+      provider_type: inline::localfs
+      config:
+        storage_dir: /tmp/llama-stack-files
+        metadata_store:
+          table_name: files_metadata
+          backend: sql_files
   vector_io:
     - provider_id: faiss
       provider_type: inline::faiss
