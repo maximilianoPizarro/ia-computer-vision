@@ -41,8 +41,8 @@ After a full installation you obtain:
 - **Edge computer vision** — NeuroFace application with OVMS/YOLO PPE detection on each spoke
 - **Cross-cluster connectivity** — Skupper Service Interconnect linking hub and spoke services
 - **Service mesh telemetry** — OpenShift Service Mesh 3.2 ambient mode without sidecar injection
-- **Developer platform** — GitLab, Developer Hub (AI CV software template with RHBK biometric OIDC), OpenShift DevSpaces, Keycloak
-- **AI platform** — OpenShift AI 3.4 DataScienceCluster on the hub for model serving workflows
+- **Developer platform** — GitLab, Developer Hub (AI CV software template, Red Hat Developer Lightspeed, OpenShift DevSpaces), Keycloak
+- **AI platform** — OpenShift AI 3.4 DataScienceCluster on the hub for model serving workflows, plus AI Gateway as a single proxy for MaaS LLM access
 - **Observability** — Grafana, OpenTelemetry, Kiali, and Thanos federation across clusters
 - **Workshop mode (default)** — 30 HTPasswd users, Showroom lab guide with embedded terminal
 
@@ -81,9 +81,9 @@ flowchart TB
   subgraph hub ["Hub cluster"]
     ACM[ACM]
     Vault[Vault + ESO]
-    RHDH[Developer Hub]
+    RHDH[Developer Hub + Lightspeed]
     RHOAI[OpenShift AI]
-    RHCL[NeuroFace Gateway / RHCL]
+    RHCL[AI Gateway / RHCL]
     ACS_C[ACS Central]
   end
 
@@ -110,6 +110,10 @@ flowchart TB
   ACM --> west
   RHCL --> NF_E
   RHCL --> NF_W
+  RHDH -->|"APIKEY"| RHCL
+  NF_E -->|"APIKEY"| RHCL
+  NF_W -->|"APIKEY"| RHCL
+  RHCL -->|"Bearer Token"| MaaS[(MaaS RHDP)]
   SK_E --- SK_W
   ACS_C --> ACS_E
   ACS_C --> ACS_W
@@ -228,8 +232,8 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets \
   session-secret="$(openssl rand -base64 32)" \
   gitlab-token="<GITLAB_PAT>"
 
-oc exec vault-0 -n vault -- vault kv put secret/hub/maas-credentials \
-  api-key="<MAAS_API_KEY>"
+oc exec vault-0 -n vault -- vault kv put secret/hub/ai-gateway-platform-keys \
+  platformApiKey="$(openssl rand -base64 32)"
 ```
 
 | Secret | Fields | Required | Used by |
@@ -237,7 +241,7 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/maas-credentials \
 | `gitlab-credentials` | `root-password`, `runner-token` | Auto-generated | GitLab admin, CI runner |
 | `rhbk-credentials` | `admin-password`, `db-password` | Auto-generated | Keycloak admin, PostgreSQL |
 | `developer-hub-secrets` | `oidc-client-secret`, `session-secret`, `gitlab-token` | `oidc-client-secret` and `session-secret` auto-generated; `gitlab-token` set after GitLab deploys | RHDH OIDC, session, scaffolder |
-| `maas-credentials` | `api-key` | Optional — only for MaaS LLM chat | OpenShift AI dashboard, NeuroFace chat |
+| `ai-gateway-platform-keys` | `platformApiKey` | Auto-generated | Kuadrant API key for AI Gateway (used by Lightspeed and NeuroFace chat) |
 | `spoke-credentials` | `east-token`, `east-api-url`, `west-token`, `west-api-url` | Via Pattern CR `extraParameters` (inline mode) | ACM auto-import |
 
 See [Validated Patterns secrets management](https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/).
