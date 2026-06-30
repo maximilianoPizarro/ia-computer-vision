@@ -235,14 +235,14 @@ spec:
             WEST=$(yq -r '.west_domain // ""' "$UD")
             REG=$(yq -r '.registration_url // ""' "$UD")
             for f in $(find "$WWW" -name '*.html' 2>/dev/null); do
-              if [ -n "$HUB" ]; then perl -pi -e "s|%HUB_DOMAIN%|${HUB}|g" "$f"; fi
-              if [ -n "$EAST" ]; then perl -pi -e "s|%EAST_DOMAIN%|${EAST}|g" "$f"; fi
-              if [ -n "$WEST" ]; then perl -pi -e "s|%WEST_DOMAIN%|${WEST}|g" "$f"; fi
-              if [ -n "$REG" ]; then perl -pi -e "s|%REGISTRATION_URL%|${REG}|g" "$f"; fi
+              if [ -n "$HUB" ]; then sed -i "s;%HUB_DOMAIN%;${HUB};" "$f"; fi
+              if [ -n "$EAST" ]; then sed -i "s;%EAST_DOMAIN%;${EAST};" "$f"; fi
+              if [ -n "$WEST" ]; then sed -i "s;%WEST_DOMAIN%;${WEST};" "$f"; fi
+              if [ -n "$REG" ]; then sed -i "s;%REGISTRATION_URL%;${REG};" "$f"; fi
             done
             IDX="$WWW/index.html"
             if [ -f "$IDX" ]; then
-              perl -pi -e "s|location='modules/main/index.html'|location='modules/main/index.html'+(window.location.search\|\|'')|g" "$IDX" || true
+              sed -i "s;location='modules/main/index.html';location='modules/main/index.html'+(window.location.search||'');" "$IDX" || true
               echo "patched root redirect to preserve query string"
             fi
             echo "substituted domains in $(find "$WWW" -name '*.html' | wc -l) html files"
