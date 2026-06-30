@@ -240,7 +240,8 @@ spec:
               if [ -n "$WEST" ]; then sed -i "s|%WEST_DOMAIN%|${WEST}|g" "$f"; fi
               if [ -n "$REG" ]; then sed -i "s|%REGISTRATION_URL%|${REG}|g" "$f"; fi
               if [ -n "$REG" ] && [ -n "$HUB" ]; then
-                 sed -i "s|https://workshop-registration.${HUB}|${REG}|g" "$f"
+                 # Fallback for old templates
+                 sed -i "s|https://workshop-registration\.${HUB}|${REG}|g" "$f" || true
               fi
             done
             IDX="$WWW/index.html"
