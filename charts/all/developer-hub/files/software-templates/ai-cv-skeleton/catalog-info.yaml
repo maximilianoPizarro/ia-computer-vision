@@ -112,3 +112,40 @@ spec:
   lifecycle: experimental
   owner: user:default/${{ values.owner }}
   system: neuroface-cv-journey
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: MaaS Chat (AI Gateway)
+      version: v1
+    servers:
+      - url: https://ai-gateway.apps.${{ values.hubClusterDomain }}
+    paths:
+      /v1/chat/completions:
+        post:
+          summary: Chat completion (OpenAI-compatible)
+          security:
+            - apiKey: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    model: { type: string, example: llama-scout-17b }
+                    messages:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          role: { type: string, enum: [system, user, assistant] }
+                          content: { type: string }
+          responses:
+            '200':
+              description: Chat response
+    components:
+      securitySchemes:
+        apiKey:
+          type: apiKey
+          in: header
+          name: Authorization
