@@ -1,5 +1,5 @@
 version: '2'
-image_name: quay.io/redhat-ai-dev/llama-stack:0.1.4
+image_name: redhat-ai-dev-llama-stack
 container_image: null
 external_providers_dir: null
 storage:
