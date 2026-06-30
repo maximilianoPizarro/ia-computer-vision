@@ -230,10 +230,10 @@ spec:
               echo "skip html subst — missing user_data or www"
               exit 0
             fi
-            HUB=$(yq -r '.hub_domain // ""' "$UD")
-            EAST=$(yq -r '.east_domain // ""' "$UD")
-            WEST=$(yq -r '.west_domain // ""' "$UD")
-            REG=$(yq -r '.registration_url // ""' "$UD")
+            HUB=$(grep "hub_domain:" "$UD" | awk '{print $2}')
+            EAST=$(grep "east_domain:" "$UD" | awk '{print $2}')
+            WEST=$(grep "west_domain:" "$UD" | awk '{print $2}')
+            REG=$(grep "registration_url:" "$UD" | awk '{print $2}')
             for f in $(find "$WWW" -name '*.html' 2>/dev/null); do
               if [ -n "$HUB" ]; then python3 -c "import sys; c=sys.stdin.read(); sys.stdout.write(c.replace('%HUB_DOMAIN%', '$HUB'))" < "$f" > "$f.tmp" && mv "$f.tmp" "$f"; fi
               if [ -n "$EAST" ]; then python3 -c "import sys; c=sys.stdin.read(); sys.stdout.write(c.replace('%EAST_DOMAIN%', '$EAST'))" < "$f" > "$f.tmp" && mv "$f.tmp" "$f"; fi
