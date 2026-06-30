@@ -28,6 +28,31 @@ storage:
     conversations:
       table_name: openai_conversations
       backend: sql_default
+registered_resources:
+  models:
+    - model_id: sentence-transformers/all-mpnet-base-v2
+      metadata:
+        embedding_dimension: 768
+      model_type: embedding
+      provider_id: sentence-transformers
+      provider_model_id: /rag-content/embeddings_model
+    - model_id: llama-guard3:8b
+      provider_id: safety-guard
+      provider_model_id: llama-guard3:8b
+      model_type: llm
+      metadata: {}
+  shields:
+    - shield_id: llama-guard-shield
+      provider_id: llama-guard
+      provider_shield_id: safety-guard/llama-guard3:8b
+  tool_groups:
+    - provider_id: rag-runtime
+      toolgroup_id: builtin::rag
+  vector_dbs:
+    - vector_db_id: rhdh-product-docs-1_8
+      embedding_model: sentence-transformers/all-mpnet-base-v2
+      embedding_dimension: 768
+      provider_id: faiss
 apis:
   - agents
   - inference
