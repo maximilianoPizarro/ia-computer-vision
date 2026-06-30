@@ -235,11 +235,10 @@ spec:
             WEST=$(yq -r '.west_domain // ""' "$UD")
             REG=$(yq -r '.registration_url // ""' "$UD")
             for f in $(find "$WWW" -name '*.html' 2>/dev/null); do
-              [ -n "$HUB" ] && sed -i "s|%HUB_DOMAIN%|${HUB}|g" "$f"
-              [ -n "$EAST" ] && sed -i "s|%EAST_DOMAIN%|${EAST}|g" "$f"
-              [ -n "$WEST" ] && sed -i "s|%WEST_DOMAIN%|${WEST}|g" "$f"
-              [ -n "$REG" ] && sed -i "s|%REGISTRATION_URL%|${REG}|g" "$f"
-              # Ensure we don't try to replace an empty string if HUB is empty
+              if [ -n "$HUB" ]; then sed -i "s|%HUB_DOMAIN%|${HUB}|g" "$f"; fi
+              if [ -n "$EAST" ]; then sed -i "s|%EAST_DOMAIN%|${EAST}|g" "$f"; fi
+              if [ -n "$WEST" ]; then sed -i "s|%WEST_DOMAIN%|${WEST}|g" "$f"; fi
+              if [ -n "$REG" ]; then sed -i "s|%REGISTRATION_URL%|${REG}|g" "$f"; fi
               if [ -n "$REG" ] && [ -n "$HUB" ]; then
                  sed -i "s|https://workshop-registration.${HUB}|${REG}|g" "$f"
               fi
