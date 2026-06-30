@@ -54,11 +54,8 @@ registered_resources:
       embedding_dimension: 768
       provider_id: faiss
 apis:
-  - agents
   - inference
   - safety
-  - scoring
-  - telemetry
   - tool_runtime
   - vector_io
 inference_store:
@@ -76,17 +73,7 @@ models:
     provider_id: sentence-transformers
     provider_model_id: "/app-root/embeddings_model"
 providers:
-  agents:
-    - config:
-        persistence_store:
-          db_path: .llama/distributions/ollama/agents_store.db
-          namespace: null
-          type: sqlite
-        responses_store:
-          db_path: .llama/distributions/ollama/responses_store.db
-          type: sqlite
-      provider_id: meta-reference
-      provider_type: inline::meta-reference
+  agents: []
   inference:
     - provider_id: vllm
       provider_type: remote::vllm
@@ -103,17 +90,8 @@ providers:
       provider_type: inline::llama-guard
       config:
         excluded_categories: []
-  scoring:
-    - config: {}
-      provider_id: basic
-      provider_type: inline::basic
-  telemetry:
-    - config:
-        service_name: lightspeed-stack-telemetry
-        sinks: sqlite
-        sqlite_db_path: .llama/distributions/ollama/trace_store.db
-      provider_id: meta-reference
-      provider_type: inline::meta-reference
+  scoring: []
+  telemetry: []
   tool_runtime:
     - provider_id: rag-runtime
       provider_type: inline::rag-runtime
