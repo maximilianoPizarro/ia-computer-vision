@@ -204,6 +204,9 @@ spec:
                     mountPath: /rag-content/vector_db/rhdh_product_docs
                     subPath: rhdh_product_docs
                   - name: llama-stack-config
+                    mountPath: /app-root/run.yaml
+                    subPath: run.yaml
+                  - name: llama-stack-config
                     mountPath: /app-root/config/run.yaml
                     subPath: run.yaml
               - name: lightspeed-core
@@ -211,6 +214,9 @@ spec:
                 volumeMounts:
                   - name: llama-stack-config
                     mountPath: /app-root/run.yaml
+                    subPath: run.yaml
+                  - name: llama-stack-config
+                    mountPath: /app-root/config/run.yaml
                     subPath: run.yaml
                   - name: lightspeed-stack
                     mountPath: /app-root/lightspeed-stack.yaml
