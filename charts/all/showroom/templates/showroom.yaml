@@ -311,7 +311,8 @@ spec:
               ln -sf /home/lab-user/.local/google-cloud-sdk/bin/gsutil "$BIN/gsutil" && \
               ln -sf /home/lab-user/.local/google-cloud-sdk/bin/bq "$BIN/bq" || true
             fi
-            cat > /home/lab-user/.bashrc << 'BASHRC'
+            mkdir -p /home/lab-user/.bashrc.d
+            cat > /home/lab-user/.bashrc.d/workshop.sh << 'BASHRC'
             export HOME=/home/lab-user
             export PATH="$HOME/.local/bin:$PATH"
             export PS1='\[\e[1;31m\][\u@showroom]\[\e[0m\] \w \$ '
