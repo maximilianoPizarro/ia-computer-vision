@@ -106,5 +106,16 @@ subjects:
   - kind: ServiceAccount
     name: {{ $.Values.showroom.name }}
     namespace: {{ $.Values.showroom.namespace }}
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: platformadmin
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: admin
+{{- range $i := until $count }}
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: {{ printf "user%d" (add $i 1) | quote }}
+{{- end }}
 {{- end }}
 {{- end }}
