@@ -66,6 +66,20 @@ forwards CORS-safe headers by default and silently drops a caller-supplied
 `Authorization` header otherwise, which surfaces as a genuine (Keycloak-side, not
 Backstage's) 401 on every admin-API step even with a valid token.
 
+## Create template parameters
+
+| Parameter | Purpose |
+|-----------|---------|
+| **Target API** | EntityPicker over APIs annotated `workshop/oidc-self-service-target: "true"` |
+| **Client label** | Derives `clientId = client-{apiName}-{label}` |
+| **Grant type** | `client_credentials` (M2M) or `authorization_code` (with redirect URI) |
+| **Requester** / **Owner** | Recorded on the Keycloak client attributes |
+| **Plan tier** | `free` (100 req/h) or `gold` (500 req/h) on `/v1/predict` — embedded as JWT claim `plan` via a Keycloak `oidc-hardcoded-claim-mapper` protocol mapper |
+
+The `plan` claim is readable by Kuadrant Authorino as `auth.identity.plan` and drives
+`RateLimitPolicy` / `PlanPolicy` tiers on `neuroface-cv-lb`. Clients created before this
+feature (no `plan` claim) fall back to the per-IP default limit (120 req/min).
+
 ## API dropdown (EntityPicker)
 
 APIs annotated with `workshop/oidc-self-service-target: "true"` in [`iam-realms.yaml`](../../catalog/iam-realms.yaml):
@@ -133,9 +147,15 @@ delivery (e.g. Vault response-wrapping) instead of either email or an on-screen 
 1. Sync ArgoCD `developer-hub` and `rhbk-iam`.
 2. Confirm Secret `keycloak-backstage-provisioner` in `keycloak-system`.
 3. Developer Hub → **Create** → **OIDC credentials self-service (Keycloak cv)**.
-4. Choose API `neuroface-cv-openapi`, grant `client_credentials`, user `user1`.
-5. Output: `clientId` and `clientSecret` shown directly on the task result page.
-6. Test token (curl example is also printed on the result page):
+4. Choose API `neuroface-cv-openapi`, grant `client_credentials`, plan tier `free` or `gold`, user `user1`.
+5. Output: `clientId`, `clientSecret`, and plan tier shown directly on the task result page.
+6. Decode the issued JWT and confirm the `plan` claim matches the selected tier:
+
+```bash
+python3 -c "import jwt,sys; print(jwt.decode(sys.argv[1], options={'verify_signature': False})['plan'])" "$TOKEN"
+```
+
+7. Test token (curl example is also printed on the result page):
 
 ```bash
 curl -sk -X POST 'https://sso.<apps-domain>/realms/cv/protocol/openid-connect/token' \
@@ -144,7 +164,7 @@ curl -sk -X POST 'https://sso.<apps-domain>/realms/cv/protocol/openid-connect/to
   -d 'client_secret=<from-the-result-page>'
 ```
 
-7. When finished, revoke the client: **Create** → **Revoke OIDC client (Keycloak cv)** with the same API and label.
+8. When finished, revoke the client: **Create** → **Revoke OIDC client (Keycloak cv)** with the same API and label.
 
 ## catalog-info.example.yaml
 

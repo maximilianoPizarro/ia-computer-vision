@@ -70,8 +70,6 @@ spec:
   owner: platform-engineering
   system: neuroface
   providesApis:
-    - ppe-detect-api
-    - neuroface-chat-api
     - ppe-kafka-events
   consumesApis:
     - kserve-ppe-v2
@@ -184,89 +182,6 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: API
 metadata:
-  name: ppe-detect-api
-  title: NeuroFace PPE Detection API
-  description: Backend REST API for PPE safety detection — proxies frames to KServe YOLO serving
-  tags: [neuroface, ppe, openapi]
-spec:
-  type: openapi
-  lifecycle: production
-  owner: platform-engineering
-  system: neuroface
-  definition: |
-    openapi: 3.0.3
-    info:
-      title: NeuroFace PPE Detection API
-      version: 1.5.0
-      description: PPE safety detection via webcam frames (base64 JPEG)
-    servers:
-      - url: https://neuroface.__HUB_APPS_DOMAIN__
-        description: NeuroFace hub route
-    paths:
-      /api/ppe/status:
-        get:
-          summary: PPE serving status
-          operationId: getPpeStatus
-          responses:
-            "200":
-              description: PPE endpoint reachability and configuration
-              content:
-                application/json:
-                  schema:
-                    type: object
-                    properties:
-                      enabled:
-                        type: boolean
-                      endpoint:
-                        type: string
-                      reachable:
-                        type: boolean
-                      kafka_enabled:
-                        type: boolean
-      /api/ppe/detect:
-        post:
-          summary: Detect PPE in image frame
-          operationId: detectPpe
-          requestBody:
-            required: true
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required: [image]
-                  properties:
-                    image:
-                      type: string
-                      description: Base64-encoded JPEG frame
-          responses:
-            "200":
-              description: PPE detection result
-              content:
-                application/json:
-                  schema:
-                    type: object
-                    properties:
-                      person_count:
-                        type: integer
-                      ppe_status:
-                        type: string
-                        enum: [compliant, violation, unknown]
-                      missing_ppe:
-                        type: array
-                        items:
-                          type: string
-                      present_ppe:
-                        type: array
-                        items:
-                          type: string
-                      detections:
-                        type: array
-                        items:
-                          type: object
----
-apiVersion: backstage.io/v1alpha1
-kind: API
-metadata:
   name: kserve-ppe-v2
   title: KServe YOLO PPE Inference API
   description: KServe v1/v2 predict endpoints for yolo-ppe InferenceService
@@ -323,69 +238,6 @@ spec:
           responses:
             "200":
               description: YOLO detection results
----
-apiVersion: backstage.io/v1alpha1
-kind: API
-metadata:
-  name: neuroface-chat-api
-  title: NeuroFace MaaS Chat API
-  description: Multimodal chat proxy to AI Gateway MaaS LLM with optional image context
-  tags: [neuroface, maas, chat, openapi]
-  links:
-    - url: https://ai-gateway.__HUB_APPS_DOMAIN__/v1/chat/completions
-      title: AI Gateway MaaS endpoint
-      icon: api
-spec:
-  type: openapi
-  lifecycle: production
-  owner: platform-engineering
-  system: neuroface
-  definition: |
-    openapi: 3.0.3
-    info:
-      title: NeuroFace MaaS Chat API
-      version: 1.5.0
-      description: Chat with Granite LLM via AI Gateway; optional vision context from frame
-    servers:
-      - url: https://neuroface.__HUB_APPS_DOMAIN__
-        description: NeuroFace hub route
-    paths:
-      /api/chat/status:
-        get:
-          summary: Chat feature status
-          operationId: getChatStatus
-          responses:
-            "200":
-              description: Chat configuration
-      /api/chat:
-        post:
-          summary: Send chat message (optional image)
-          operationId: chat
-          requestBody:
-            required: true
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required: [message]
-                  properties:
-                    message:
-                      type: string
-                    image:
-                      type: string
-                      description: Optional base64 image for multimodal context
-          responses:
-            "200":
-              description: LLM response
-              content:
-                application/json:
-                  schema:
-                    type: object
-                    properties:
-                      response:
-                        type: string
-                      analysis:
-                        type: object
 ---
 apiVersion: backstage.io/v1alpha1
 kind: API

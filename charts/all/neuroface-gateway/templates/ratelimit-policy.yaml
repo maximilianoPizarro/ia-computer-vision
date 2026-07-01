@@ -12,11 +12,28 @@ spec:
     kind: HTTPRoute
     name: neuroface-cv-lb
   limits:
-    predict-per-ip:
-      conditions:
-        - operator: matches
-          selector: request.path
-          value: "/v1/predict*"
+    predict-free:
+      when:
+        - predicate: 'request.path.matches("^/v1/predict")'
+        - predicate: 'has(auth.identity) && has(auth.identity.plan) && auth.identity.plan == "free"'
+      counters:
+        - expression: auth.identity.sub
+      rates:
+        - limit: 100
+          window: 1h
+    predict-gold:
+      when:
+        - predicate: 'request.path.matches("^/v1/predict")'
+        - predicate: 'has(auth.identity) && has(auth.identity.plan) && auth.identity.plan == "gold"'
+      counters:
+        - expression: auth.identity.sub
+      rates:
+        - limit: 500
+          window: 1h
+    predict-default:
+      when:
+        - predicate: 'request.path.matches("^/v1/predict")'
+        - predicate: '!(has(auth.identity) && has(auth.identity.plan))'
       counters:
         # Single quotes required: limitador's descriptor file serialization mangles a
         # nested double-quoted string literal inside a double-quoted CEL expression,

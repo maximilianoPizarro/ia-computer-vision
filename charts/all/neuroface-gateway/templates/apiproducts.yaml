@@ -4,7 +4,10 @@
 apiVersion: devportal.kuadrant.io/v1alpha1
 kind: APIProduct
 metadata:
-  name: neuroface-app
+  # metadata.name must match the Backstage API entity name exactly -- the
+  # Kuadrant frontend plugin builds "View in Catalog" links as
+  # /catalog/default/api/<metadata.name>, not from documentation.docsURL.
+  name: neuroface-openapi
   namespace: neuroface-gateway-system
   annotations:
     argocd.argoproj.io/sync-wave: "6"
@@ -23,7 +26,7 @@ spec:
   version: v1
   tags: [neuroface, oidc, edge, gateway-api]
   documentation:
-    docsURL: {{ printf "https://%s/catalog/default/api/neuroface-openapi" $dhHost | quote }}
+    docsURL: {{ printf "https://%s/catalog/default/api/neuroface-openapi/definition" $dhHost | quote }}
   contact:
     email: platform@example.com
   targetRef:
@@ -42,10 +45,11 @@ metadata:
   # matching APIProduct before (silently inert). Creating one named exactly
   # "neuroface-cv" gave the Kuadrant frontend plugin's
   # EntityKuadrantApiProductOpenApiAlert card a match against THIS unrelated
-  # APIProduct, which broke that entity's own Swagger view. Kept this name to
-  # avoid ever re-triggering that class of bug even though the dangling
-  # annotation itself is now gone.
-  name: neuroface-cv-oidc
+  # APIProduct, which broke that entity's own Swagger view. Kept this warning
+  # even though the dangling annotation itself is now gone. metadata.name must
+  # match the real catalog API entity (neuroface-cv-openapi) for Kuadrant plugin
+  # catalog links to resolve correctly.
+  name: neuroface-cv-openapi
   namespace: neuroface-gateway-system
   annotations:
     argocd.argoproj.io/sync-wave: "6"
@@ -58,6 +62,8 @@ spec:
     validating realm-cv OIDC JWTs (no Kuadrant API key on this route). Request
     credentials via the "OIDC credentials self-service" scaffolder template in
     Developer Hub -- Create -> OIDC credentials self-service (Keycloak cv).
+    Select a plan tier (free/gold) to embed a `plan` JWT claim for per-client
+    rate limits on /v1/predict.
   publishStatus: Published
   approvalMode: manual
   version: v1
