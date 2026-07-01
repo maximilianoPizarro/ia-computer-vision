@@ -133,11 +133,11 @@ iamCatalog:
       kubernetesId: ai-gateway
       swaggerUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/maas-openapi"
       openapiUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/maas-openapi/definition"
-  kafka:
-    enabled: false
-  camel:
-    enabled: false
-  notificationsEmail:
-    enabled: true
-  lightspeed:
-    enabled: false
+
+# Strimzi/Camel K aren't installed by default in this pattern. Gate the
+# corresponding RHDH kubernetes-plugin customResources entries behind these
+# so Topology doesn't 404 querying CRDs that don't exist on the cluster.
+kafka:
+  enabled: false
+camel:
+  enabled: false
