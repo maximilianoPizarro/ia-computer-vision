@@ -134,9 +134,15 @@
 {{- .Values.plugins.registry | default "ghcr.io/redhat-developer/rhdh-plugin-export-overlays" -}}
 {{- end -}}
 
+{{/*
+  Kiali is provisioned by the validatedpatterns `servicemesh` chart
+  (servicemesh-config app) as Kiali/default in istio-system — that's the
+  instance that actually gets a route, since the Kiali operator only allows
+  one cluster_wide_access instance cluster-wide.
+*/}}
 {{- define "developer-hub.kialiEndpoint" -}}
 {{- $k := .Values.plugins.kiali | default dict -}}
-{{- $k.endpoint | default (printf "https://kiali-openshift-cluster-observability-operator.%s" (include "developer-hub.clusterDomain" .)) -}}
+{{- $k.endpoint | default (printf "https://kiali-istio-system.%s" (include "developer-hub.clusterDomain" .)) -}}
 {{- end -}}
 
 {{/*
