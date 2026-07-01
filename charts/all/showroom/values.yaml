@@ -21,20 +21,27 @@ showroom:
     # Match platform-users.userCount for workshop-lab-reader bindings
     userCount: 30
     # Namespaces lab modules inspect with oc (Showroom SA + userN after hub-login)
-    workshopNamespaces:
+    # Hub list — do not include spoke-only namespaces (neuroface, neuroface-cv)
+    workshopNamespacesHub:
       - developer-hub
       - keycloak-system
       - neuroface-gateway-system
-      - stackrox
       - vault
       - openshift-gitops
       - gitlab-system
       - mailpit
       - redhat-connectivity-link-operator
       - service-interconnect
+      - redhat-ods-applications
+    workshopNamespacesSpoke:
       - neuroface
       - neuroface-cv
+      - service-interconnect
       - redhat-ods-applications
+      - openshift-gitops
+      - stackrox
+      - devspaces
+    workshopNamespaces: []
     resources:
       requests:
         cpu: "200m"

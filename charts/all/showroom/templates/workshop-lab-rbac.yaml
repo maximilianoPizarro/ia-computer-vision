@@ -1,6 +1,13 @@
 {{- if .Values.showroom.enabled }}
 {{- $count := int (.Values.showroom.terminal.userCount | default 50) }}
 {{- $workshopNs := .Values.showroom.terminal.workshopNamespaces | default list }}
+{{- if not $workshopNs }}
+{{- if eq (.Values.clusterRole | default "hub") "spoke" }}
+{{- $workshopNs = .Values.showroom.terminal.workshopNamespacesSpoke | default list }}
+{{- else }}
+{{- $workshopNs = .Values.showroom.terminal.workshopNamespacesHub | default list }}
+{{- end }}
+{{- end }}
 ---
 # Read-only lab access for Showroom terminal SA and workshop htpasswd users:
 # Kuadrant APIProducts, Gateway API HTTPRoutes, and standard workload resources.
