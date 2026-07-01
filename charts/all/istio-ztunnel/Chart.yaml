@@ -1,0 +1,5 @@
+apiVersion: v2
+name: istio-ztunnel
+description: Deploy ZTunnel CR for Istio ambient mesh data plane
+type: application
+version: 0.1.0

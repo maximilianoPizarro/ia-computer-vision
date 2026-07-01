@@ -1,0 +1,4 @@
+# Istio version must match the Istio CR deployed by servicemesh-config.
+version: v1.28.8
+namespace: ztunnel
+syncWave: "6"

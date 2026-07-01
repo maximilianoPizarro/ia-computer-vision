@@ -350,6 +350,13 @@ clusterGroup:
         - name: servicemesh.istio.name
           value: default
 
+    istio-ztunnel:
+      name: istio-ztunnel
+      namespace: istio-system
+      argoProject: mesh
+      path: charts/all/istio-ztunnel
+      syncWave: "6"
+
     hub-interconnect:
       name: hub-interconnect
       namespace: service-interconnect

@@ -49,8 +49,8 @@ The hub cluster hosts fleet management, the developer platform, centralized secu
 | Unified security posture across distributed inference clusters. The alternative (per-cluster scanning) lacks correlation and central policy management.
 
 | Red Hat Connectivity Link (RHCL) / Kuadrant
-| Gateway API ingress with HTTPRoute rules for 50/50 east/west backend load balancing
-| RHCL provides native Gateway API support on OpenShift with built-in auth policies (`AuthPolicy`), rate limiting (`RateLimitPolicy`), and DNS management (`DNSPolicy`). The alternative (OpenShift Route with HAProxy) lacks weighted backend distribution and policy-as-code.
+| Gateway API ingress with HTTPRoute rules for 50/50 east/west backend load balancing; dual auth (`APIKEY` or OIDC JWT) on `ai-maas`; plan-tier rate limits via `PlanPolicy`, `RateLimitPolicy`, and `TokenRateLimitPolicy`
+| RHCL provides native Gateway API support on OpenShift with built-in auth policies (`AuthPolicy`), rate limiting (`RateLimitPolicy`), plan discovery (`PlanPolicy`), token budgets (`TokenRateLimitPolicy`), and DNS management (`DNSPolicy`). The alternative (OpenShift Route with HAProxy) lacks weighted backend distribution and policy-as-code.
 
 | GitLab (GitLab Operator)
 | Source control, CI/CD pipelines, and integration with Developer Hub scaffolder
@@ -202,7 +202,8 @@ This section explains why specific products and architectures were chosen. These
 OCP Routes use HAProxy for ingress and support only basic round-robin across multiple backends. RHCL provides:
 
 * **Gateway API HTTPRoute** with weighted backend references (50/50 split by default, configurable per-backend)
-* **Kuadrant policy integration**: `AuthPolicy` for API key and JWT validation, `RateLimitPolicy` for per-client throttling, `DNSPolicy` for multi-cluster DNS
+* **Kuadrant policy integration**: `AuthPolicy` for API key and JWT validation (dual auth on `ai-maas`), `RateLimitPolicy` for per-client throttling, `PlanPolicy` for DevPortal tier discovery, `TokenRateLimitPolicy` for LLM token budgets, `DNSPolicy` for multi-cluster DNS
+* **Plan-tier OIDC clients**: The OIDC credentials self-service template embeds a `plan` JWT claim (`free`/`gold`) that `RateLimitPolicy` and `PlanPolicy` on `neuroface-cv-lb` use to enforce per-client limits on `/v1/predict`
 * **Standards-based**: Gateway API is the Kubernetes standard for ingress, replacing Ingress resources
 
 An OCP Route cannot split traffic between two external backends by weight; it always round-robins to endpoints within a single service. RHCL HTTPRoute treats east and west as independent backends with configurable weights.
@@ -214,7 +215,7 @@ The hub gateway and policies represent a modern, highly available edge architect
 image::istio-gateway-api-architecture.png[Istio and Gateway API HA Architecture,align="center",width=100%]
 
 * **Providers (Authority & Identity):** Kuadrant acts as the control plane for policies, while Red Hat Build of Keycloak serves as the OIDC identity provider.
-* **Policy & Gateway API:** The `HTTPRoute` defines routing rules (L7 matching). Kuadrant's `AuthPolicy` and `RateLimitPolicy` attach to the `HTTPRoute` via `targetRef`, enforcing security without modifying the application code or routing definition.
+* **Policy & Gateway API:** The `HTTPRoute` defines routing rules (L7 matching). Kuadrant's `AuthPolicy`, `RateLimitPolicy`, `PlanPolicy`, and `TokenRateLimitPolicy` attach to the `HTTPRoute` via `targetRef`, enforcing security without modifying the application code or routing definition.
 * **Control Plane & HA Ingress:** `GatewayClass` provisions the physical Istio Ingress Gateways across multiple Availability Zones (Zone A and Zone B) for High Availability. The Istio CNI DaemonSet manages node-level networking.
 * **Data Plane Workloads:** The HA Gateways load balance traffic to workloads running Envoy sidecars (or ztunnel in ambient mode). The control plane also supports Canary Upgrades (e.g., migrating from v1.22 to v1.23) to safely shift traffic between Istio revisions.
 
