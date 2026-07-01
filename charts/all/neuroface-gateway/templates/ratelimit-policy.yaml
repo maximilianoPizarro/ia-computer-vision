@@ -18,7 +18,10 @@ spec:
           selector: request.path
           value: "/v1/predict*"
       counters:
-        - expression: request.headers["x-forwarded-for"]
+        # Single quotes required: limitador's descriptor file serialization mangles a
+        # nested double-quoted string literal inside a double-quoted CEL expression,
+        # causing "Invalid limit file" parse errors and CrashLoopBackOff.
+        - expression: request.headers['x-forwarded-for']
       rates:
         - limit: {{ .Values.kuadrant.rateLimit.predictPerMinute | default 30 }}
           window: 1m
