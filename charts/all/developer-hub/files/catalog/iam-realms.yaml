@@ -38,6 +38,7 @@ metadata:
   annotations:
     kuadrant/realm: neuroface
     kuadrant/client-id-secret: keycloak-client-neuroface-user1
+    workshop/oidc-self-service-target: "true"
 spec:
   type: openapi
   lifecycle: production
@@ -75,6 +76,7 @@ metadata:
   annotations:
     kuadrant/realm: cv
     kuadrant/client-id-secret: keycloak-client-cv-user1
+    workshop/oidc-self-service-target: "true"
 spec:
   type: openapi
   lifecycle: production
@@ -112,6 +114,7 @@ metadata:
   annotations:
     kuadrant/realm: maas
     kuadrant/client-id-secret: keycloak-client-maas-user1
+    workshop/oidc-self-service-target: "true"
 spec:
   type: openapi
   lifecycle: production

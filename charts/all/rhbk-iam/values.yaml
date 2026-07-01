@@ -12,6 +12,11 @@ vault:
   secretStore: vault-backend
   pathPrefix: secret/data/hub/keycloak/realms
 
+backstageProvisioner:
+  enabled: true
+  clientId: backstage-provisioner
+  vaultKey: secret/data/hub/keycloak/realms/cv/backstage-provisioner
+
 realms:
   - name: neuroface
     displayName: NeuroFace API

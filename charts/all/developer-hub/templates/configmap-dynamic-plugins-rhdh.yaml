@@ -472,6 +472,10 @@ data:
                 replyTo: no-reply@developer-hub.local
                 broadcastConfig:
                   receiver: none
+                filter:
+                  minSeverity: high
+                  excludedTopics:
+                    - scaffolder
       # --- Azure DevOps (disabled - requires AZURE_TOKEN and AZURE_ORG env vars) ---
       # PAT scopes: Code (Read), Build (Read & Execute), Release (Read), Work Items (Read), Pull Request Threads (Read & Write)
       - package: ./dynamic-plugins/dist/backstage-community-plugin-azure-devops-backend-dynamic

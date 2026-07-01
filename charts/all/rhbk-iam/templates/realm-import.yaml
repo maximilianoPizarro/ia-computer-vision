@@ -1,5 +1,6 @@
 {{- $count := int (.Values.userCount | default 30) -}}
 {{- $password := .Values.defaultPassword | default "Welcome123!" -}}
+{{- $prov := .Values.backstageProvisioner | default dict -}}
 {{- range $realm := .Values.realms }}
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
@@ -13,6 +14,12 @@ metadata:
 spec:
   keycloakCRName: {{ $.Values.keycloak.crName }}
   placeholders:
+{{- if eq $realm.name "cv" }}
+    BACKSTAGE_PROVISIONER_CLIENT_SECRET:
+      secret:
+        name: keycloak-backstage-provisioner
+        key: clientSecret
+{{- end }}
 {{- range $i := until $count }}
 {{- $userNum := add $i 1 }}
     CLIENT_SECRET_USER{{ $userNum }}:
@@ -53,6 +60,22 @@ spec:
           - manage-clients
 {{- end }}
     clients:
+{{- if eq $realm.name "cv" }}
+      - clientId: {{ $prov.clientId | default "backstage-provisioner" | quote }}
+        name: Backstage OIDC Provisioner
+        description: Service account for Developer Hub scaffolder self-service OIDC clients (realm cv PoC)
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: $(BACKSTAGE_PROVISIONER_CLIENT_SECRET)
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        publicClient: false
+        protocol: openid-connect
+        defaultClientScopes:
+          - openid
+          - profile
+{{- end }}
 {{- range $i := until $count }}
 {{- $userNum := add $i 1 }}
 {{- $clientId := include "rhbk-iam.clientId" (dict "realm" $realm.name "userNum" $userNum) }}
@@ -73,6 +96,17 @@ spec:
           access.token.lifespan: "3600"
 {{- end }}
     users:
+{{- if eq $realm.name "cv" }}
+      - username: service-account-backstage-provisioner
+        enabled: true
+        serviceAccountClientId: {{ $prov.clientId | default "backstage-provisioner" | quote }}
+        clientRoles:
+          realm-management:
+            - view-clients
+            - query-clients
+            - create-client
+            - manage-clients
+{{- end }}
 {{- range $i := until $count }}
 {{- $userNum := add $i 1 }}
       - username: {{ printf "user%d" $userNum | quote }}

@@ -177,6 +177,9 @@ spec:
                       name: developer-hub-oidc-auth
                       optional: true
                   - secretRef:
+                      name: keycloak-provisioner-credentials
+                      optional: true
+                  - secretRef:
                       name: developer-hub-spoke-tokens
                       optional: true
 {{- if .Values.plugins.rbac.enabled | default false }}

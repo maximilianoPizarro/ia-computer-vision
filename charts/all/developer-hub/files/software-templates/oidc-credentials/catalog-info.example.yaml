@@ -1,0 +1,20 @@
+# Documentation example — NOT registered in the catalog in the current PoC.
+# For future use with publish:gitlab + catalog:register.
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: oidc-${{ values.clientLabel }}-${{ values.apiName }}
+  title: OIDC credential — ${{ values.apiName }}
+  description: OIDC credential provisioned via self-service (realm cv PoC)
+  annotations:
+    oidc.keycloak/client-id: client-${{ values.apiName }}-${{ values.clientLabel }}
+    oidc.keycloak/realm: cv
+    oidc.delivery/method: email-poc
+    oidc.issued-at: ${{ values.issuedAt }}
+    oidc/target-api: ${{ values.apiName }}
+spec:
+  type: oidc-credential
+  owner: group:default/${{ values.ownerGroup }}
+  dependsOn:
+    - api:default/${{ values.apiName }}

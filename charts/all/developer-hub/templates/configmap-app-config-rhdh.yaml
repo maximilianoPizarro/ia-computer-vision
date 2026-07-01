@@ -299,6 +299,10 @@ data:
           headers:
             Authorization: Bearer ${K8S_SA_TOKEN}
           changeOrigin: true
+        '/keycloak':
+          target: {{ include "developer-hub.ssoBaseUrl" . | quote }}
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+          changeOrigin: true
     integrations:
       gitlab:
         - host: {{ include "developer-hub.gitlabHost" . }}

@@ -1,4 +1,4 @@
-{{- $templates := list "ai-computer-vision" -}}
+{{- $templates := list "ai-computer-vision" "oidc-credentials-self-service" -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

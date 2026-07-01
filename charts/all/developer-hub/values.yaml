@@ -7,6 +7,11 @@ keycloak:
   crName: keycloak
   serviceName: keycloak-service-serving
 keycloakOidcClientSecret: "rhdh-oidc-2026-ia-cv-pattern"
+keycloakProvisioner:
+  clientId: backstage-provisioner
+  clientSecret: "backstage-provisioner-poc-2026"
+  useVault: true
+  vaultKey: secret/data/hub/keycloak/realms/cv/backstage-provisioner
 oidcAuth:
   useVault: true
   vaultKey: secret/data/hub/developer-hub-secrets
