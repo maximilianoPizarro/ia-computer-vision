@@ -34,7 +34,16 @@ spec:
 apiVersion: devportal.kuadrant.io/v1alpha1
 kind: APIProduct
 metadata:
-  name: neuroface-cv
+  # NOT "neuroface-cv" -- that exact name is already referenced by a dangling
+  # kuadrant.io/api-product: neuroface-cv annotation on the pre-existing
+  # workshop-kuadrant-apis.yaml catalog entities (neuroface-cv-api-product /
+  # workshop-neuroface-openapi). That annotation had no matching APIProduct
+  # before (silently inert). Creating one named exactly "neuroface-cv" gave
+  # the Kuadrant frontend plugin's EntityKuadrantApiProductOpenApiAlert card
+  # a match against THIS unrelated APIProduct, which broke that entity's own
+  # Swagger view ("No operations defined in spec!" right after this
+  # APIProduct was first created). Renamed to stop hijacking that reference.
+  name: neuroface-cv-oidc
   namespace: neuroface-gateway-system
   annotations:
     argocd.argoproj.io/sync-wave: "6"
