@@ -314,7 +314,7 @@ data:
           # silently drops Authorization otherwise (it tries to consume it for
           # its own backend auth instead). The OIDC self-service scaffolder
           # template sends a Keycloak-issued bearer token meant for the
-          # upstream target on the create/resolve/get-secret steps — without
+          # upstream target on the create/resolve/get-secret steps -- without
           # this, Keycloak's Admin REST API sees no Authorization header at
           # all and returns a real (not Backstage's) 401.
           allowedHeaders: ['Authorization']
