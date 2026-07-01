@@ -8,6 +8,7 @@ metadata:
   namespace: {{ $ns }}
   labels:
     app.kubernetes.io/part-of: workshop-kuadrant-apis
+    backstage.io/kubernetes-id: {{ $name }}
   annotations:
     argocd.argoproj.io/sync-wave: "1"
     networking.istio.io/service-type: ClusterIP
@@ -29,6 +30,7 @@ metadata:
   labels:
     gateway.networking.k8s.io/gateway-name: {{ $name }}
     app.kubernetes.io/part-of: workshop-kuadrant-apis
+    backstage.io/kubernetes-id: {{ $name }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:

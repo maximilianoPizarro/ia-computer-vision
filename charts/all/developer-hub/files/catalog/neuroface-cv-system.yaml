@@ -19,6 +19,7 @@ metadata:
   annotations:
     backstage.io/kubernetes-namespace: neuroface-gateway-system
     backstage.io/kubernetes-cluster: hub
+    backstage.io/kubernetes-id: neuroface-gateway
   links:
     - url: https://neuroface-cv.__HUB_APPS_DOMAIN__/api/ppe/status
       title: PPE status (load-balanced)

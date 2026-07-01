@@ -3,6 +3,8 @@ kind: Gateway
 metadata:
   name: neuroface-gateway
   namespace: neuroface-gateway-system
+  labels:
+    backstage.io/kubernetes-id: neuroface-gateway
   annotations:
     argocd.argoproj.io/sync-wave: "1"
     networking.istio.io/service-type: ClusterIP

@@ -13,6 +13,7 @@ metadata:
     app: workshop-maas
     kuadrant.io/exposed: "true"
     workshop.kuadrant.io/external-host: {{ $api.host | quote }}
+    backstage.io/kubernetes-id: {{ $aiName }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:

@@ -6,6 +6,8 @@ kind: HTTPRoute
 metadata:
   name: neuroface-app-lb
   namespace: neuroface-gateway-system
+  labels:
+    backstage.io/kubernetes-id: neuroface-gateway
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:
