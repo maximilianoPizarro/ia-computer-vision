@@ -4,12 +4,10 @@
 {{- $restcountriesSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-restcountries-openapi.yaml" "hub" $hub) | nindent 4 }}
 {{- $maasSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-maas-openapi.yaml" "hub" $hub) | nindent 4 }}
 {{- $mcpSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-mcp-openapi.yaml" "hub" $hub) | nindent 4 }}
-{{- $neurofaceSpec := include "developer-hub.workshopOpenAPISpec" (dict "root" $ "file" "files/catalog/openapi/workshop-neuroface-openapi.yaml" "hub" $hub) | nindent 4 }}
 {{- $catalog = $catalog | replace "__WORKSHOP_HTTPBIN_OPENAPI_SPEC__" $httpbinSpec }}
 {{- $catalog = $catalog | replace "__WORKSHOP_RESTCOUNTRIES_OPENAPI_SPEC__" $restcountriesSpec }}
 {{- $catalog = $catalog | replace "__WORKSHOP_MAAS_OPENAPI_SPEC__" $maasSpec }}
 {{- $catalog = $catalog | replace "__WORKSHOP_MCP_OPENAPI_SPEC__" $mcpSpec }}
-{{- $catalog = $catalog | replace "__WORKSHOP_NEUROFACE_OPENAPI_SPEC__" $neurofaceSpec }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

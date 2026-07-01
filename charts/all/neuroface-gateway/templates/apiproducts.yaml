@@ -34,15 +34,17 @@ spec:
 apiVersion: devportal.kuadrant.io/v1alpha1
 kind: APIProduct
 metadata:
-  # NOT "neuroface-cv" -- that exact name is already referenced by a dangling
-  # kuadrant.io/api-product: neuroface-cv annotation on the pre-existing
-  # workshop-kuadrant-apis.yaml catalog entities (neuroface-cv-api-product /
-  # workshop-neuroface-openapi). That annotation had no matching APIProduct
-  # before (silently inert). Creating one named exactly "neuroface-cv" gave
-  # the Kuadrant frontend plugin's EntityKuadrantApiProductOpenApiAlert card
-  # a match against THIS unrelated APIProduct, which broke that entity's own
-  # Swagger view ("No operations defined in spec!" right after this
-  # APIProduct was first created). Renamed to stop hijacking that reference.
+  # NOT "neuroface-cv" -- that exact name used to be referenced by a dangling
+  # kuadrant.io/api-product: neuroface-cv annotation on a since-removed,
+  # redundant workshop-kuadrant-apis.yaml catalog entry (neuroface-cv-api-product /
+  # workshop-neuroface-openapi -- a stale duplicate of this same route that
+  # never had a real Kuadrant APIKEY policy behind it). That annotation had no
+  # matching APIProduct before (silently inert). Creating one named exactly
+  # "neuroface-cv" gave the Kuadrant frontend plugin's
+  # EntityKuadrantApiProductOpenApiAlert card a match against THIS unrelated
+  # APIProduct, which broke that entity's own Swagger view. Kept this name to
+  # avoid ever re-triggering that class of bug even though the dangling
+  # annotation itself is now gone.
   name: neuroface-cv-oidc
   namespace: neuroface-gateway-system
   annotations:
