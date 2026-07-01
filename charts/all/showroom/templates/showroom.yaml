@@ -276,9 +276,9 @@ spec:
         - name: CLUSTER_DOMAIN
           value: {{ $hubDomain | quote }}
         - name: EAST_DOMAIN
-          value: {{ .Values.clusters.east.domain | default "" | quote }}
+          value: {{ $eastDomain | quote }}
         - name: WEST_DOMAIN
-          value: {{ .Values.clusters.west.domain | default "" | quote }}
+          value: {{ $westDomain | quote }}
         command: ["/bin/sh", "-c"]
         args:
           - |
@@ -317,7 +317,8 @@ spec:
             export PS1='\[\e[1;31m\][\u@showroom]\[\e[0m\] \w \$ '
 
             hub-login() {
-              oc login -u "${1:-user1}" -p Welcome123! "https://api.${CLUSTER_DOMAIN#apps.}:6443" --insecure-skip-tls-verify
+              local server="${HUB_API_URL:-https://api.${CLUSTER_DOMAIN#apps.}:6443}"
+              oc login -u "${1:-user1}" -p Welcome123! "$server" --insecure-skip-tls-verify
             }
             sa-login() {
               local token="/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -331,9 +332,17 @@ spec:
                 --certificate-authority="$ca" --insecure-skip-tls-verify
             }
             east-login() {
+              if [[ -z "$EAST_API_URL" ]]; then
+                echo "EAST_API_URL not set — configure spokeCredentials.clusters.east.apiUrl"
+                return 1
+              fi
               oc login -u "${1:-user1}" -p Welcome123! "$EAST_API_URL" --insecure-skip-tls-verify
             }
             west-login() {
+              if [[ -z "$WEST_API_URL" ]]; then
+                echo "WEST_API_URL not set — configure spokeCredentials.clusters.west.apiUrl"
+                return 1
+              fi
               oc login -u "${1:-user1}" -p Welcome123! "$WEST_API_URL" --insecure-skip-tls-verify
             }
 
@@ -348,9 +357,20 @@ spec:
               oc get listener,connector -n service-interconnect 2>/dev/null | grep -E 'neuroface-cv|NAME' || true
             }
             neuroface-spoke-status() {
-              sa-login 2>/dev/null || hub-login "${1:-user1}"
+              local user="${1:-user1}"
+              local ns="neuroface-${user}"
+              if [[ -n "$EAST_API_URL" ]]; then
+                east-login "$user" 2>/dev/null && oc get deploy,pods -n "$ns" 2>/dev/null && return
+              fi
+              if [[ -n "$WEST_API_URL" ]]; then
+                west-login "$user" 2>/dev/null && oc get deploy,pods -n "$ns" 2>/dev/null && return
+              fi
+              sa-login 2>/dev/null || hub-login "$user"
+              echo "=== Shared spoke namespaces (hub context) ==="
               oc get deploy,pods -n neuroface 2>/dev/null || true
               oc get deploy,pods -n neuroface-cv 2>/dev/null || true
+              echo "=== Your app namespace (requires east-login/west-login) ==="
+              echo "  oc get pods -n ${ns}"
             }
 
             echo "╔══════════════════════════════════════════════════════════════╗"
@@ -440,13 +460,13 @@ spec:
         - name: HUB_API_URL
           value: {{ $hubApiUrl | quote }}
         - name: EAST_API_URL
-          value: {{ .Values.clusters.east.apiUrl | default "" | quote }}
+          value: {{ $eastApiUrl | quote }}
         - name: WEST_API_URL
-          value: {{ .Values.clusters.west.apiUrl | default "" | quote }}
+          value: {{ $westApiUrl | quote }}
         - name: EAST_DOMAIN
-          value: {{ .Values.clusters.east.domain | default "" | quote }}
+          value: {{ $eastDomain | quote }}
         - name: WEST_DOMAIN
-          value: {{ .Values.clusters.west.domain | default "" | quote }}
+          value: {{ $westDomain | quote }}
         volumeMounts:
         - name: terminal-lab-user-home
           mountPath: /home/lab-user

@@ -54,14 +54,17 @@ https://workshop-registration.apps.<hub_domain>/
 
 `POST /api/register` with `{email}` assigns the first free `userN` and redirects to Showroom with `?USER_NAME=userN`. Admin token and Keycloak credentials come from Vault via External Secrets Operator (`secret/data/hub/workshop-registration`).
 
-Embedded terminal helpers:
+Embedded terminal helpers (defined in `charts/all/showroom/templates/showroom.yaml`):
 
 [source,bash]
 ----
-hub-login user1
-east-login user1
-neuroface-cv-status
-neuroface-cv-traffic
+hub-login userN          # oc login to hub API (uses HUB_API_URL)
+east-login userN         # oc login to east spoke (uses spokeCredentials.clusters.east.apiUrl)
+west-login userN         # oc login to west spoke
+sa-login                 # read-only Showroom service account
+neuroface-cv-status      # curl PPE status via neuroface-cv gateway
+neuroface-cv-traffic     # inspect HTTPRoute + Skupper connectors
+neuroface-spoke-status userN   # pods in neuroface-userN on spoke
 ----
 
 === Troubleshooting showroom pod

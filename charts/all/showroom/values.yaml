@@ -23,6 +23,7 @@ showroom:
     # Namespaces lab modules inspect with oc (Showroom SA + userN after hub-login)
     workshopNamespaces:
       - developer-hub
+      - keycloak-system
       - neuroface-gateway-system
       - stackrox
       - vault
@@ -53,6 +54,14 @@ clusters:
   west:
     domain: ""
     apiUrl: ""
+
+# Fallback for terminal east-login/west-login (same schema as acm-hub-spoke / developer-hub).
+spokeCredentials:
+  clusters:
+    east:
+      apiUrl: ""
+    west:
+      apiUrl: ""
 
 registration:
   url: ""

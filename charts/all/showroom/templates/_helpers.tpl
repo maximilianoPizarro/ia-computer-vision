@@ -24,18 +24,43 @@
 {{- printf "https://api.%s:6443" (include "showroom.clusterDomainBase" .) -}}
 {{- end -}}
 
-{{- define "showroom.eastDomain" -}}
-{{- .Values.clusters.east.domain | default "" -}}
+{{/*
+  Derive spoke cluster domain from OpenShift API URL.
+  https://api.cluster-name.example.com:6443 → cluster-name.example.com
+*/}}
+{{- define "showroom.spokeDomainFromApiUrl" -}}
+{{- $url := . | default "" | trim -}}
+{{- if $url -}}
+{{- $url = regexReplaceAll "^https?://api\\." $url "" -}}
+{{- $url = regexReplaceAll ":6443/?$" $url "" -}}
 {{- end -}}
-
-{{- define "showroom.westDomain" -}}
-{{- .Values.clusters.west.domain | default "" -}}
+{{- $url -}}
 {{- end -}}
 
 {{- define "showroom.eastApiUrl" -}}
-{{- .Values.clusters.east.apiUrl | default "" -}}
+{{- $sc := .Values.spokeCredentials.clusters.east | default dict -}}
+{{- .Values.clusters.east.apiUrl | default $sc.apiUrl | default "" -}}
 {{- end -}}
 
 {{- define "showroom.westApiUrl" -}}
-{{- .Values.clusters.west.apiUrl | default "" -}}
+{{- $sc := .Values.spokeCredentials.clusters.west | default dict -}}
+{{- .Values.clusters.west.apiUrl | default $sc.apiUrl | default "" -}}
+{{- end -}}
+
+{{- define "showroom.eastDomain" -}}
+{{- $explicit := .Values.clusters.east.domain | default "" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- include "showroom.spokeDomainFromApiUrl" (include "showroom.eastApiUrl" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "showroom.westDomain" -}}
+{{- $explicit := .Values.clusters.west.domain | default "" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- include "showroom.spokeDomainFromApiUrl" (include "showroom.westApiUrl" .) -}}
+{{- end -}}
 {{- end -}}
