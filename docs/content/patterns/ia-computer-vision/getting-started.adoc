@@ -181,6 +181,7 @@ NAME                         SYNC STATUS   HEALTH STATUS
 console-links                Synced        Healthy
 devspaces                    Synced        Healthy
 ia-computer-vision-east      Synced        Healthy
+istio-ztunnel                Synced        Healthy
 kafka-console                Synced        Healthy
 observability                Synced        Healthy
 openshift-external-secrets   Synced        Healthy
@@ -227,10 +228,11 @@ Record the token and API URL (`https://api.<east_domain>:6443`) in `~/values-sec
 [source,bash]
 ----
 $ oc get pods -n istio-system
+$ oc get ztunnel -A
 $ oc get pods -n ztunnel
 ----
 
-.Expected: `istiod` running in `istio-system`, ztunnel DaemonSet pods running on each node.
+.Expected: `istiod` running in `istio-system`, ZTunnel CR `Healthy`, ztunnel DaemonSet pods running on each node.
 
 === Verify Skupper interconnect
 
@@ -386,6 +388,7 @@ devspaces                    Synced        Healthy
 gitlab-operator              Synced        Healthy
 hub-interconnect             Synced        Healthy
 ia-computer-vision-hub       Synced        Healthy
+istio-ztunnel                Synced        Healthy
 mailpit                      Synced        Healthy
 neuroface-gateway            Synced        Healthy
 observability                Synced        Healthy
@@ -668,21 +671,33 @@ $ oc get httproute -n neuroface-gateway-system -o wide
 
 === Test inference through the hub gateway
 
-`neuroface-cv.apps.<hub_domain>` is OIDC-protected (Kuadrant `AuthPolicy` `oidc-cv`, realm `cv`) — an unauthenticated request gets redirected to Keycloak login rather than a `200`:
+`neuroface-cv.apps.<hub_domain>` is protected by Kuadrant `AuthPolicy` (`authpolicy-cv`, realm `cv` JWT validation) — an unauthenticated request returns `401`:
 
 [source,bash]
 ----
 $ curl -sk -o /dev/null -w '%{http_code}\n' \
-  https://neuroface-cv.apps.<hub_domain>/api/ppe/status
+  https://neuroface-cv.apps.<hub_domain>/health
 ----
 
 .Expected output
 [source,text]
 ----
-302
+401
 ----
 
-A `302` to `sso.apps.<hub_domain>/realms/cv/protocol/openid-connect/auth` confirms the gateway, the `HTTPRoute`, and the Kuadrant `AuthPolicy` are all working end to end. Open the URL in a browser and log in as `user1` / `Welcome123!` to see the actual PPE status response. See link:../architecture/#security-architecture[Architecture — Security] for why this route is OIDC-gated while the main NeuroFace app route is not.
+A `401` confirms the gateway, the `HTTPRoute`, and the Kuadrant `AuthPolicy` are all working end to end. To test with a valid token, obtain a JWT from realm `cv` using client credentials and send it as a Bearer header:
+
+[source,bash]
+----
+$ TOKEN=$(curl -sk -X POST \
+  "https://keycloak.apps.<hub_domain>/realms/cv/protocol/openid-connect/token" \
+  -d "grant_type=client_credentials&client_id=backstage-provisioner&client_secret=<secret>" \
+  | jq -r .access_token)
+$ curl -sk -H "Authorization: Bearer $TOKEN" \
+  https://neuroface-cv.apps.<hub_domain>/health
+----
+
+.Expected: JSON response with `"status":"ok"` and model class list.
 
 === Validate 50/50 load balancing
 

@@ -235,6 +235,7 @@ Traffic between pods in mesh-enrolled namespaces is not encrypted. Kiali shows c
 
 * `servicemeshoperator3` CSV not `Succeeded`
 * `servicemesh-config` ArgoCD application not synced
+* `ZTunnel` CR missing (Istio reports `ZTunnelNotFound`)
 * Namespace not labeled for mesh enrollment
 * `istio-cni` or `ztunnel` namespace missing
 
@@ -243,7 +244,8 @@ Traffic between pods in mesh-enrolled namespaces is not encrypted. Kiali shows c
 [source,bash]
 ----
 $ oc get csv -A | grep servicemeshoperator3
-$ oc get pods -n istio-system
+$ oc get istio default -n istio-system -o jsonpath='{.status.state}{"\n"}'
+$ oc get ztunnel -A
 $ oc get pods -n ztunnel
 $ oc get namespace <namespace> -o jsonpath='{.metadata.labels.istio\.io/dataplane-mode}{"\n"}'
 ----
@@ -264,12 +266,15 @@ $ oc get csv -A | grep servicemeshoperator3
 $ oc get istio -n istio-system
 ----
 
-. Verify the ztunnel DaemonSet is running on each node:
+. Verify the `istio-ztunnel` application deployed the ZTunnel CR and pods are running:
 
 [source,bash]
 ----
+$ oc get ztunnel -A
 $ oc get pods -n ztunnel -o wide
 ----
+
+If the ZTunnel CR is missing or reports `ReconcileError`, verify the `ztunnel` namespace exists (`oc get ns ztunnel`). The `istio-ztunnel` ArgoCD application (chart `charts/all/istio-ztunnel/`) creates the CR but depends on the namespace being declared in `clusterGroup.namespaces`.
 
 . If a namespace is not enrolled in the mesh, the `servicemesh-config` chart labels namespaces automatically. Check:
 
