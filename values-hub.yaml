@@ -387,6 +387,20 @@ clusterGroup:
           value: cv
         - name: kuadrant.realms[0].httpRoute
           value: neuroface-cv-lb
+        # NOTE: this --set on an array index REPLACES the whole
+        # kuadrant.realms list (Helm doesn't merge --set-provided lists
+        # element-wise with the chart's default values.yaml list), so the
+        # chart's default 2nd entry (realm "neuroface") and its
+        # redirectAuth flag never actually apply here -- only what's set
+        # right here, at index 0, ends up live. neuroface-cv-lb serves no
+        # browsable frontend, so it uses a plain AuthPolicy+jwt (no
+        # redirect-to-login) instead of OIDCPolicy; redirectAuth must be
+        # re-declared here or this silently reverts to OIDCPolicy on cv,
+        # which both breaks CORS preflight (OIDCPolicy has no `when`
+        # exemption) and hits a real issuer mismatch (see chart's
+        # oidcpolicy-realms.yaml comments).
+        - name: kuadrant.realms[0].redirectAuth
+          value: "false"
 
     workshop-kuadrant-apis:
       name: workshop-kuadrant-apis
