@@ -2,7 +2,7 @@
 {{- $root := . -}}
 {{- $ssoHost := .Values.kuadrant.ssoHost | default (printf "sso.%s" (include "neuroface-gateway.clusterDomain" .)) -}}
 {{- range .Values.kuadrant.realms | default list }}
-{{- if ne .redirectAuth false }}
+{{- if and (ne .redirectAuth false) (ne (printf "%v" .redirectAuth) "false") }}
 {{- $realm := .name -}}
 {{- $httpRoute := .httpRoute | default "neuroface-app-lb" -}}
 {{- $clientId := .clientId | default (printf "client-%s-user1" $realm) -}}
@@ -43,7 +43,7 @@ spec:
 {{ end -}}
 {{- end }}
 {{- range .Values.kuadrant.realms | default list }}
-{{- if eq .redirectAuth false }}
+{{- if or (eq .redirectAuth false) (eq (printf "%v" .redirectAuth) "false") }}
 {{- $realm := .name -}}
 {{- $httpRoute := .httpRoute | default "neuroface-app-lb" -}}
 {{/*
