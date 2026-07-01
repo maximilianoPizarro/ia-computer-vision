@@ -674,6 +674,16 @@ $ oc exec vault-0 -n vault -- sh -c '
     gitlab-token="placeholder-until-gitlab-token-setup"
   vault kv put secret/hub/ai-gateway-platform-keys \
     platformApiKey="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)"
+  vault kv put secret/hub/workshop-registration \
+    adminToken="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
+  vault kv put secret/hub/minio-credentials \
+    accesskey="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 16)" \
+    secretkey="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
+  vault kv put secret/hub/keycloak-realm-clients \
+    neuroface.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
+    neuroface.user2.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
+    maas.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
+    cv.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
 '
 ----
 

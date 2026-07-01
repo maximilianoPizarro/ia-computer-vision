@@ -1,8 +1,14 @@
+{{- $argoNs := "vp-gitops" -}}
+{{- if .Values.global -}}
+{{- $argoNs = .Values.global.vpArgoNamespace | default $argoNs -}}
+{{- end -}}
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
-  name: openshift-gitops
-  namespace: openshift-gitops
+  # The VP Operator names the single-ArgoCD instance after its namespace
+  # (global.argoNamespace, "vp-gitops" for this pattern) — NOT "openshift-gitops".
+  name: {{ $argoNs }}
+  namespace: {{ $argoNs }}
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/sync-options: ServerSideApply=true

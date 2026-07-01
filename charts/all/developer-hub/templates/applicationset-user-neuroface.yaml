@@ -1,6 +1,6 @@
 {{- $argoNs := "vp-gitops" -}}
 {{- if .Values.global -}}
-{{- $argoNs = .Values.global.argoNamespace | default $argoNs -}}
+{{- $argoNs = .Values.global.vpArgoNamespace | default $argoNs -}}
 {{- end -}}
 {{- $as := .Values.applicationSet | default dict -}}
 {{- $gitlabGroup := $as.gitlabGroup | default "ws-workshop" -}}

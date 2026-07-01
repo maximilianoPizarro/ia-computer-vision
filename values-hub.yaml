@@ -99,11 +99,11 @@ clusterGroup:
       namespace: openshift-operators
       channel: stable-2
       source: redhat-operators
-    gitlab:
-      name: gitlab-operator-kubernetes
-      namespace: gitlab-system
-      channel: stable
-      source: certified-operators
+    # gitlab: intentionally NOT declared here. charts/all/gitlab-operator/templates/subscriptions.yaml
+    # creates this Subscription itself (with a controllerResources override — the OLM CSV default of
+    # 300Mi OOMs the operator while reconciling the full GitLab chart). Declaring it here too caused
+    # the clustergroup chart (which has no config.resources support) to win the object and silently
+    # strip the override on every sync, leaving the operator to OOMKill/CrashLoopBackOff.
     rhdh:
       name: rhdh
       namespace: openshift-operators

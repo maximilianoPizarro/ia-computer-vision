@@ -16,6 +16,9 @@ clusterGroup:
 
   namespaces:
     # stackrox: {}  # ACS disabled by default to save resources
+    # ACM hub-ca-config-policy (VP acm chart) creates the trusted-hub-bundle
+    # ConfigMap here. Without it, the policy is NonCompliant on this spoke.
+    imperative: {}
     neuroface: {}
     neuroface-cv: {}
     service-interconnect: {}

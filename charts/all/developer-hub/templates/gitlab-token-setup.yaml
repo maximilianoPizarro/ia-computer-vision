@@ -23,6 +23,14 @@ rules:
     resources: ["deployments"]
     resourceNames: ["backstage-developer-hub"]
     verbs: ["get", "patch"]
+  # Needed to find the running RHDH pod (rhdh.redhat.com/app=backstage-developer-hub)
+  # and exec into it to compare the loaded GITLAB_TOKEN against the Secret's value.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

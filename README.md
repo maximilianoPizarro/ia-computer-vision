@@ -234,6 +234,18 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/developer-hub-secrets \
 
 oc exec vault-0 -n vault -- vault kv put secret/hub/ai-gateway-platform-keys \
   platformApiKey="$(openssl rand -base64 32)"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/workshop-registration \
+  adminToken="$(openssl rand -base64 24)"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/minio-credentials \
+  accesskey="$(openssl rand -base64 16)" secretkey="$(openssl rand -base64 24)"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/keycloak-realm-clients \
+  neuroface.user1.clientSecret="$(openssl rand -base64 24)" \
+  neuroface.user2.clientSecret="$(openssl rand -base64 24)" \
+  maas.user1.clientSecret="$(openssl rand -base64 24)" \
+  cv.user1.clientSecret="$(openssl rand -base64 24)"
 ```
 
 | Secret | Fields | Required | Used by |
@@ -242,6 +254,9 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/ai-gateway-platform-keys \
 | `rhbk-credentials` | `admin-password`, `db-password` | Auto-generated | Keycloak admin, PostgreSQL |
 | `developer-hub-secrets` | `oidc-client-secret`, `session-secret`, `gitlab-token` | `oidc-client-secret` and `session-secret` auto-generated; `gitlab-token` set after GitLab deploys | RHDH OIDC, session, scaffolder |
 | `ai-gateway-platform-keys` | `platformApiKey` | Auto-generated | Kuadrant API key for AI Gateway (used by Lightspeed and NeuroFace chat) |
+| `workshop-registration` | `adminToken` | Auto-generated | Workshop self-registration app (Showroom) |
+| `minio-credentials` | `accesskey`, `secretkey` | Auto-generated | NeuroFace CV model storage (overridden by GitLab's bundled Minio on spokes, see below) |
+| `keycloak-realm-clients` | `neuroface.user1.clientSecret`, `neuroface.user2.clientSecret`, `maas.user1.clientSecret`, `cv.user1.clientSecret` | Auto-generated | Per-user Keycloak client secrets (`rhbk-iam` realms) |
 | `spoke-credentials` | `east-token`, `east-api-url`, `west-token`, `west-api-url` | Via Pattern CR `extraParameters` (inline mode) | ACM auto-import |
 
 See [Validated Patterns secrets management](https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/).
