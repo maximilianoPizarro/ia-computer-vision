@@ -38,5 +38,14 @@ kuadrant:
     - name: cv
       httpRoute: neuroface-cv-lb
       clientId: client-cv-user1
+      # neuroface-cv-lb serves no browsable frontend (every rule rewrites to an
+      # API path) -- it's consumed with a Bearer token, not an interactive
+      # browser login. OIDCPolicy's redirect-to-login flow doesn't apply here
+      # and its lack of a `when` field breaks CORS preflight for any
+      # custom-header request (see workshop-kuadrant-apis' AuthPolicy `when`
+      # exemptions for the equivalent fix on the other routes). Use a plain
+      # AuthPolicy + identity.jwt instead: same issuer/JWKS validation, no
+      # redirect, and it supports `when` to exempt OPTIONS.
+      redirectAuth: false
   rateLimit:
     predictPerMinute: 120

@@ -2,6 +2,7 @@
 {{- $root := . -}}
 {{- $ssoHost := .Values.kuadrant.ssoHost | default (printf "sso.%s" (include "neuroface-gateway.clusterDomain" .)) -}}
 {{- range .Values.kuadrant.realms | default list }}
+{{- if ne .redirectAuth false }}
 {{- $realm := .name -}}
 {{- $httpRoute := .httpRoute | default "neuroface-app-lb" -}}
 {{- $clientId := .clientId | default (printf "client-%s-user1" $realm) -}}
@@ -39,5 +40,48 @@ spec:
         name: Authorization
       cookie:
         name: jwt
+{{ end -}}
+{{- end }}
+{{- range .Values.kuadrant.realms | default list }}
+{{- if eq .redirectAuth false }}
+{{- $realm := .name -}}
+{{- $httpRoute := .httpRoute | default "neuroface-app-lb" -}}
+{{/*
+  Keycloak's spec.hostname.hostname (its own canonical issuer, baked into
+  every token's "iss" claim and its OIDC discovery document) does not match
+  $ssoHost -- Authorino's strict OIDC discovery validation rejects any JWT
+  whose issuer doesn't exactly equal issuerUrl, so this must use the
+  operator-managed keycloak.<domain> hostname, not sso.<domain> (which is a
+  perfectly fine route for reaching Keycloak's endpoints, it's just not the
+  hostname Keycloak considers itself to be). Confirmed via Authorino logs:
+  "oidc: issuer did not match ... expected https://sso.../realms/cv got
+  https://keycloak.../realms/cv".
+*/}}
+{{- $issuerHost := .issuerHost | default (printf "keycloak.%s" (include "neuroface-gateway.clusterDomain" $root)) -}}
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: authpolicy-{{ $realm }}
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: {{ $httpRoute }}
+  # Exempt CORS preflight from auth: browsers can't attach a Bearer token to
+  # an OPTIONS preflight, and a non-2xx preflight response fails CORS
+  # entirely (the real, authenticated request would never even be sent).
+  when:
+    - predicate: request.method != "OPTIONS"
+  rules:
+    authentication:
+      jwt-users:
+        jwt:
+          issuerUrl: "https://{{ $issuerHost }}/realms/{{ $realm }}"
+{{- end }}
 {{- end }}
 {{- end }}
