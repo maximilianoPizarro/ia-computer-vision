@@ -1,0 +1,25 @@
+{{- $hub := include "developer-hub.clusterDomain" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-apiproduct-openapi-specs
+  namespace: developer-hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  mapping.yaml: |
+    neuroface-gateway-system/neuroface-cv-openapi: iam-cv-openapi.yaml
+    neuroface-gateway-system/neuroface-openapi: iam-neuroface-openapi.yaml
+    workshop-kuadrant-apis/workshop-httpbin: workshop-httpbin-openapi.yaml
+    workshop-kuadrant-apis/workshop-restcountries: workshop-restcountries-openapi.yaml
+    ai-gateway-system/workshop-llm-tokens: workshop-maas-openapi.yaml
+  iam-cv-openapi.yaml: |
+{{ include "developer-hub.workshopOpenAPISpec" (dict "root" . "file" "files/catalog/openapi/iam-cv-openapi.yaml" "hub" $hub) | indent 4 }}
+  iam-neuroface-openapi.yaml: |
+{{ include "developer-hub.workshopOpenAPISpec" (dict "root" . "file" "files/catalog/openapi/iam-neuroface-openapi.yaml" "hub" $hub) | indent 4 }}
+  workshop-httpbin-openapi.yaml: |
+{{ include "developer-hub.workshopOpenAPISpec" (dict "root" . "file" "files/catalog/openapi/workshop-httpbin-openapi.yaml" "hub" $hub) | indent 4 }}
+  workshop-restcountries-openapi.yaml: |
+{{ include "developer-hub.workshopOpenAPISpec" (dict "root" . "file" "files/catalog/openapi/workshop-restcountries-openapi.yaml" "hub" $hub) | indent 4 }}
+  workshop-maas-openapi.yaml: |
+{{ include "developer-hub.workshopOpenAPISpec" (dict "root" . "file" "files/catalog/openapi/workshop-maas-openapi.yaml" "hub" $hub) | indent 4 }}
