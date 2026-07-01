@@ -143,12 +143,19 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 | `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 5 | mesh (required for neuroface-gateway Istio) |
 | `openshift-ai-hub` | local | 5 | ai |
 | `mailpit` | local | 5 | workshop (Mailpit UI + PPE Kafka consumer) |
+| `rhbk-iam` | local | 2 | workshop (per-user realms: neuroface/maas/cv, `backstage-provisioner` client) |
 | `hub-interconnect` | local | 5 | mesh (Skupper VAN + Kafka listener) |
+| `skupper-network-observer` | local | 5 | mesh |
+| `mailpit` | local | 5 | workshop (Mailpit UI + PPE Kafka consumer) |
 | `neuroface-gateway` | local | 6 | mesh |
+| `workshop-kuadrant-apis` | local | 6 | workshop (AI Gateway, workshop API products; owns the cluster-wide `Kuadrant`/`Authorino`/`Limitador` singleton — see pitfall below) |
 | `acm-hub-spoke` | local | 6 | hub |
-| `acs-init-bundle-sync` | local | 7 | security |
+| `acs-init-bundle-sync` | local | 7 | security (**disabled by default** — commented out to save resources) |
 | `devspaces` | local | 7 | workshop |
+| `workshop-registration` | local | 5 | workshop |
 | `console-links` | local | 10 | workshop |
+
+Verify the live app list with `oc get application -n vp-gitops` — it drifts from this table faster than the table gets updated; treat this as a starting point, not a source of truth.
 
 ### Spoke charts (values-east.yaml / values-west.yaml)
 | Chart | Type | Wave | ArgoProject |
@@ -157,10 +164,12 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 | `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 1 | mesh |
 | `openshift-external-secrets` | VP chart | 2 | external-secrets |
 | `observability` | local | 2 | observability (also deploys spoke DSC for KServe CRDs) |
-| `acs-secured-cluster` | local | 3 | security |
+| `acs-secured-cluster` | local | 3 | security (**disabled by default** — commented out to save resources) |
 | `spoke-interconnect` | local | 4 | mesh |
 | `spoke-neuroface` | local | 5 | ai (includes ApplicationSet for user NeuroFace repos) |
 | `spoke-neuroface-cv` | local | 6 | ai |
+| `kafka-console` | local | — | ai (Kafka UI for PPE detection events) |
+| `skupper-network-observer` | local | — | mesh |
 | `devspaces` | local | 7 | workshop |
 | `console-links` | local | 10 | workshop |
 
@@ -299,6 +308,48 @@ Spokes need a Skupper `Site` CR and an `AccessToken` to link back to the hub. Th
 
 ### Rate limiting
 Default Kuadrant `RateLimitPolicy` of 30 req/min is too low for the demo (multiple users hitting the CV inference endpoint simultaneously). Increased to 120 req/min in `neuroface-gateway/values.yaml`.
+
+## Lessons learned from OIDC self-service, live-incident response, and systematic bug-hunting (Jul 1, 2026)
+
+### Duplicate cluster-singleton CRs caused a full security outage
+`neuroface-gateway` and `workshop-kuadrant-apis` each declared their own `Kuadrant` CR (in different namespaces) plus their own `Authorino`/`Limitador` CRs. The kuadrant-operator always deploys the managed Authorino/Limitador into its own install namespace (`redhat-connectivity-link-operator`) regardless of which `Kuadrant` CR's namespace triggered it, so the two declarations raced for the same underlying objects. When one Application got recreated during a routine ArgoCD sync, it took down Authorino/Limitador **cluster-wide** — every `AuthPolicy`/`RateLimitPolicy` in the cluster (NeuroFace CV OIDC, AI Gateway auth, workshop API rate limits) started failing with 500s until manually restored.
+**Fix**: declare cluster-singleton CRs (Kuadrant, Authorino, Limitador, DataScienceCluster, Kiali, etc.) in exactly ONE chart. Never let two Applications both create "the" instance of something the underlying operator treats as global.
+**Prevention technique** — systematic duplicate-object scan: render every local chart with `helm template` (once with `clusterRole=hub`, once with `clusterRole=spoke`, supplying dummy `global.*` values) and cross-reference every `(kind, namespace, name)` tuple across all chart outputs. Any tuple produced by more than one chart is a latent version of this exact bug.
+
+### Duplicate Subscription silently strips resource-limit overrides
+`values-hub.yaml`'s `clusterGroup.subscriptions.gitlab` (rendered by the shared `clustergroup` chart, which only supports `spec.config.env`) and `charts/all/gitlab-operator/templates/subscriptions.yaml` (which supports `spec.config.resources`, needed because gitlab-operator's OLM default 300Mi limit OOMs while reconciling the full GitLab chart) both targeted the same `Subscription` object. The clustergroup-rendered one always won and silently stripped the `config.resources` override on every sync, leaving the operator permanently CrashLoopBackOff.
+**Fix**: if a local chart needs `spec.config.resources` (or any field the shared `clustergroup` chart's Subscription template does not render — it only supports `name/namespace/channel/source/config.env`), do NOT also declare that Subscription under `clusterGroup.subscriptions` in the values file. Pick exactly one owner.
+
+### KeycloakRealmImport does not reconcile existing realms
+Adding a new client to `spec.realm.clients` in a `KeycloakRealmImport` has **no effect** if the realm already exists in the cluster (confirmed: the operator only imports on first creation). For any realm/client change on a live cluster, create/update it directly via the Keycloak Admin REST API, then keep the Helm source updated for future fresh installs (which do get the client, since the realm doesn't exist yet there).
+
+### RHDH login secret must share the exact same Vault path as other clients using it
+`keycloak-realm.yaml` had the `developer-hub` (login) client's secret rendered directly from a Helm value (`.Values.keycloakOidcClientSecret`), while RHDH's actual runtime `OIDC_CLIENT_SECRET` env var came from Vault via ExternalSecret. These diverged, causing `unauthorized_client (Invalid client or Invalid client credentials)` on every login attempt.
+**Fix**: any Keycloak client whose secret RHDH (or another workload) reads from a Vault-backed Secret must resolve that same secret via the KeycloakRealmImport `spec.placeholders` mechanism (`$(PLACEHOLDER_NAME)` in the client's `secret:` field, backed by `secret: {name, key}` pointing at the SAME K8s Secret), never a separate hardcoded Helm value. See `charts/all/developer-hub/templates/keycloak-realm.yaml`.
+
+### Scaffolder template `spec.output.text` schema
+Backstage/RHDH scaffolder templates require `spec.output.text` to be an array of `{title, content}` objects, not plain strings. A template with `output.text: ["some string"]` is **silently rejected by the catalog processor** (`ScaffolderEntitiesProcessor` warning, `/spec/output/text/0 must be object`) — the template never appears in the catalog at all, with no error surfaced to a casual observer.
+
+### RBAC gaps in hook Jobs that `oc exec`/`oc get pods -l` cross-namespace
+Two hook Jobs (`gitlab-token-setup`, `job-gitlab-bootstrap`) execute into pods or list pods by label in a namespace their `Role` never granted `pods`/`pods/exec` for. One failed hard (`BackoffLimitExceeded`, blocking the whole app sync) because the script used `set -e` without guarding the failing command; the other failed silently (stderr redirected, checked with `if [ -n ... ]`) and just printed a misleading "WARN: could not write to Vault" on every run even though nothing was wrong.
+**Prevention technique**: `grep -rl "oc exec\|oc get pods" charts/all/*/templates/*.yaml`, then for each hit, extract every `-n <namespace>` the script touches and confirm the Job's ServiceAccount has a `Role`/`RoleBinding` in that exact namespace (not just its own).
+
+### Shared-namespace lists must not concat hub-only with spoke-only namespaces
+`charts/all/observability/templates/all.yaml` built its Istio mesh monitoring namespace list by starting with the hub-only namespace (`neuroface-gateway-system`) and then, when `clusterSuffix` was set (i.e., on spokes), **concatenating** the spoke-only namespaces (`neuroface`, `neuroface-cv`) on top instead of replacing. Every spoke install tried (harmlessly, since the namespace doesn't exist there, but uselessly) to create a `PodMonitor`/`RoleBinding` in `neuroface-gateway-system`.
+**Fix**: namespace sets that are mutually exclusive per cluster role must be selected with `if/else`, never built by concatenation.
+**Prevention technique**: render every chart actually declared in `values-east.yaml`/`values-west.yaml` `clusterGroup.applications` with `clusterRole=spoke`, collect every `metadata.namespace`, and diff against `values-east.yaml`/`values-west.yaml` `clusterGroup.namespaces`. Anything used-but-undeclared is a bug (this is exactly how the `imperative` namespace gap — see `vp-helm-values` skill — and this one were both found).
+
+### values-secret.yaml.template must declare every Vault path an ExternalSecret reads
+A new feature's `ExternalSecret` (`keycloak/realms/cv/backstage-provisioner`) worked in the live cluster only because the secret was populated manually during development. It was never added to `values-secret.yaml.template`, so `./pattern.sh make load-secrets` on a fresh install would never create it.
+**Prevention technique**: for every new `ExternalSecret`, grep its `remoteRef.key` + `remoteRef.property` and confirm a matching `secrets[].name` + `fields[].name` entry exists in `values-secret.yaml.template`. Do this for the whole file periodically, not just new additions — see the systematic script in the `vp-helm-values` skill's pitfall list.
+
+### CEL expressions in Kuadrant policies: single quotes for string literals
+`request.headers["x-forwarded-for"]` (double quotes) in a `RateLimitPolicy` counter expression crashes Limitador (`Invalid limit file: ... Syntax error`, CrashLoopBackOff) because Limitador's descriptor-file serialization mangles a double-quoted string literal nested inside an already double-quoted CEL expression. Use single quotes: `request.headers['x-forwarded-for']`.
+
+### Windows/git-bash environment notes (when operating this repo from Cursor on Windows)
+- `oc exec ... -- sh -c '...'` (not a bare path) avoids git-bash mangling a leading `/` into a Windows drive path.
+- Redirect command output to a relative path (`./tmp-work/file.yaml`) with `working_directory` set explicitly, not `/tmp/...` — git-bash sometimes translates `/tmp` to `C:/Program Files/Git/tmp` depending on the tool invocation path.
+- Files extracted from a live ConfigMap via `oc get -o jsonpath` on Windows can pick up CRLF line endings; strip `\r\n` → `\n` before re-applying as a `data` key, or `oc apply`/`oc patch` may silently place the content under `binaryData` instead of `data`.
 
 ## Key constraints
 
