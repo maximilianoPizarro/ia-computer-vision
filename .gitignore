@@ -2,3 +2,7 @@ _ref_hmp/
 docs/public/
 charts/*.tgz
 .tmp/
+
+# Showroom lab guide content lives in its own repo (maximilianoPizarro/showroom-ia-computer-vision),
+# referenced via charts/all/showroom values.showroom.content.repoUrl. Never track it here.
+showroom-ia-computer-vision/
