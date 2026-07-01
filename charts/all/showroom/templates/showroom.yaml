@@ -316,6 +316,28 @@ spec:
             export PATH="$HOME/.local/bin:$PATH"
             export PS1='\[\e[1;31m\][\u@showroom]\[\e[0m\] \w \$ '
 
+            _resolve_spoke_api_urls() {
+              local token="/var/run/secrets/kubernetes.io/serviceaccount/token"
+              local ca="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+              local server="${HUB_API_URL:-https://api.${CLUSTER_DOMAIN#apps.}:6443}"
+              if [[ ! -f "$token" ]]; then return; fi
+              if [[ -z "$EAST_API_URL" ]]; then
+                EAST_API_URL=$(oc --token="$(cat "$token")" --server="$server" \
+                  --certificate-authority="$ca" --insecure-skip-tls-verify \
+                  get secret spoke-credentials -n openshift-gitops \
+                  -o jsonpath='{.data.east-api-url}' 2>/dev/null | base64 -d)
+                export EAST_API_URL
+              fi
+              if [[ -z "$WEST_API_URL" ]]; then
+                WEST_API_URL=$(oc --token="$(cat "$token")" --server="$server" \
+                  --certificate-authority="$ca" --insecure-skip-tls-verify \
+                  get secret spoke-credentials -n openshift-gitops \
+                  -o jsonpath='{.data.west-api-url}' 2>/dev/null | base64 -d)
+                export WEST_API_URL
+              fi
+            }
+            _resolve_spoke_api_urls
+
             hub-login() {
               local server="${HUB_API_URL:-https://api.${CLUSTER_DOMAIN#apps.}:6443}"
               oc login -u "${1:-user1}" -p Welcome123! "$server" --insecure-skip-tls-verify
