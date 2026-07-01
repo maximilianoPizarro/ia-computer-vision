@@ -684,6 +684,8 @@ $ oc exec vault-0 -n vault -- sh -c '
     neuroface.user2.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
     maas.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
     cv.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
+  vault kv put secret/hub/keycloak/realms/cv/backstage-provisioner \
+    clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
 '
 ----
 

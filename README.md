@@ -246,6 +246,9 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/keycloak-realm-clients \
   neuroface.user2.clientSecret="$(openssl rand -base64 24)" \
   maas.user1.clientSecret="$(openssl rand -base64 24)" \
   cv.user1.clientSecret="$(openssl rand -base64 24)"
+
+oc exec vault-0 -n vault -- vault kv put secret/hub/keycloak/realms/cv/backstage-provisioner \
+  clientSecret="$(openssl rand -base64 24)"
 ```
 
 | Secret | Fields | Required | Used by |
@@ -257,6 +260,7 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/keycloak-realm-clients \
 | `workshop-registration` | `adminToken` | Auto-generated | Workshop self-registration app (Showroom) |
 | `minio-credentials` | `accesskey`, `secretkey` | Auto-generated | NeuroFace CV model storage (overridden by GitLab's bundled Minio on spokes, see below) |
 | `keycloak-realm-clients` | `neuroface.user1.clientSecret`, `neuroface.user2.clientSecret`, `maas.user1.clientSecret`, `cv.user1.clientSecret` | Auto-generated | Per-user Keycloak client secrets (`rhbk-iam` realms) |
+| `keycloak/realms/cv/backstage-provisioner` | `clientSecret` | Auto-generated | Developer Hub Keycloak Admin REST provisioner (OIDC credentials self-service template) |
 | `spoke-credentials` | `east-token`, `east-api-url`, `west-token`, `west-api-url` | Via Pattern CR `extraParameters` (inline mode) | ACM auto-import |
 
 See [Validated Patterns secrets management](https://validatedpatterns.io/learn/secrets-management-in-the-validated-patterns-framework/).

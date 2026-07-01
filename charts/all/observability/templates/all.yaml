@@ -1,10 +1,15 @@
 {{- $uwmNs := "openshift-user-workload-monitoring" }}
 {{- $promSa := "prometheus-user-workload" }}
-{{- $baseMeshNs := list "neuroface-gateway-system" }}
-{{- $spokeMeshNs := list "neuroface-cv" "neuroface" }}
-{{- $meshNamespaces := $baseMeshNs }}
+{{- /*
+  neuroface-gateway-system only exists on the hub (values-hub.yaml); neuroface
+  and neuroface-cv only exist on spokes (values-east.yaml / values-west.yaml).
+  These namespace sets are mutually exclusive per cluster role — never concat
+  them, or the spoke rendering tries to create a PodMonitor/RoleBinding in a
+  namespace ("neuroface-gateway-system") that does not exist on that cluster.
+*/}}
+{{- $meshNamespaces := list "neuroface-gateway-system" }}
 {{- if .Values.clusterSuffix }}
-{{- $meshNamespaces = concat $meshNamespaces $spokeMeshNs }}
+{{- $meshNamespaces = list "neuroface-cv" "neuroface" }}
 {{- end }}
 {{- $rbacNamespaces := concat (list "istio-system" "ztunnel") $meshNamespaces }}
 ---
