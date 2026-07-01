@@ -1,13 +1,14 @@
 ---
 title: CRD reference
+weight: 45
 date: 2026-06-29
 summary: Annotated YAML examples for custom resources used in the AI Computer Vision pattern.
-:_content-type: REFERENCE
 ---
-
-= CRD reference
 :toc:
 :imagesdir: /ia-computer-vision/images/ia-computer-vision
+:_content-type: REFERENCE
+
+= CRD reference
 
 Helm templates under `charts/all/` are the source of truth. This guide shows simplified examples with links to official product documentation.
 

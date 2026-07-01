@@ -9,10 +9,12 @@ rh_products:
 - Red Hat OpenShift AI
 - Red Hat Advanced Cluster Security
 - Red Hat Connectivity Link
+- Red Hat OpenShift Service Mesh
 - Red Hat OpenShift GitOps
 - Red Hat Developer Hub
-- Red Hat Build of Keycloak (per-user biometric on spokes)
 - Red Hat Build of Keycloak
+- OpenShift DevSpaces
+- External Secrets Operator
 industries:
 - Manufacturing
 - Retail
