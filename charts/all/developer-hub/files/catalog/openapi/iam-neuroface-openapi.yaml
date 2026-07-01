@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: NeuroFace API (OIDC — neuroface realm)
+  title: NeuroFace API (OIDC - neuroface realm)
   description: |
     NeuroFace hub gateway API. Realm `neuroface` provides OIDC clients for service-to-service access.
 
@@ -11,7 +11,7 @@ info:
   version: v1
 servers:
   - url: https://neuroface.__HUB_APPS_DOMAIN__
-    description: RHCL Gateway — main NeuroFace route
+    description: RHCL Gateway - main NeuroFace route
 security:
   - OAuth2ClientCredentials: []
   - BearerAuth: []

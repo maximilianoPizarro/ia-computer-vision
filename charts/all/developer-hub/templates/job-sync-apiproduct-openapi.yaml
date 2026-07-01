@@ -71,7 +71,7 @@ spec:
             - -ec
             - |
               python3 <<'PY'
-              import json, subprocess, yaml
+              import json, os, subprocess, tempfile, yaml
               from datetime import datetime, timezone
 
               def oc(*args):
@@ -102,14 +102,23 @@ spec:
                   except subprocess.CalledProcessError:
                       print(f"SKIP {ref}: APIProduct not found", flush=True)
                       continue
-                  patch = json.dumps({"status": {"openapi": {"raw": raw, "lastSyncTime": now}}})
-                  subprocess.run(
-                      [
-                          "oc", "patch", "apiproduct", name, "-n", ns,
-                          "--type=merge", "--subresource=status", "-p", patch,
-                      ],
-                      check=True,
-                  )
+                  patch_body = {"status": {"openapi": {"raw": raw, "lastSyncTime": now}}}
+                  with tempfile.NamedTemporaryFile(
+                      mode="w", encoding="utf-8", suffix=".json", delete=False,
+                  ) as patch_file:
+                      json.dump(patch_body, patch_file, ensure_ascii=False)
+                      patch_path = patch_file.name
+                  try:
+                      subprocess.run(
+                          [
+                              "oc", "patch", "apiproduct", name, "-n", ns,
+                              "--type=merge", "--subresource=status",
+                              "--patch-file", patch_path,
+                          ],
+                          check=True,
+                      )
+                  finally:
+                      os.unlink(patch_path)
                   print(f"OK {ref}", flush=True)
                   synced += 1
               print(f"Synced OpenAPI to {synced} APIProduct(s)", flush=True)

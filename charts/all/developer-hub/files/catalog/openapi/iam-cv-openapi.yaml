@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Computer Vision API (OIDC — cv realm)
+  title: Computer Vision API (OIDC - cv realm)
   description: |
     PPE inference API on the NeuroFace CV gateway, protected by Red Hat Connectivity Link OIDCPolicy.
 
@@ -11,7 +11,7 @@ info:
   version: v1
 servers:
   - url: https://neuroface-cv.__HUB_APPS_DOMAIN__
-    description: RHCL Gateway — CV route with OIDC
+    description: RHCL Gateway - CV route with OIDC
 security:
   - OAuth2ClientCredentials: []
   - BearerAuth: []
