@@ -1,7 +1,15 @@
-# OIDC credentials self-service template
+# OIDC credentials self-service templates
 
-Developer Hub Software Template that provisions OIDC clients in **Keycloak realm `cv`**
+Developer Hub Software Templates that provision and revoke OIDC clients in **Keycloak realm `cv`**
 using only existing plugins (no custom dynamic plugin or sidecar service).
+
+| Template | File | Purpose |
+|----------|------|---------|
+| **Create** | `oidc-credentials-self-service.yaml` | Create a new OIDC client; secret shown once on the task result page |
+| **Revoke** | `oidc-credentials-revoke.yaml` | Delete a client created by the create template (same `apiName` + `clientLabel`) |
+
+Both templates use the same `backstage-provisioner` service account and Keycloak Admin REST proxy.
+No additional Keycloak permissions are required — `manage-clients` covers create and delete.
 
 ## Plugins used
 
@@ -70,6 +78,20 @@ APIs annotated with `workshop/oidc-self-service-target: "true"` in [`iam-realms.
 
 **PoC:** the template always creates clients in realm **`cv`**. The token works immediately for **`neuroface-cv-openapi`**. For other APIs the dropdown provides traceability (`clientId`, `targetApi` attribute); in production map API → actual realm issuer.
 
+## Revoke template
+
+Developer Hub → **Create** → **Revoke OIDC client (Keycloak cv)**.
+
+Parameters match the create template:
+
+1. **Target API** — same EntityPicker filter (`workshop/oidc-self-service-target: "true"`).
+2. **Client label** — same value used when the client was created.
+
+Steps: provisioner token → `GET .../clients?clientId=...` → `DELETE .../clients/{uuid}`.
+
+If the client does not exist, `resolve-client` returns an empty array and `delete-client`
+surfaces a 404 in the task log.
+
 ## Credential delivery (no email)
 
 The template's last step (`get-secret`) reads the client secret back from Keycloak and
@@ -121,6 +143,8 @@ curl -sk -X POST 'https://sso.<apps-domain>/realms/cv/protocol/openid-connect/to
   -d 'client_id=client-neuroface-cv-openapi-<label>' \
   -d 'client_secret=<from-the-result-page>'
 ```
+
+7. When finished, revoke the client: **Create** → **Revoke OIDC client (Keycloak cv)** with the same API and label.
 
 ## catalog-info.example.yaml
 

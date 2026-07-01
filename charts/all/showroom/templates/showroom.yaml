@@ -370,7 +370,27 @@ spec:
 
             neuroface-cv-status() {
               local hub="${CLUSTER_DOMAIN}"
-              curl -sk "https://neuroface-cv.${hub}/api/ppe/status" | head -c 400
+              local user="${1:-user1}"
+              local token="${TOKEN:-}"
+              if [[ -z "$token" ]]; then
+                local secret
+                secret=$(oc get secret "keycloak-client-cv-${user}" -n keycloak-system \
+                  -o jsonpath='{.data.clientSecret}' 2>/dev/null | base64 -d)
+                if [[ -n "$secret" ]]; then
+                  token=$(curl -sk -X POST "https://keycloak.${hub}/realms/cv/protocol/openid-connect/token" \
+                    -d "grant_type=client_credentials" \
+                    -d "client_id=client-cv-${user}" \
+                    -d "client_secret=${secret}" \
+                    | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
+                fi
+              fi
+              if [[ -z "$token" ]]; then
+                echo "neuroface-cv requires a Bearer token (realm cv)."
+                echo "  hub-login ${user}   # then retry, or export TOKEN=<jwt> from Module 04b Step 3"
+                return 1
+              fi
+              curl -sk -H "Authorization: Bearer ${token}" \
+                "https://neuroface-cv.${hub}/api/ppe/status" | head -c 400
               echo
             }
             neuroface-cv-traffic() {
