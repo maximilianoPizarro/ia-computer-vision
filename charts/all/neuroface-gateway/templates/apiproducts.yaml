@@ -1,0 +1,62 @@
+{{- $dhHost := printf "developer-hub.%s" (include "neuroface-gateway.clusterDomain" .) -}}
+{{- if or .Values.clusters.east.domain .Values.clusters.west.domain }}
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: neuroface-app
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    backstage.io/owner: group:default/developers
+spec:
+  displayName: NeuroFace
+  description: >
+    Main NeuroFace application (Vue frontend + Python backend), load-balanced
+    across east/west spokes via Skupper. The UI itself is open; realm-neuroface
+    OIDC is available for service-to-service calls. Request credentials via the
+    "OIDC credentials self-service" scaffolder template in Developer Hub -- this
+    route has no Kuadrant API key, so there is no "Request API key" flow here.
+  publishStatus: Published
+  approvalMode: manual
+  version: v1
+  tags: [neuroface, oidc, edge, gateway-api]
+  documentation:
+    docsURL: {{ printf "https://%s/catalog/default/api/neuroface-openapi" $dhHost | quote }}
+  contact:
+    email: platform@example.com
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: neuroface-app-lb
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: neuroface-cv
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    backstage.io/owner: group:default/developers
+spec:
+  displayName: Computer Vision API
+  description: >
+    YOLO PPE detection API (neuroface-cv-lb), protected by an RHCL AuthPolicy
+    validating realm-cv OIDC JWTs (no Kuadrant API key on this route). Request
+    credentials via the "OIDC credentials self-service" scaffolder template in
+    Developer Hub -- Create -> OIDC credentials self-service (Keycloak cv).
+  publishStatus: Published
+  approvalMode: manual
+  version: v1
+  tags: [neuroface, cv, oidc, ppe, edge, gateway-api]
+  documentation:
+    docsURL: {{ printf "https://%s/catalog/default/api/neuroface-cv-openapi" $dhHost | quote }}
+  contact:
+    email: platform@example.com
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: neuroface-cv-lb
+{{- end }}
