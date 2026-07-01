@@ -1,0 +1,55 @@
+{{/*
+  The neuroface-cv (and, on some paths, neuroface-app) upstream containers
+  don't implement OPTIONS themselves -- they answer it with a plain 405 (or,
+  for neuroface-app, happen to answer 200 by accident). A non-2xx response to
+  a browser's CORS preflight fails the whole request regardless of which
+  Access-Control-Allow-* headers are present (see the ResponseHeaderModifier
+  CORS filters on the HTTPRoutes), so any authenticated "Try it out" in
+  Swagger UI (which always sends a non-simple Authorization header, forcing a
+  real preflight) never got past this. Gateway API's HTTPRoute filters have no
+  "direct response" action to fix this at that layer (only
+  RequestHeaderModifier/ResponseHeaderModifier/RequestMirror/RequestRedirect/
+  URLRewrite/ExtensionRef are supported by the installed CRD version), so this
+  answers OPTIONS directly at the Istio/Envoy layer, in front of every route
+  on this Gateway, before it ever reaches a backend.
+*/}}
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: neuroface-gateway-cors-preflight
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  workloadSelector:
+    labels:
+      gateway.networking.k8s.io/gateway-name: neuroface-gateway
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua.cors_preflight
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inlineCode: |
+              -- Only short-circuits the status/method here. The actual
+              -- Access-Control-Allow-* headers still come from each
+              -- HTTPRoute's own ResponseHeaderModifier filter (route
+              -- matching still runs and decorates the response even for
+              -- this locally-generated reply) -- setting them here too
+              -- would just duplicate them.
+              function envoy_on_request(request_handle)
+                local headers = request_handle:headers()
+                if headers:get(":method") == "OPTIONS" then
+                  request_handle:respond({[":status"] = "204"}, "")
+                end
+              end
