@@ -379,6 +379,17 @@ clusterGroup:
           value: "50"
         - name: gateway.weights.west
           value: "50"
+        # neuroface-cv (PPE/CV route) only, independent from the weights above
+        # (main NeuroFace app, which is healthy on both spokes). The east
+        # spoke's neuroface-cv backend is down due to a pre-existing,
+        # cluster-level GitOps/OLM issue on that spoke (missing Subscriptions,
+        # unstable argocd-application-controller -- unrelated to this pattern's
+        # own config) -- route 100% to west until that's resolved and east's
+        # backend is confirmed healthy again, then revert to 50/50.
+        - name: gateway.cvWeights.east
+          value: "0"
+        - name: gateway.cvWeights.west
+          value: "100"
         - name: gateway.replicas
           value: "2"
         - name: kuadrant.enabled

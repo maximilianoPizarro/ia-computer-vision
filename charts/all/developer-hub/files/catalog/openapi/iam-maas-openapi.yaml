@@ -4,20 +4,34 @@ info:
   description: |
     OpenAI-compatible chat completions via AI Gateway, protected by OIDCPolicy on HTTPRoute `ai-maas`.
 
-    **Authentication**: JWT from Keycloak realm `maas` (client `client-maas-userN`) **or** Kuadrant APIKEY on route `ai-gateway`.
+    **Authentication**: click *Authorize* below and enter the `client_id`/`client_secret` for realm
+    `maas` (client `client-maas-userN`) -- Swagger UI fetches the token from Keycloak itself and
+    attaches it to every request. **Or** use a Kuadrant APIKEY on route `ai-gateway` instead.
   version: v1
 servers:
   - url: https://ai-gateway.__HUB_APPS_DOMAIN__
     description: AI Gateway (OIDC on ai-maas route; APIKEY on ai-gateway route)
 security:
+  - OAuth2ClientCredentials: []
   - BearerAuth: []
 components:
   securitySchemes:
+    OAuth2ClientCredentials:
+      type: oauth2
+      description: >-
+        Enter the client_id/client_secret for realm `maas`. Swagger UI exchanges them
+        for a token directly against Keycloak.
+      flows:
+        clientCredentials:
+          tokenUrl: https://sso.__HUB_APPS_DOMAIN__/realms/maas/protocol/openid-connect/token
+          scopes: {}
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Keycloak access token from realm `maas`
+      description: >-
+        Alternative: paste an already-issued Keycloak access token from realm `maas`
+        directly, instead of using OAuth2ClientCredentials above.
   schemas:
     ChatCompletionRequest:
       type: object

@@ -10,6 +10,13 @@ gateway:
   weights:
     east: 50
     west: 50
+  # Independent from `weights` (used by neuroface-app-lb) so the CV/PPE route
+  # can be steered away from a broken spoke backend without also pulling the
+  # main NeuroFace demo away from a spoke that's actually healthy there.
+  # Defaults to the same 50/50 split; override per-cluster-group as needed.
+  cvWeights:
+    east: 50
+    west: 50
   circuitBreaking:
     enabled: true
     connectionPool:

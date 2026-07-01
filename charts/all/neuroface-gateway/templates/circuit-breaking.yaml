@@ -38,10 +38,19 @@ spec:
         h2UpgradePolicy: {{ $cpHttp.h2UpgradePolicy | default "DO_NOT_UPGRADE" }}
         maxRequestsPerConnection: {{ $cpHttp.maxRequestsPerConnection | default 10 }}
     outlierDetection:
-      consecutive5xxErrors: {{ $od.consecutive5xxErrors | default 1 }}
-      consecutiveGatewayErrors: {{ $od.consecutiveGatewayErrors | default 1 }}
+      # consecutive5xxErrors/consecutiveGatewayErrors: 1 + maxEjectionPercent:
+      # 100 meant a SINGLE 5xx/gateway-error response (from either backend, on
+      # any path, even a transient one) immediately ejected that host for a
+      # full minute -- and with only 2 backends (east/west), both could end up
+      # ejected around the same time, leaving zero healthy upstream ("503 no
+      # healthy upstream") for the full baseEjectionTime, on every path
+      # including /health. Require a few consecutive failures before ejecting
+      # (filters out one-off blips) and cap ejection at 50% so at least one
+      # backend always stays in rotation for a 2-replica setup.
+      consecutive5xxErrors: {{ $od.consecutive5xxErrors | default 5 }}
+      consecutiveGatewayErrors: {{ $od.consecutiveGatewayErrors | default 5 }}
       interval: {{ $od.interval | default "5s" }}
-      baseEjectionTime: {{ $od.baseEjectionTime | default "60s" }}
-      maxEjectionPercent: {{ $od.maxEjectionPercent | default 100 }}
+      baseEjectionTime: {{ $od.baseEjectionTime | default "30s" }}
+      maxEjectionPercent: {{ $od.maxEjectionPercent | default 50 }}
 {{- end }}
 {{- end }}

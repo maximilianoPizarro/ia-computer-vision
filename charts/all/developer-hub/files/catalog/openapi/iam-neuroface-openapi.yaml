@@ -4,22 +4,36 @@ info:
   description: |
     NeuroFace hub gateway API. Realm `neuroface` provides OIDC clients for service-to-service access.
 
-    **Authentication**: JWT from Keycloak realm `neuroface` via client_credentials grant.
-    Pre-provisioned client: `client-neuroface-userN`.
+    **Authentication**: click *Authorize* below and enter the `client_id`/`client_secret` you got
+    from the "OIDC credentials self-service" scaffolder template -- Swagger UI fetches the token
+    from Keycloak itself (client_credentials grant, realm `neuroface`) and attaches it to every
+    request automatically.
   version: v1
 servers:
   - url: https://neuroface.__HUB_APPS_DOMAIN__
     description: RHCL Gateway — main NeuroFace route
 security:
+  - OAuth2ClientCredentials: []
   - BearerAuth: []
   - {}
 components:
   securitySchemes:
+    OAuth2ClientCredentials:
+      type: oauth2
+      description: >-
+        Enter the client_id/client_secret from the OIDC self-service template.
+        Swagger UI exchanges them for a token directly against Keycloak (realm `neuroface`).
+      flows:
+        clientCredentials:
+          tokenUrl: https://sso.__HUB_APPS_DOMAIN__/realms/neuroface/protocol/openid-connect/token
+          scopes: {}
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Keycloak access token from realm `neuroface`
+      description: >-
+        Alternative: paste an already-issued Keycloak access token from realm `neuroface`
+        directly, instead of using OAuth2ClientCredentials above.
   schemas:
     HealthResponse:
       type: object
@@ -34,6 +48,7 @@ paths:
       summary: Backend health
       operationId: neurofaceHealth
       security:
+        - OAuth2ClientCredentials: []
         - BearerAuth: []
         - {}
       responses:

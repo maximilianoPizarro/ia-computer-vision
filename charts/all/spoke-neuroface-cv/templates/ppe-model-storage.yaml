@@ -2,7 +2,7 @@
 {{- $endpoint := include "spoke-neuroface-cv.minioEndpoint" . -}}
 {{- $bucket := $ms.bucket | default "models" -}}
 {{- if $ms.useVault | default false }}
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: aws-connection-ppe-models

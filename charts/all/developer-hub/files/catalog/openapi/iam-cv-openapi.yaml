@@ -4,22 +4,35 @@ info:
   description: |
     PPE inference API on the NeuroFace CV gateway, protected by Red Hat Connectivity Link OIDCPolicy.
 
-    **Authentication**: Obtain a JWT from Keycloak realm `cv` using client_credentials or your own client, then send `Authorization: Bearer <token>`.
-
-    Pre-provisioned client: `client-cv-userN` (secret in Vault/ESO).
+    **Authentication**: click *Authorize* below and enter the `client_id`/`client_secret` you
+    got from the "OIDC credentials self-service" scaffolder template in Developer Hub -- Swagger UI
+    fetches the token from Keycloak itself (client_credentials grant, realm `cv`) and attaches it
+    to every request automatically. No need to paste a JWT by hand.
   version: v1
 servers:
   - url: https://neuroface-cv.__HUB_APPS_DOMAIN__
     description: RHCL Gateway — CV route with OIDC
 security:
+  - OAuth2ClientCredentials: []
   - BearerAuth: []
 components:
   securitySchemes:
+    OAuth2ClientCredentials:
+      type: oauth2
+      description: >-
+        Enter the client_id/client_secret from the OIDC self-service template.
+        Swagger UI exchanges them for a token directly against Keycloak (realm `cv`).
+      flows:
+        clientCredentials:
+          tokenUrl: https://sso.__HUB_APPS_DOMAIN__/realms/cv/protocol/openid-connect/token
+          scopes: {}
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Keycloak access token from realm `cv` (issuer sso.apps.<hub>/realms/cv)
+      description: >-
+        Alternative: paste an already-issued Keycloak access token from realm `cv`
+        (issuer sso.apps.<hub>/realms/cv) directly, instead of using OAuth2ClientCredentials above.
   schemas:
     HealthResponse:
       type: object
@@ -31,7 +44,7 @@ components:
           type: string
           example: east
 paths:
-  /api/health:
+  /health:
     get:
       summary: Gateway health (OIDC protected)
       operationId: cvHealth

@@ -15,7 +15,14 @@ spec:
   hostnames:
     - neuroface-cv.{{ include "neuroface-gateway.clusterDomain" . }}
   rules:
-    {{- $w := .Values.gateway.weights | default dict }}
+    {{- $w := .Values.gateway.cvWeights | default .Values.gateway.weights | default dict }}
+    {{/* Sprig's "default" treats 0 as empty, so "$w.east | default 50" would
+         wrongly turn an intentional weight of 0 back into 50 -- resolve once
+         here with an explicit hasKey check instead. */}}
+    {{- $eastWeight := 50 }}
+    {{- if hasKey $w "east" }}{{- $eastWeight = $w.east }}{{- end }}
+    {{- $westWeight := 50 }}
+    {{- if hasKey $w "west" }}{{- $westWeight = $w.west }}{{- end }}
     {{- if and .Values.clusters.east.domain .Values.clusters.west.domain }}
     - matches:
         - path:
@@ -31,10 +38,10 @@ spec:
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
-          weight: {{ $w.east | default 50 }}
+          weight: {{ $eastWeight }}
         - name: neuroface-cv-west
           port: 8080
-          weight: {{ $w.west | default 50 }}
+          weight: {{ $westWeight }}
     - matches:
         - path:
             type: Exact
@@ -49,10 +56,10 @@ spec:
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
-          weight: {{ $w.east | default 50 }}
+          weight: {{ $eastWeight }}
         - name: neuroface-cv-west
           port: 8080
-          weight: {{ $w.west | default 50 }}
+          weight: {{ $westWeight }}
     - matches:
         - path:
             type: PathPrefix
@@ -67,10 +74,10 @@ spec:
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
-          weight: {{ $w.east | default 50 }}
+          weight: {{ $eastWeight }}
         - name: neuroface-cv-west
           port: 8080
-          weight: {{ $w.west | default 50 }}
+          weight: {{ $westWeight }}
     - matches:
         - path:
             type: PathPrefix
@@ -80,10 +87,10 @@ spec:
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
-          weight: {{ $w.east | default 50 }}
+          weight: {{ $eastWeight }}
         - name: neuroface-cv-west
           port: 8080
-          weight: {{ $w.west | default 50 }}
+          weight: {{ $westWeight }}
     - matches:
         - path:
             type: PathPrefix
@@ -93,10 +100,10 @@ spec:
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
-          weight: {{ $w.east | default 50 }}
+          weight: {{ $eastWeight }}
         - name: neuroface-cv-west
           port: 8080
-          weight: {{ $w.west | default 50 }}
+          weight: {{ $westWeight }}
     - matches:
         - path:
             type: PathPrefix
@@ -106,19 +113,19 @@ spec:
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
-          weight: {{ $w.east | default 50 }}
+          weight: {{ $eastWeight }}
         - name: neuroface-cv-west
           port: 8080
-          weight: {{ $w.west | default 50 }}
+          weight: {{ $westWeight }}
     - filters:
         {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
-          weight: {{ $w.east | default 50 }}
+          weight: {{ $eastWeight }}
         - name: neuroface-cv-west
           port: 8080
-          weight: {{ $w.west | default 50 }}
+          weight: {{ $westWeight }}
     {{- else if .Values.clusters.east.domain }}
     - matches:
         - path:
