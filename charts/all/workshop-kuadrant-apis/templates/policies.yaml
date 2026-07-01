@@ -16,6 +16,11 @@ spec:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: workshop-httpbin
+  # Exempt CORS preflight from auth: browsers can't attach an API key to an
+  # OPTIONS preflight, and a non-2xx preflight response fails CORS entirely
+  # (the real, authenticated request would never even be sent).
+  when:
+    - predicate: request.method != "OPTIONS"
   rules:
     authentication:
       api-key-users:
@@ -64,6 +69,8 @@ spec:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: workshop-restcountries
+  when:
+    - predicate: request.method != "OPTIONS"
   rules:
     authentication:
       api-key-users:
@@ -112,6 +119,8 @@ spec:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: workshop-mcp
+  when:
+    - predicate: request.method != "OPTIONS"
   rules:
     authentication:
       api-key-users:
@@ -163,6 +172,8 @@ spec:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: ai-maas
+  when:
+    - predicate: request.method != "OPTIONS"
   rules:
     authentication:
       api-key-users:

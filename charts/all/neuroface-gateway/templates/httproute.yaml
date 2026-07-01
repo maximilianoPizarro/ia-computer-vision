@@ -27,6 +27,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -44,6 +45,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -61,6 +63,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /v1/predict
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -72,6 +75,8 @@ spec:
         - path:
             type: PathPrefix
             value: /api/ppe
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -83,6 +88,8 @@ spec:
         - path:
             type: PathPrefix
             value: /health
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -94,6 +101,8 @@ spec:
         - path:
             type: PathPrefix
             value: /v1/predict
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -101,7 +110,9 @@ spec:
         - name: neuroface-cv-west
           port: 8080
           weight: {{ $w.west | default 50 }}
-    - backendRefs:
+    - filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
         - name: neuroface-cv-east
           port: 8080
           weight: {{ $w.east | default 50 }}
@@ -119,6 +130,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -133,6 +145,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -147,6 +160,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /v1/predict
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
@@ -155,11 +169,15 @@ spec:
         - path:
             type: PathPrefix
             value: /api/ppe
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-east
           port: 8080
           weight: 100
-    - backendRefs:
+    - filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
         - name: neuroface-cv-east
           port: 8080
           weight: 100
@@ -174,6 +192,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-west
           port: 8080
@@ -188,6 +207,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-west
           port: 8080
@@ -202,6 +222,7 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /v1/predict
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-west
           port: 8080
@@ -210,11 +231,15 @@ spec:
         - path:
             type: PathPrefix
             value: /api/ppe
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-cv-west
           port: 8080
           weight: 100
-    - backendRefs:
+    - filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
         - name: neuroface-cv-west
           port: 8080
           weight: 100

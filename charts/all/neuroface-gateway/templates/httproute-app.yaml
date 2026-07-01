@@ -1,7 +1,6 @@
 {{- if or .Values.clusters.east.domain .Values.clusters.west.domain }}
 {{- $w := .Values.gateway.weights | default dict }}
 {{- $host := printf "neuroface.%s" (include "neuroface-gateway.clusterDomain" .) }}
-{{- $devHubOrigin := printf "https://developer-hub.%s" (include "neuroface-gateway.clusterDomain" .) }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -22,22 +21,8 @@ spec:
     - timeouts:
         request: 120s
         backendRequest: 120s
-      # Lets the RHDH-embedded Swagger UI (served from developer-hub.<domain>) call
-      # this cross-origin API via "Try it out". Covers CORS-safelisted ("simple")
-      # requests only -- e.g. GET /health, GET / -- since Envoy just forwards
-      # OPTIONS straight to the backend today instead of answering a real preflight.
-      # Requests with custom headers (e.g. Authorization: Bearer on /api/v1/chat)
-      # still need a real preflight responder to work from a browser.
       filters:
-        - type: ResponseHeaderModifier
-          responseHeaderModifier:
-            add:
-              - name: Access-Control-Allow-Origin
-                value: {{ $devHubOrigin | quote }}
-              - name: Access-Control-Allow-Methods
-                value: "GET, POST, OPTIONS"
-              - name: Access-Control-Allow-Headers
-                value: "Authorization, Content-Type, Accept"
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-app-east
           port: 8080
@@ -50,15 +35,7 @@ spec:
         request: 120s
         backendRequest: 120s
       filters:
-        - type: ResponseHeaderModifier
-          responseHeaderModifier:
-            add:
-              - name: Access-Control-Allow-Origin
-                value: {{ $devHubOrigin | quote }}
-              - name: Access-Control-Allow-Methods
-                value: "GET, POST, OPTIONS"
-              - name: Access-Control-Allow-Headers
-                value: "Authorization, Content-Type, Accept"
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-app-east
           port: 8080
@@ -68,15 +45,7 @@ spec:
         request: 120s
         backendRequest: 120s
       filters:
-        - type: ResponseHeaderModifier
-          responseHeaderModifier:
-            add:
-              - name: Access-Control-Allow-Origin
-                value: {{ $devHubOrigin | quote }}
-              - name: Access-Control-Allow-Methods
-                value: "GET, POST, OPTIONS"
-              - name: Access-Control-Allow-Headers
-                value: "Authorization, Content-Type, Accept"
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-app-west
           port: 8080

@@ -34,6 +34,7 @@ spec:
             path:
               type: ReplacePrefixMatch
               replacePrefixMatch: {{ $api.rewritePathPrefix | default "/" | quote }}
+        {{- include "workshop-kuadrant-apis.corsFilter" $ | nindent 8 }}
       backendRefs:
         - group: networking.istio.io
           kind: Hostname
@@ -62,6 +63,8 @@ spec:
         - path:
             type: PathPrefix
             value: {{ $api.pathPrefix | quote }}
+      filters:
+        {{- include "workshop-kuadrant-apis.corsFilter" $ | nindent 8 }}
       backendRefs:
         - name: workshop-ext-{{ $name }}
           port: {{ $api.port | default 8080 }}
