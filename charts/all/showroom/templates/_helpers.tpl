@@ -39,12 +39,26 @@
 
 {{- define "showroom.eastApiUrl" -}}
 {{- $sc := .Values.spokeCredentials.clusters.east | default dict -}}
-{{- .Values.clusters.east.apiUrl | default $sc.apiUrl | default "" -}}
+{{- $url := .Values.clusters.east.apiUrl | default $sc.apiUrl | default "" -}}
+{{- if not $url -}}
+{{- $sec := lookup "v1" "Secret" "openshift-gitops" "spoke-credentials" -}}
+{{- if $sec -}}
+{{- $url = index $sec.data "east-api-url" | default "" | b64dec -}}
+{{- end -}}
+{{- end -}}
+{{- $url -}}
 {{- end -}}
 
 {{- define "showroom.westApiUrl" -}}
 {{- $sc := .Values.spokeCredentials.clusters.west | default dict -}}
-{{- .Values.clusters.west.apiUrl | default $sc.apiUrl | default "" -}}
+{{- $url := .Values.clusters.west.apiUrl | default $sc.apiUrl | default "" -}}
+{{- if not $url -}}
+{{- $sec := lookup "v1" "Secret" "openshift-gitops" "spoke-credentials" -}}
+{{- if $sec -}}
+{{- $url = index $sec.data "west-api-url" | default "" | b64dec -}}
+{{- end -}}
+{{- end -}}
+{{- $url -}}
 {{- end -}}
 
 {{- define "showroom.eastDomain" -}}
