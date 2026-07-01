@@ -7,10 +7,25 @@ using only existing plugins (no custom dynamic plugin or sidecar service).
 
 | Plugin | Action / purpose |
 |--------|------------------|
-| `roadiehq-scaffolder-backend-module-http-request` | `http:backstage:request` → Keycloak Admin REST proxy + `/api/notifications` |
-| `backstage-plugin-notifications-backend-module-email` | SMTP processor → Mailpit (PoC) |
+| `roadiehq-scaffolder-backend-module-http-request` | `http:backstage:request` → Keycloak Admin REST proxy |
 
 No custom scaffolder actions are registered in the backend.
+
+**Why there's no email step:** `POST /api/notifications` (Backstage's notifications-backend "create
+notification" route) only allows `service` credentials (`allow: ["service"]` in
+`@backstage/plugin-notifications-backend`'s router — verified in
+`dynamic-plugins-root/backstage-plugin-notifications-backend-dynamic-*/node_modules/@backstage/plugin-notifications-backend/dist/service/router.cjs.js`).
+The generic `http:backstage:request` action can only carry `user`-derived credentials
+(the initiator's, exchanged for a plugin token, or the raw `backstageToken` — both are
+`user` principals), so calling that endpoint from a template step always fails with
+`403 {"error":{"name":"NotAllowedError","message":"This endpoint does not allow 'user' credentials"}}`.
+This is a Backstage platform restriction, not a bug in this template or the proxy config.
+The secret is instead shown once on the scaffolder task's own result page
+(`spec.output.text`). To send it by email for real, add
+`@backstage/plugin-scaffolder-backend-module-notifications` (the `notification:send`
+action, which runs in-process with genuine service credentials) as a dynamic plugin —
+it is not bundled in RHDH's default image or its `rhdh-plugin-export-overlays` OCI
+registry, so it would need to be fetched from the public npm registry.
 
 ## Keycloak prerequisites
 
@@ -31,10 +46,17 @@ Alternative to Admin REST: [Keycloak DCR with Initial Access Token](https://www.
 
 Entry in `proxy.endpoints['/keycloak']` pointing to `https://sso.<apps-domain>`.
 
-Template steps call:
+Template steps call (paths as seen by the `http:backstage:request` action, which
+prepends `/api/` itself -- do **not** include `/api/` in the template's `path:`, that
+produces a `.../api/api/proxy/...` 404):
 
-- `/api/proxy/keycloak/realms/cv/protocol/openid-connect/token`
-- `/api/proxy/keycloak/admin/realms/cv/clients`
+- `/proxy/keycloak/realms/cv/protocol/openid-connect/token`
+- `/proxy/keycloak/admin/realms/cv/clients`
+
+`/keycloak` must also set `allowedHeaders: ['Authorization']` -- Backstage's proxy only
+forwards CORS-safe headers by default and silently drops a caller-supplied
+`Authorization` header otherwise, which surfaces as a genuine (Keycloak-side, not
+Backstage's) 401 on every admin-API step even with a valid token.
 
 ## API dropdown (EntityPicker)
 
@@ -48,34 +70,19 @@ APIs annotated with `workshop/oidc-self-service-target: "true"` in [`iam-realms.
 
 **PoC:** the template always creates clients in realm **`cv`**. The token works immediately for **`neuroface-cv-openapi`**. For other APIs the dropdown provides traceability (`clientId`, `targetApi` attribute); in production map API → actual realm issuer.
 
-## Mailpit (PoC)
+## Credential delivery (no email)
 
-- SMTP: `mailpit.mailpit.svc.cluster.local:1025` (no TLS/auth)
-- UI: `https://mailpit.<apps-domain>/` (port 8025 via route)
+The template's last step (`get-secret`) reads the client secret back from Keycloak and
+the scaffolder shows it once, on the task result page ("OIDC credentials (shown once --
+copy them now)"). Copy it immediately -- re-running the template rotates the secret
+(Keycloak issues a new one for the same client on each `get-secret` call against an
+existing client, and re-running `create-client-*` against an already-existing `clientId`
+will fail; delete the old client first if you need a fresh one).
 
-After running the template, check Mailpit for the email with `client_id` and `client_secret`.
-
-## How to replace the email transport
-
-Delivery is not coupled to custom code: it uses the **`backstage-plugin-notifications-backend-module-email-dynamic`** plugin.
-
-Edit `pluginConfig` in [`configmap-dynamic-plugins-rhdh.yaml`](../../../templates/configmap-dynamic-plugins-rhdh.yaml):
-
-```yaml
-notifications:
-  processors:
-    email:
-      transportConfig:
-        transport: smtp          # or ses, sendmail, azure
-        hostname: mailpit.mailpit.svc.cluster.local
-        port: 1025
-        # username / password for corporate SMTP
-      sender: notifications@developer-hub.local
-      filter:
-        minSeverity: high
-```
-
-For **SES**, set `transport: ses` and add `sesConfig` per the Backstage notifications email plugin documentation.
+`backstage-plugin-notifications-backend-module-email-dynamic` (relaying through Mailpit)
+is still installed and used for other in-app notifications, but **not** for this
+template -- see "Why there's no email step" above for why the notifications REST API
+can't be called from a scaffolder step at all, regardless of transport.
 
 ## Vault — provisioner secret
 
@@ -90,13 +97,14 @@ The same value must exist in Keycloak (realm import placeholder) and in `keycloa
 
 | Aspect | Status |
 |--------|--------|
-| Visible template output | No `clientSecret` |
-| Scaffolder task history | **Partial** — `get-secret` step stores the secret in the task run |
-| Email | Secret in `payload.description` (notifications DB + Mailpit) |
+| Visible template output | `clientId` **and** `clientSecret`, shown once in plain text |
+| Scaffolder task history | Secret is retained in the task run history (`get-secret` step output) |
+| Delivery channel | In-app only (no email -- see above) |
 | Catalog Resource | Not registered (PoC) |
-| HTML email | Plain text via notifications |
 
-**PoC ONLY:** sending the secret in plain text by email is acceptable only with Mailpit. In production use expiring / reveal-once delivery (e.g. Vault response-wrapping).
+**PoC ONLY:** showing the secret in plain text on the result page (and keeping it in task
+history) is acceptable only for this PoC. In production use expiring / reveal-once
+delivery (e.g. Vault response-wrapping) instead of either email or an on-screen result.
 
 ## Verification
 
@@ -104,14 +112,14 @@ The same value must exist in Keycloak (realm import placeholder) and in `keycloa
 2. Confirm Secret `keycloak-backstage-provisioner` in `keycloak-system`.
 3. Developer Hub → **Create** → **OIDC credentials self-service (Keycloak cv)**.
 4. Choose API `neuroface-cv-openapi`, grant `client_credentials`, user `user1`.
-5. Output: clientId without secret; email in Mailpit.
-6. Test token:
+5. Output: `clientId` and `clientSecret` shown directly on the task result page.
+6. Test token (curl example is also printed on the result page):
 
 ```bash
 curl -sk -X POST 'https://sso.<apps-domain>/realms/cv/protocol/openid-connect/token' \
   -d 'grant_type=client_credentials' \
   -d 'client_id=client-neuroface-cv-openapi-<label>' \
-  -d 'client_secret=<from-mailpit>'
+  -d 'client_secret=<from-the-result-page>'
 ```
 
 ## catalog-info.example.yaml
