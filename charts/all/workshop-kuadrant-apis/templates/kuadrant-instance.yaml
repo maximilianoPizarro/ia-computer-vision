@@ -15,8 +15,49 @@ metadata:
 apiVersion: kuadrant.io/v1beta1
 kind: Kuadrant
 metadata:
+  # Cluster-wide singleton: this is the ONLY place a Kuadrant CR is declared.
+  # Do NOT also declare one in neuroface-gateway (or any other chart) — the
+  # kuadrant-operator always deploys the managed Authorino/Limitador into its
+  # own install namespace (redhat-connectivity-link-operator) regardless of
+  # this CR's namespace, so two Kuadrant objects just race each other and
+  # whichever gets deleted last (e.g. during an ArgoCD app recreation) can
+  # tear down Authorino/Limitador cluster-wide.
   name: kuadrant
   namespace: kuadrant-system
   annotations:
     argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  observability:
+    enable: true
+  mtls:
+    enable: true
+    authorino: true
+    limitador: true
+---
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino
+  namespace: redhat-connectivity-link-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  listener:
+    tls:
+      enabled: false
+  oidcServer:
+    tls:
+      enabled: false
+---
+apiVersion: limitador.kuadrant.io/v1alpha1
+kind: Limitador
+metadata:
+  name: limitador
+  namespace: redhat-connectivity-link-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  limits: []
