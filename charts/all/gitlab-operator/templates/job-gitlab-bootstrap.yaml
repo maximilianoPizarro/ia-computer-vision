@@ -68,7 +68,41 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: gitlab-workshop-bootstrap
+    namespace: {{ .Values.namespace }}
 {{- end }}
+---
+# The job execs into vault-0 to sync Minio credentials (fallback path — the
+# primary sync is hub-interconnect's ppe-model-seed Job, which uses Vault's
+# own Kubernetes auth over HTTP and needs no exec RBAC at all). Without this
+# Role the "oc get pods -n vault" / "oc exec -n vault" calls fail silently
+# (stderr is redirected to /dev/null) and print a misleading "WARN: could
+# not write to Vault" even though nothing is actually wrong with Vault.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-workshop-bootstrap-exec-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-workshop-bootstrap-exec-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-workshop-bootstrap-exec-vault
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-workshop-bootstrap
     namespace: {{ .Values.namespace }}
 ---
 apiVersion: batch/v1
