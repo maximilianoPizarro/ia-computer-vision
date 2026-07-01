@@ -158,6 +158,16 @@ spec:
         {{- toYaml (index .Values.plans.limits "gold") | nindent 8 }}
 {{- end }}
 {{- if .Values.apis.maas.enabled }}
+{{- $maasOidc := .Values.apis.maas.oidc | default dict }}
+{{- $maasOidcEnabled := $maasOidc.enabled | default true }}
+{{- $maasRealm := $maasOidc.realm | default "maas" }}
+{{/*
+  Keycloak's canonical issuer is keycloak.<domain>, not sso.<domain> (an alias
+  route) -- Authorino's strict OIDC issuer validation rejects tokens whose
+  "iss" claim doesn't exactly equal issuerUrl. See neuroface-gateway's
+  oidcpolicy-realms.yaml for the same fix applied to the cv/neuroface realms.
+*/}}
+{{- $maasIssuerHost := $maasOidc.issuerHost | default (printf "keycloak.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) }}
 ---
 apiVersion: kuadrant.io/v1
 kind: AuthPolicy
@@ -176,6 +186,11 @@ spec:
     - predicate: request.method != "OPTIONS"
   rules:
     authentication:
+      # Dual auth: either a Kuadrant APIKEY (Developer Hub "Request API key")
+      # or a Keycloak realm-maas JWT (client_credentials via the OIDC
+      # self-service template or a pre-provisioned client-maas-userN) is
+      # accepted -- Authorino tries every identity source and allows the
+      # request through if any one of them succeeds.
       api-key-users:
         apiKey:
           allNamespaces: true
@@ -187,6 +202,11 @@ spec:
           authorizationHeader:
             prefix: APIKEY
         {{- $maasKey := include "workshop-kuadrant-apis.maasApiKey" . }}
+      {{- if $maasOidcEnabled }}
+      jwt-users:
+        jwt:
+          issuerUrl: "https://{{ $maasIssuerHost }}/realms/{{ $maasRealm }}"
+      {{- end }}
     response:
       success:
         headers:
@@ -203,6 +223,13 @@ spec:
             plan := object.get(input.auth.identity.metadata.annotations, "secret.kuadrant.io/plan-id", "")
             allow { plan == "free" }
             allow { plan == "gold" }
+            # JWT identities (realm-maas OIDC, jwt-users above) have no
+            # metadata.annotations map -- object.get() on that undefined path
+            # is itself undefined, so the rules above never fire for them.
+            # Any token that already passed jwt-users issuer/signature
+            # verification is authorized here at the default "oidc" tier
+            # (see PlanPolicy/TokenRateLimitPolicy below).
+            allow { input.auth.identity.iss }
 ---
 apiVersion: extensions.kuadrant.io/v1alpha1
 kind: PlanPolicy
@@ -220,18 +247,27 @@ spec:
   plans:
     - tier: free
       predicate: |
-        has(auth.identity) && auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "free"
+        has(auth.identity) && has(auth.identity.metadata) && auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "free"
       limits:
         custom:
           - limit: 100
             window: 1h
     - tier: gold
       predicate: |
-        has(auth.identity) && auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "gold"
+        has(auth.identity) && has(auth.identity.metadata) && auth.identity.metadata.annotations["secret.kuadrant.io/plan-id"] == "gold"
       limits:
         custom:
           - limit: 500
             window: 1h
+    {{- if $maasOidcEnabled }}
+    - tier: oidc
+      predicate: |
+        has(auth.identity) && has(auth.identity.iss)
+      limits:
+        custom:
+          - limit: 100
+            window: 1h
+    {{- end }}
 ---
 apiVersion: kuadrant.io/v1alpha1
 kind: TokenRateLimitPolicy
@@ -269,4 +305,18 @@ spec:
             auth.identity.groups.split(",").exists(g, g == "gold")
       counters:
         - expression: auth.identity.userid
+    {{- if $maasOidcEnabled }}
+    oidc:
+      rates:
+        - limit: {{ .Values.tokenRateLimit.free.limit }}
+          window: {{ .Values.tokenRateLimit.free.window | quote }}
+      when:
+        - predicate: request.path == "/v1/chat/completions"
+        - predicate: has(auth.identity.iss)
+      counters:
+        # "sub" is a standard JWT claim always present on Keycloak-issued
+        # tokens, unlike "userid" which is specific to the apiKey identity
+        # source used by the free/gold buckets above.
+        - expression: auth.identity.sub
+    {{- end }}
 {{- end }}

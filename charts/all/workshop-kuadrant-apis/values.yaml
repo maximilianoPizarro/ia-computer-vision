@@ -44,6 +44,14 @@ apis:
     rewritePathPrefix: /v1
     apiKey: "" # inject via litemaas.apiKey at deploy (never commit)
     displayName: AI Gateway — MaaS LLM (TokenRateLimit)
+    # Dual auth on route ai-maas: APIKEY (above) OR a Keycloak realm-maas JWT.
+    # The realm and its client-maas-userN clients already exist via the
+    # rhbk-iam chart — no separate client secret sync needed here, Authorino
+    # only validates the JWT signature/issuer against issuerHost.
+    oidc:
+      enabled: true
+      realm: maas
+      issuerHost: "" # default keycloak.<clusterDomain> (Keycloak's canonical issuer, not sso.<domain>)
 
 approvalMode: automatic # workshop: instant API keys for userN (use manual in production)
 
@@ -79,17 +87,6 @@ vault:
   platformApiKeyPath: secret/data/hub/ai-gateway-platform-keys
   kuadrantKeysPathPrefix: secret/workshop/kuadrant
   keycloakRealmsPathPrefix: secret/data/hub/keycloak/realms
-
-keycloak:
-  ssoHost: ""
-  realms:
-    enabled: false
-    userCount: 30
-    vaultPathPrefix: secret/data/hub/keycloak/realms
-    names:
-      - maas
-    maasRealm: maas
-    maasClientId: client-maas-user1
 
 # PostSync hook: restart RHCL Kuadrant operator after Istio GatewayClass exists (detection is at pod startup)
 kuadrantOperatorRestart:

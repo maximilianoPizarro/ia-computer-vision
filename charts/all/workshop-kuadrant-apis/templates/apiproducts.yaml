@@ -103,7 +103,8 @@ spec:
   displayName: {{ .Values.apis.maas.displayName | default "AI Gateway — MaaS LLM (TokenRateLimit)" }}
   description: >
     OpenAI-compatible MaaS on dedicated ai-gateway. ExternalName to MaaS RHDP; TokenRateLimitPolicy on chat completions.
-    Workshop users use Kuadrant API keys; gateway injects upstream MaaS Bearer token.
+    Dual auth: Kuadrant API key (free/gold tiers) or a Keycloak realm-maas JWT (oidc tier);
+    gateway injects the upstream MaaS Bearer token either way.
   publishStatus: Published
   approvalMode: {{ .Values.approvalMode | default "manual" }}
   version: v1

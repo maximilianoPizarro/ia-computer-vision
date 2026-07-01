@@ -1,21 +1,35 @@
 openapi: 3.0.3
 info:
-  title: MaaS LLM (OIDC — maas realm)
+  title: MaaS LLM (dual auth — APIKEY or OIDC realm maas)
   description: |
-    OpenAI-compatible chat completions via AI Gateway, protected by OIDCPolicy on HTTPRoute `ai-maas`.
+    OpenAI-compatible chat completions via AI Gateway (HTTPRoute `ai-maas`), protected by a
+    Kuadrant `AuthPolicy` that accepts **either** of two independent credentials -- pick
+    whichever is easiest to obtain:
 
-    **Authentication**: click *Authorize* below and enter the `client_id`/`client_secret` for realm
-    `maas` (client `client-maas-userN`) -- Swagger UI fetches the token from Keycloak itself and
-    attaches it to every request. **Or** use a Kuadrant APIKEY on route `ai-gateway` instead.
+    * **API key** (`ApiKeyAuth`): request one from Developer Hub -- *Catalog* → this API →
+      **Kuadrant** tab → *Request API key*. Send it as `Authorization: APIKEY <key>`.
+    * **OIDC client credentials** (`OAuth2ClientCredentials`): click *Authorize* below and enter
+      the `client_id`/`client_secret` for realm `maas` (pre-provisioned `client-maas-userN`, or
+      your own client in that realm) -- Swagger UI fetches the token from Keycloak itself and
+      attaches it as a Bearer token automatically.
+
+    Both paths are validated by the same `ai-maas-auth` AuthPolicy and land on the same rate
+    limit tiers (`free`/`gold` for API keys, `oidc` for JWTs).
   version: v1
 servers:
   - url: https://ai-gateway.__HUB_APPS_DOMAIN__
-    description: AI Gateway (OIDC on ai-maas route; APIKEY on ai-gateway route)
+    description: AI Gateway — HTTPRoute ai-maas (dual auth: APIKEY or OIDC realm maas)
 security:
+  - ApiKeyAuth: []
   - OAuth2ClientCredentials: []
   - BearerAuth: []
 components:
   securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Kuadrant API key — format: `APIKEY <your-key>`. Request one in Developer Hub → Kuadrant tab."
     OAuth2ClientCredentials:
       type: oauth2
       description: >-
@@ -52,7 +66,7 @@ components:
 paths:
   /v1/chat/completions:
     post:
-      summary: Chat completions (OIDC protected on ai-maas route)
+      summary: Chat completions (APIKEY or OIDC Bearer token on ai-maas route)
       operationId: maasChatCompletions
       requestBody:
         required: true
@@ -64,4 +78,6 @@ paths:
         "200":
           description: Completion response
         "401":
-          description: Missing or invalid Bearer token
+          description: Missing or invalid APIKEY / Bearer token
+        "429":
+          description: Rate limit exceeded (free/gold/oidc tier)

@@ -47,37 +47,49 @@ spec:
 
 *Connection*: OIDCPolicy → HTTPRoute → Gateway → backend Service (Skupper listeners on hub reach spoke connectors).
 
-Chart: `charts/all/neuroface-gateway/templates/oidcpolicy-realms.yaml`, `charts/all/workshop-kuadrant-apis/templates/oidcpolicy-maas.yaml`
+Chart: `charts/all/neuroface-gateway/templates/oidcpolicy-realms.yaml`
 
 === AuthPolicy
 
-`kuadrant.io/v1` — API key authentication.
+`kuadrant.io/v1` — API key and/or JWT authentication. A single `AuthPolicy` can declare multiple
+named identity sources under `rules.authentication`; Authorino evaluates all of them and admits
+the request if *any one* succeeds. The AI Gateway route (`ai-maas`) uses this to accept either a
+Kuadrant API key or a Keycloak realm-`maas` OIDC token on the same endpoint ("dual auth").
 
 [source,yaml]
 ----
 apiVersion: kuadrant.io/v1
 kind: AuthPolicy
 metadata:
-  name: workshop-httpbin-auth
-  namespace: workshop-kuadrant-apis
+  name: ai-maas-auth
+  namespace: ai-gateway-system
 spec:
   targetRef:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
-    name: workshop-httpbin
-  authRules:
-    apikey:
-      apiKeySelector:
-        selector:
-          matchLabels:
-            kuadrant.io/auth-policy: workshop-httpbin
-      credentials:
-        authorizationHeader:
-          prefix: APIKEY
-          name: Authorization
+    name: ai-maas
+  when:
+    - predicate: request.method != "OPTIONS"
+  rules:
+    authentication:
+      api-key-users:
+        apiKey:
+          allNamespaces: true
+          selector:
+            matchLabels:
+              app: workshop-llm-tokens
+              kuadrant.io/apikey: "true"
+        credentials:
+          authorizationHeader:
+            prefix: APIKEY
+      jwt-users:
+        jwt:
+          issuerUrl: https://keycloak.apps.<hub-domain>/realms/maas
 ----
 
-*Connection*: AuthPolicy → HTTPRoute → APIProduct (Developer Hub catalog) → API key Secret.
+*Connection*: AuthPolicy → HTTPRoute → APIProduct (Developer Hub catalog) → API key Secret, or → Keycloak realm (OIDC JWT).
+
+Chart: `charts/all/workshop-kuadrant-apis/templates/policies.yaml`
 
 === RateLimitPolicy
 
