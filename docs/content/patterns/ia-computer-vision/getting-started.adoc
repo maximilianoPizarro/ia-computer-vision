@@ -178,17 +178,24 @@ $ oc get applications.argoproj.io -n vp-gitops
 [source,text]
 ----
 NAME                         SYNC STATUS   HEALTH STATUS
-acs-secured-cluster          Synced        Healthy
 console-links                Synced        Healthy
 devspaces                    Synced        Healthy
+ia-computer-vision-east      Synced        Healthy
+kafka-console                Synced        Healthy
 observability                Synced        Healthy
 openshift-external-secrets   Synced        Healthy
 platform-users               Synced        Healthy
 servicemesh-config           Synced        Healthy
+skupper-network-observer     Synced        Healthy
 spoke-interconnect           Synced        Healthy
 spoke-neuroface              Synced        Healthy
 spoke-neuroface-cv           Synced        Healthy
 ----
+
+[NOTE]
+====
+`acs-secured-cluster` does not appear here — it is commented out in `values-east.yaml` by default (matches RHACS being disabled on the hub). `ia-computer-vision-east` is the umbrella application itself; `clusterGroupName` is `west` and the application name reads `ia-computer-vision-west` on that spoke.
+====
 
 === Verify NeuroFace and OVMS workloads
 
@@ -373,12 +380,13 @@ $ oc get applications.argoproj.io -n vp-gitops
 NAME                         SYNC STATUS   HEALTH STATUS
 acm                          Synced        Healthy
 acm-hub-spoke                Synced        Healthy
-acs-init-bundle-sync         Synced        Healthy
 console-links                Synced        Healthy
 developer-hub                Synced        Healthy
 devspaces                    Synced        Healthy
 gitlab-operator              Synced        Healthy
+hub-interconnect             Synced        Healthy
 ia-computer-vision-hub       Synced        Healthy
+mailpit                      Synced        Healthy
 neuroface-gateway            Synced        Healthy
 observability                Synced        Healthy
 openshift-ai-hub             Synced        Healthy
@@ -386,9 +394,19 @@ openshift-external-secrets   Synced        Healthy
 openshift-gitops             Synced        Healthy
 platform-users               Synced        Healthy
 rhbk                         Synced        Healthy
+rhbk-iam                     Synced        Healthy
+servicemesh-config           Synced        Healthy
 showroom                     Synced        Healthy
+skupper-network-observer     Synced        Healthy
 vault                        Synced        Healthy
+workshop-kuadrant-apis       Synced        Healthy
+workshop-registration        Synced        Healthy
 ----
+
+[NOTE]
+====
+`acs-init-bundle-sync` (RHACS) does not appear here — it is commented out in `values-hub.yaml` by default to save resources on sandbox-sized clusters. See "Step 4: Verify RHACS Central" below.
+====
 
 [IMPORTANT]
 ====
@@ -434,6 +452,13 @@ Sealed          false
 
 === Step 4: Verify RHACS Central
 
+[NOTE]
+====
+RHACS is **disabled by default** (the `stackrox` namespace, subscription, and `acs-init-bundle-sync`/`acs-secured-cluster` applications are commented out in `values-hub.yaml` and `values-east.yaml`/`values-west.yaml` to save resources on sandbox-sized clusters). Skip this step unless you uncommented those sections. `oc get central -n stackrox` returns `No resources found` — and `oc get ns stackrox` returns `NotFound` — on a default install, which is expected.
+====
+
+If you enabled RHACS:
+
 [source,bash]
 ----
 $ oc get central -n stackrox -o jsonpath='{.items[0].status.conditions[?(@.type=="Deployed")].status}{"\n"}'
@@ -449,14 +474,19 @@ True
 
 [source,bash]
 ----
-$ echo "Developer Hub: https://$(oc get route backstage -n developer-hub -o jsonpath='{.spec.host}')"
+$ echo "Developer Hub: https://$(oc get route backstage-developer-hub -n developer-hub -o jsonpath='{.spec.host}')"
 $ echo "Showroom:      https://$(oc get route showroom -n showroom -o jsonpath='{.spec.host}')"
-$ echo "GitLab:        https://$(oc get route gitlab -n gitlab-system -o jsonpath='{.spec.host}' 2>/dev/null || echo 'not yet available')"
-$ echo "Grafana:       https://$(oc get route grafana -n openshift-cluster-observability-operator -o jsonpath='{.spec.host}' 2>/dev/null || echo 'not yet available')"
-$ HUB=https://$(oc get route backstage -n developer-hub -o jsonpath='{.spec.host}')
+$ echo "GitLab:        https://$(oc get route -n gitlab-system -l app=webservice -o jsonpath='{.items[0].spec.host}' 2>/dev/null || echo 'not yet available')"
+$ echo "Grafana:       https://$(oc get route grafana-route -n openshift-cluster-observability-operator -o jsonpath='{.spec.host}' 2>/dev/null || echo 'not yet available')"
+$ HUB=https://$(oc get route backstage-developer-hub -n developer-hub -o jsonpath='{.spec.host}')
 $ curl -sk -o /dev/null -w "Developer Hub /ocm:   %{http_code}\n" "$HUB/ocm"
 $ curl -sk -o /dev/null -w "Developer Hub /kiali: %{http_code}\n" "$HUB/kiali"
 ----
+
+[NOTE]
+====
+The GitLab and Developer Hub route names are not fixed strings — `backstage-developer-hub` and `grafana-route` are the names generated by the RHDH operator and Cluster Observability Operator respectively, and GitLab's webservice route carries a random suffix (`gitlab-webservice-default-<hash>`), so the commands above select it by label (`app=webservice`) instead of by name.
+====
 
 OCM and Kiali plugins are enabled by default (`plugins.ocm.enabled`, `plugins.kiali.enabled` in the Developer Hub chart). Argo CD runs PreSync ghcr validation and PostSync route checks automatically; expect HTTP `200` on `/ocm` and `/kiali` after `developer-hub` is Healthy.
 
@@ -638,6 +668,8 @@ $ oc get httproute -n neuroface-gateway-system -o wide
 
 === Test inference through the hub gateway
 
+`neuroface-cv.apps.<hub_domain>` is OIDC-protected (Kuadrant `AuthPolicy` `oidc-cv`, realm `cv`) — an unauthenticated request gets redirected to Keycloak login rather than a `200`:
+
 [source,bash]
 ----
 $ curl -sk -o /dev/null -w '%{http_code}\n' \
@@ -647,8 +679,10 @@ $ curl -sk -o /dev/null -w '%{http_code}\n' \
 .Expected output
 [source,text]
 ----
-200
+302
 ----
+
+A `302` to `sso.apps.<hub_domain>/realms/cv/protocol/openid-connect/auth` confirms the gateway, the `HTTPRoute`, and the Kuadrant `AuthPolicy` are all working end to end. Open the URL in a browser and log in as `user1` / `Welcome123!` to see the actual PPE status response. See link:../architecture/#security-architecture[Architecture — Security] for why this route is OIDC-gated while the main NeuroFace app route is not.
 
 === Validate 50/50 load balancing
 
