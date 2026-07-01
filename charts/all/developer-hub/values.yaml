@@ -135,6 +135,8 @@ iamCatalog:
       openapiUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/maas-openapi/definition"
   kafka:
     enabled: false
+  camel:
+    enabled: false
   notificationsEmail:
     enabled: true
   lightspeed:

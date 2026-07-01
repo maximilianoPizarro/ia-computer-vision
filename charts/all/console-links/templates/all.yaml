@@ -40,7 +40,7 @@ spec:
   applicationMenu:
     imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kiali.svg") | quote }}
     section: "Platform AI Computer Vision"
-  href: "https://kiali-openshift-cluster-observability-operator.{{ $hubDomain }}"
+  href: "https://kiali-istio-system.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Kiali Service Mesh"
 ---

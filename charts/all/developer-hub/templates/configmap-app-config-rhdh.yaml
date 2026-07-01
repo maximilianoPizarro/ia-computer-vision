@@ -88,6 +88,7 @@ data:
         - group: gateway.networking.k8s.io
           apiVersion: v1
           plural: grpcroutes
+{{- if .Values.kafka.enabled }}
         - group: kafka.strimzi.io
           apiVersion: v1beta2
           plural: kafkas
@@ -100,6 +101,7 @@ data:
         - group: kafka.strimzi.io
           apiVersion: v1beta2
           plural: kafkaconnects
+{{- end }}
         - group: operators.coreos.com
           apiVersion: v1alpha1
           plural: subscriptions
@@ -113,7 +115,11 @@ data:
           apiVersion: v1
           plural: ratelimitpolicies
         - group: kuadrant.io
-          apiVersion: v1
+          # NOTE: only v1alpha1 is served by this CRD today (v1 exists in the
+          # schema but served: false), unlike authpolicies/ratelimitpolicies
+          # which are already on v1. Querying v1 here 404s against the API
+          # server and shows up as a spurious Topology error.
+          apiVersion: v1alpha1
           plural: tokenratelimitpolicies
         - group: devportal.kuadrant.io
           apiVersion: v1alpha1
@@ -124,6 +130,7 @@ data:
         - group: extensions.kuadrant.io
           apiVersion: v1alpha1
           plural: oidcpolicies
+{{- if .Values.camel.enabled }}
         - group: camel.apache.org
           apiVersion: v1
           plural: integrations
@@ -133,6 +140,7 @@ data:
         - group: camel.apache.org
           apiVersion: v1
           plural: pipes
+{{- end }}
     catalog:
       import:
         entityFilename: catalog-info.yaml
@@ -302,6 +310,14 @@ data:
         '/keycloak':
           target: {{ include "developer-hub.ssoBaseUrl" . | quote }}
           allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+          # Backstage's proxy only forwards "CORS-safe" headers by default and
+          # silently drops Authorization otherwise (it tries to consume it for
+          # its own backend auth instead). The OIDC self-service scaffolder
+          # template sends a Keycloak-issued bearer token meant for the
+          # upstream target on the create/resolve/get-secret steps — without
+          # this, Keycloak's Admin REST API sees no Authorization header at
+          # all and returns a real (not Backstage's) 401.
+          allowedHeaders: ['Authorization']
           changeOrigin: true
     integrations:
       gitlab:
