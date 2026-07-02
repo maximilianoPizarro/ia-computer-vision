@@ -349,6 +349,8 @@ clusterGroup:
           value: ambient
         - name: servicemesh.istio.name
           value: default
+        - name: servicemesh.kiali.spec.deployment.cluster_wide_access
+          value: "true"
 
     istio-ztunnel:
       name: istio-ztunnel

@@ -1,0 +1,18 @@
+{{- if ne (.Values.clusterRole | default "hub") "spoke" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kiali-cluster-viewer
+  labels:
+    app.kubernetes.io/part-of: kiali
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - kind: ServiceAccount
+    name: kiali-service-account
+    namespace: istio-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-reader
+{{- end }}
