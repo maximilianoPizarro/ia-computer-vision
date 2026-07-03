@@ -12,3 +12,4 @@ spec:
   accessLogging:
     - providers:
         - name: envoy
+      disabled: true

@@ -82,6 +82,21 @@ spec:
       jwt-users:
         jwt:
           issuerUrl: "https://{{ $issuerHost }}/realms/{{ $realm }}"
+    response:
+      success:
+        headers:
+          x-auth-client-id:
+            plain:
+              expression: "has(auth.identity.client_id) ? auth.identity.client_id : auth.identity.azp"
+          x-auth-metadata:
+            json:
+              properties:
+                client_id:
+                  expression: "has(auth.identity.client_id) ? auth.identity.client_id : auth.identity.azp"
+                sub:
+                  expression: auth.identity.sub
+                iss:
+                  expression: auth.identity.iss
 {{- end }}
 {{- end }}
 {{- end }}

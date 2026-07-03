@@ -1,0 +1,52 @@
+{{/*
+  Custom JSON access logs for neuroface-gateway scoped to the CV gateway pod.
+  Includes upstream routing (east/west) plus consumer identity from Authorino
+  request headers (Kuadrant wasm shim does not surface ext_authz dynamic
+  metadata in access logs, so client_id is injected via AuthPolicy response).
+  Scoped locally via EnvoyFilter (no meshConfig extensionProviders required).
+*/}}
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: neuroface-gateway-custom-access-log
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  workloadSelector:
+    labels:
+      gateway.networking.k8s.io/gateway-name: neuroface-gateway
+  configPatches:
+    - applyTo: NETWORK_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+      patch:
+        operation: MERGE
+        value:
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+            access_log:
+              - name: envoy.access_loggers.file
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+                  path: /dev/stdout
+                  log_format:
+                    json_format:
+                      timestamp: "%START_TIME%"
+                      method: "%REQ(:METHOD)%"
+                      path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                      response_code: "%RESPONSE_CODE%"
+                      response_flags: "%RESPONSE_FLAGS%"
+                      upstream_host: "%UPSTREAM_HOST%"
+                      upstream_cluster: "%UPSTREAM_CLUSTER%"
+                      client_ip: "%REQ(X-FORWARDED-FOR)%"
+                      request_id: "%REQ(X-REQUEST-ID)%"
+                      authority: "%REQ(:AUTHORITY)%"
+                      route_name: "%ROUTE_NAME%"
+                      duration_ms: "%DURATION%"
+                      auth_client_id: "%REQ(x-auth-client-id)%"
+                      auth_metadata: "%REQ(x-auth-metadata)%"
