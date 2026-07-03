@@ -1,0 +1,14 @@
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: neuroface-gateway-access-logs
+  namespace: neuroface-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    matchLabels:
+      gateway.networking.k8s.io/gateway-name: neuroface-gateway
+  accessLogging:
+    - providers:
+        - name: envoy

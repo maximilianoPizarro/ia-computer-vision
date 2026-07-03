@@ -123,7 +123,7 @@ iamCatalog:
       displayName: Computer Vision API
       componentName: neuroface-cv-api
       apiName: neuroface-cv-openapi
-      kubernetesId: neuroface-cv
+      kubernetesId: neuroface-gateway
       swaggerUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-cv-openapi"
       openapiUrl: "https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-cv-openapi/definition"
     - name: maas

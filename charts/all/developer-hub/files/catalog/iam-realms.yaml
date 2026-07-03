@@ -55,7 +55,9 @@ metadata:
   description: CV inference API protected by Keycloak realm cv and OIDCPolicy on neuroface-cv-lb
   tags: [iam, kuadrant, keycloak, cv]
   annotations:
-    backstage.io/kubernetes-id: neuroface-cv
+    backstage.io/kubernetes-namespace: neuroface-gateway-system
+    backstage.io/kubernetes-cluster: hub
+    backstage.io/kubernetes-id: neuroface-gateway
     kuadrant/realm: cv
     kuadrant/oidc-issuer: https://sso.__HUB_APPS_DOMAIN__/realms/cv
     backstage.io/swagger-ui: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/neuroface-cv-openapi
