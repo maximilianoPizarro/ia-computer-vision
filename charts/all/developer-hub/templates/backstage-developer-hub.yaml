@@ -61,6 +61,10 @@ spec:
           mountPath: /opt/app-root/src/catalog-data/rhdh-plugins
           containers:
             - "*"
+        - name: developer-hub-catalog-partners-poc
+          mountPath: /opt/app-root/src/catalog-data/partners-poc
+          containers:
+            - "*"
     route:
       enabled: true
       host: developer-hub.{{ include "developer-hub.clusterDomain" . }}

@@ -179,6 +179,14 @@ data:
           target: /opt/app-root/src/catalog-data/rhdh-plugins/rhdh-plugins.yaml
           rules:
             - allow: [System, Resource]
+        - type: file
+          target: /opt/app-root/src/catalog-data/partners-poc/aura-conecta.yaml
+          rules:
+            - allow: [System, Component, API, Group, Domain, Template]
+        - type: file
+          target: /opt/app-root/src/catalog-data/partners-poc/agenda-de-vencimientos.yaml
+          rules:
+            - allow: [System, Component, API, Group, Domain, Template]
       providers:
         gitlab:
           default:

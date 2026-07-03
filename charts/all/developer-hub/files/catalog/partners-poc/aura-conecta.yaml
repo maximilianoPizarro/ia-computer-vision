@@ -1,0 +1,243 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: aura-conecta-system
+  title: Aura-Conecta
+  description: External partner API PoC synced from GitLab partners-poc/aura-conecta
+  tags: [partners-poc, external-api, aura-poc, kuadrant]
+spec:
+  owner: group:default/aura
+  domain: aura
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: aura
+  title: Aura
+  description: >
+    Aura — external provider organization ("Organización Proveedora"
+    in API's.xlsx) offering the Aura-Conecta product, exposed via Kuadrant Gateway API
+    with JWT auth (realm aura-poc).
+  tags: [partners-poc, kuadrant, keycloak, aura-poc]
+  annotations:
+    backstage.io/kubernetes-namespace: aura-conecta
+    backstage.io/kubernetes-cluster: hub
+    backstage.io/kubernetes-id: aura-conecta-gateway
+    argocd/app-name: partners-poc-aura-conecta
+    kuadrant.io/api-product: aura-conecta
+    kuadrant/realm: aura-poc
+    kuadrant/oidc-issuer: https://sso.__HUB_APPS_DOMAIN__/realms/aura-poc
+    backstage.io/swagger-ui: https://developer-hub.__HUB_APPS_DOMAIN__/catalog/default/api/aura-conecta
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/aura
+  system: aura-conecta-system
+  providesApis:
+    - aura-conecta
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: aura
+  title: Aura
+  description: >
+    External provider organization ("Organización Proveedora" column in API's.xlsx) onboarded
+    via GitLab partners-poc PoC. Owns the Aura component and its API(s).
+spec:
+  type: organization
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: aura
+  title: Aura
+  description: Aura APIs onboarded via GitLab partners-poc PoC.
+spec:
+  owner: group:default/aura
+
+
+---
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: oidc-credentials-self-service-aura-poc
+  title: OIDC credentials self-service (Aura-Conecta)
+  description: >
+    Request OIDC client credentials for Aura-Conecta protected by JWT AuthPolicy.
+    Clients are created in Keycloak realm aura-poc via Admin REST API; secret shown once on task result.
+  tags:
+    - oidc
+    - keycloak
+    - iam
+    - aura-poc
+    - partners-poc
+    - self-service
+spec:
+  owner: group:default/aura
+  type: service
+  parameters:
+    - title: OIDC client request
+      required:
+        - apiName
+        - clientLabel
+        - grantType
+        - requester
+        - ownerGroup
+      properties:
+        apiName:
+          title: Target API
+          type: string
+          description: Catalog API for Aura-Conecta (realm aura-poc).
+          ui:field: EntityPicker
+          ui:options:
+            allowedKinds:
+              - API
+            defaultKind: API
+            catalogFilter:
+              - kind: API
+                metadata.name: aura-conecta
+        clientLabel:
+          title: Client label
+          type: string
+          description: "Derives clientId = client-{{apiName}}-{{clientLabel}}"
+          pattern: "^[a-z0-9-]+$"
+        grantType:
+          title: Grant type
+          type: string
+          enum: [client_credentials, authorization_code]
+          enumNames: [Client credentials (M2M), Authorization code (with redirect URI)]
+          default: client_credentials
+        requester:
+          title: Requester
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: [User]
+        ownerGroup:
+          title: Owner (group)
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: [Group]
+        planTier:
+          title: Rate-limit plan tier
+          type: string
+          enum: [free, gold]
+          enumNames: [Free, Gold]
+          default: free
+      dependencies:
+        grantType:
+          oneOf:
+            - properties:
+                grantType:
+                  const: client_credentials
+            - properties:
+                grantType:
+                  const: authorization_code
+                redirectUri:
+                  title: Redirect URI
+                  type: string
+                  format: uri
+              required: [redirectUri]
+  steps:
+    - id: get-token
+      name: Authenticate provisioner (realm aura-poc)
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /proxy/keycloak/realms/aura-poc/protocol/openid-connect/token
+        headers:
+          Content-Type: application/x-www-form-urlencoded
+        body: grant_type=client_credentials&client_id=backstage-provisioner&client_secret=backstage-provisioner-poc-2026
+    - id: create-client-cc
+      name: Create OIDC client (client_credentials)
+      if: ${{ parameters.grantType === "client_credentials" }}
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /proxy/keycloak/admin/realms/aura-poc/clients
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer ${{ steps['get-token'].output.body.access_token }}
+        body:
+          clientId: client-${{ parameters.apiName | parseEntityRef | pick('name') }}-${{ parameters.clientLabel }}
+          name: client-${{ parameters.apiName | parseEntityRef | pick('name') }}-${{ parameters.clientLabel }}
+          enabled: true
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          directAccessGrantsEnabled: false
+          protocol: openid-connect
+          webOrigins: ["*"]
+          attributes:
+            owner: ${{ parameters.ownerGroup | parseEntityRef | pick('name') }}
+            requestedBy: ${{ parameters.requester | parseEntityRef | pick('name') }}@developer-hub.local
+            targetApi: ${{ parameters.apiName | parseEntityRef | pick('name') }}
+            plan: ${{ parameters.planTier }}
+          protocolMappers:
+            - name: plan
+              protocol: openid-connect
+              protocolMapper: oidc-hardcoded-claim-mapper
+              config:
+                claim.name: plan
+                claim.value: ${{ parameters.planTier }}
+                jsonType.label: String
+                access.token.claim: "true"
+                id.token.claim: "true"
+                userinfo.token.claim: "true"
+    - id: create-client-ac
+      name: Create OIDC client (authorization_code)
+      if: ${{ parameters.grantType === "authorization_code" }}
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /proxy/keycloak/admin/realms/aura-poc/clients
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer ${{ steps['get-token'].output.body.access_token }}
+        body:
+          clientId: client-${{ parameters.apiName | parseEntityRef | pick('name') }}-${{ parameters.clientLabel }}
+          enabled: true
+          publicClient: false
+          standardFlowEnabled: true
+          redirectUris:
+            - ${{ parameters.redirectUri }}
+          webOrigins:
+            - "*"
+          protocol: openid-connect
+          attributes:
+            plan: ${{ parameters.planTier }}
+    - id: resolve-client
+      name: Resolve Keycloak client UUID
+      action: http:backstage:request
+      input:
+        method: GET
+        path: /proxy/keycloak/admin/realms/aura-poc/clients?clientId=client-${{ parameters.apiName | parseEntityRef | pick('name') }}-${{ parameters.clientLabel }}
+        headers:
+          Authorization: Bearer ${{ steps['get-token'].output.body.access_token }}
+    - id: get-secret
+      name: Retrieve client secret
+      action: http:backstage:request
+      input:
+        method: GET
+        path: /proxy/keycloak/admin/realms/aura-poc/clients/${{ steps['resolve-client'].output.body[0].id }}/client-secret
+        headers:
+          Authorization: Bearer ${{ steps['get-token'].output.body.access_token }}
+  output:
+    text:
+      - title: OIDC credentials (shown once)
+        content: |
+          Target API: `${{ parameters.apiName | parseEntityRef | pick('name') }}` (realm aura-poc)
+          Client ID: `client-${{ parameters.apiName | parseEntityRef | pick('name') }}-${{ parameters.clientLabel }}`
+          Client Secret: `${{ steps['get-secret'].output.body.value }}`
+          Token endpoint: `https://sso.__HUB_APPS_DOMAIN__/realms/aura-poc/protocol/openid-connect/token`
+          Gateway: `https://aura-conecta.__HUB_APPS_DOMAIN__/aura-api/v0`
+    links:
+      - title: API in catalog
+        icon: catalog
+        entityRef: ${{ parameters.apiName }}
+

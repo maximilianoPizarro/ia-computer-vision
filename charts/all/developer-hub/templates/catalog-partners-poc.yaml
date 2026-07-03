@@ -1,0 +1,17 @@
+{{- $hub := include "developer-hub.clusterDomain" . }}
+{{- $aura := .Files.Get "files/catalog/partners-poc/aura-conecta.yaml" | replace "__HUB_APPS_DOMAIN__" $hub }}
+{{- $agenda := .Files.Get "files/catalog/partners-poc/agenda-de-vencimientos.yaml" | replace "__HUB_APPS_DOMAIN__" $hub }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: developer-hub-catalog-partners-poc
+  namespace: developer-hub
+  labels:
+    rhdh.redhat.com/ext-config-sync: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  aura-conecta.yaml: |
+{{ $aura | nindent 4 }}
+  agenda-de-vencimientos.yaml: |
+{{ $agenda | nindent 4 }}
