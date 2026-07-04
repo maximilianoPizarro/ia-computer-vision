@@ -38,7 +38,7 @@ spec:
   credentialRef:
     name: {{ $credSecret }}
 ---
-apiVersion: models.opendatahub.io/v1alpha1
+apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
   name: {{ $resourceName }}
@@ -52,7 +52,7 @@ spec:
     name: {{ $resourceName }}
 ---
 {{- end }}
-apiVersion: models.opendatahub.io/v1alpha1
+apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
 metadata:
   name: {{ $sub.name | default "maas-workshop-subscription" }}
@@ -76,7 +76,7 @@ spec:
 {{- end }}
   priority: {{ $sub.priority | default 10 }}
 ---
-apiVersion: models.opendatahub.io/v1alpha1
+apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSAuthPolicy
 metadata:
   name: {{ $policy.name | default "maas-workshop-auth-policy" }}
