@@ -17,7 +17,7 @@ spokeExport:
   syncSchedule: "0 */6 * * *"
 
 mcp:
-  image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0
+  image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.8.0
   port: 3000
   resources:
     requests:

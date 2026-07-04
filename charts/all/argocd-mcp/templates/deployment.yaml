@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: mcp
-          image: {{ $mcp.image | default "ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0" | quote }}
+          image: {{ $mcp.image | default "ghcr.io/argoproj-labs/mcp-for-argocd:v0.8.0" | quote }}
           command: ["node", "dist/index.js", "http", "--stateless"]
           ports:
             - name: http
