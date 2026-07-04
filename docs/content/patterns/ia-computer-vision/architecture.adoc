@@ -236,6 +236,35 @@ Red Hat OpenShift Service Mesh 3.x supports both sidecar and ambient mode. This 
 * **L4 mTLS by default**: All pod-to-pod traffic within mesh-enrolled namespaces gets mTLS encryption without application changes.
 * **Trade-off**: Ambient mode provides L4 (transport) features only. L7 features (HTTP routing, retries, header manipulation) require waypoint proxies, which this pattern does not deploy. For this inference workload, L4 mTLS and telemetry are sufficient.
 
+== AI platform: native MaaS and AI Gateway
+
+The hub exposes two complementary paths to external LLM models (RHDP MaaS endpoint):
+
+=== Native Models as a Service (RHOAI 3.4)
+
+Chart `models-as-a-service` (wave 6) enables the OpenShift AI native MaaS control plane when `openshift-ai-hub` sets `maas.native.enabled=true` (`kserve.modelsAsService: Managed`):
+
+* `Tenant`, `ExternalModel`, `MaaSSubscription`, `MaaSAuthPolicy` CRs in namespace `models-as-a-service`
+* Gateway `maas-default-gateway` (class `data-science-gateway-class`) on `maas.apps.<hub_domain>`
+* `OdhDashboardConfig` patch: Gen AI Studio, API key management, Auth Policies
+* OpenShift `Group` `maas-workshop-users` (`user1`..`userN`)
+
+Workshop users create API keys in the dashboard and call `https://maas.apps.<hub_domain>/v1`.
+
+=== Kuadrant AI Gateway (legacy parallel path)
+
+Chart `workshop-kuadrant-apis` exposes `https://ai-gateway.apps.<hub_domain>/v1` with Kuadrant `AuthPolicy` and rate limits. Developer Hub issues per-user API keys. Disable this path after validating native MaaS (`apis.maas.enabled=false`).
+
+=== Argo CD MCP for GitOps automation
+
+Charts `argocd-local-users`, `argocd-mcp-spoke-export`, and `argocd-mcp` expose a Model Context Protocol server for OpenShift Lightspeed and other MCP clients:
+
+* Local user `ai-agent` with scoped RBAC (`get`/`sync` applications, `get` logs)
+* Tokens synced to Vault path `secret/hub/argocd-mcp-tokens` and projected via ESO
+* In-cluster endpoint: `http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp`
+
+This is separate from `spokeCredentials` used for ACM cluster import — do not reuse those tokens for MCP.
+
 == Security architecture
 
 The pattern implements defense in depth across four layers.

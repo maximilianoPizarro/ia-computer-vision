@@ -48,6 +48,14 @@ rules:
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["maas.opendatahub.io"]
+    resources:
+      - tenants
+      - externalmodels
+      - maasmodelrefs
+      - maassubscriptions
+      - maasauthpolicies
+    verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

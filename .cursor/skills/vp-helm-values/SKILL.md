@@ -106,21 +106,21 @@ Use `syncWave` in applications or `argocd.argoproj.io/sync-wave` annotation in t
 ### Hub sync waves
 | Wave | Purpose | Applications |
 |------|---------|-------------|
-| 0 | Platform base | openshift-gitops, platform-users |
+| 0 | Platform base | openshift-gitops, platform-users, **argocd-local-users** |
 | 1 | Operators + ACM | observability, acm |
 | 2 | Secrets infrastructure | vault, openshift-external-secrets, rhbk |
-| 3 | Developer tools | gitlab-operator |
+| 3 | Developer tools + MCP | gitlab-operator, **argocd-mcp** |
 | 4 | Developer portal | developer-hub |
-| 5 | AI + workshop | openshift-ai-hub, showroom |
-| 6 | Multi-cluster | neuroface-gateway, acm-hub-spoke |
+| 5 | AI + workshop | openshift-ai-hub, showroom, workshop-registration |
+| 6 | Multi-cluster + native MaaS | neuroface-gateway, acm-hub-spoke, **models-as-a-service**, workshop-kuadrant-apis |
 | 7 | Security + IDE | acs-init-bundle-sync, devspaces |
 | 10 | Console UI | console-links |
 
 ### Spoke sync waves
 | Wave | Purpose | Applications |
 |------|---------|-------------|
-| 0 | Platform base | openshift-gitops, platform-users |
-| 1 | Service Mesh + ESO | servicemesh-config, openshift-external-secrets |
+| 0 | Platform base | openshift-gitops, platform-users, **argocd-local-users** |
+| 1 | Service Mesh + ESO + MCP export | servicemesh-config, openshift-external-secrets, **argocd-mcp-spoke-export** |
 | 2 | Observability | observability |
 | 3 | Security | acs-secured-cluster |
 | 5 | CV inference | spoke-neuroface |
@@ -361,6 +361,32 @@ RHDH's kubernetes-plugin queries every configured `customResources` GVK for ever
 
 ### ACM `mustonlyhave` on ArgoCD CR blocks naive `localUsers`/`rbac` patches on spokes
 Same risk as documented in `vp-pattern-dev`: patching `ArgoCD` `vp-gitops` with `spec.localUsers` + extended `spec.rbac` (for `argocd-local-users` / MCP) may not stick on east/west because ACM's gitops `ConfigurationPolicy` enforces an exact `spec.rbac` block. Always verify post-sync on all three clusters before wiring downstream consumers (MCP Deployment, token sync Jobs).
+
+### Pattern CR `extraParameters` vs Vault paths (MaaS + MCP)
+
+| Parameter / secret | Source | Used by | Reuse spoke token? |
+|--------------------|--------|---------|-------------------|
+| `spokeCredentials.clusters.east.apiUrl` | Pattern CR extraParameters | acm-hub-spoke, developer-hub, showroom | N/A (URL only) |
+| `spokeCredentials.clusters.east.token` | Pattern CR extraParameters | ACM import only | **No** — not for Argo MCP |
+| `secret/hub/argocd-mcp-tokens` | Vault + sync Jobs | argocd-mcp ESO | **No** — ai-agent Argo CD tokens |
+| `secret/hub/models-as-a-service-db` | values-secret.template | models-as-a-service ESO | N/A |
+| `global.hubClusterDomain` | VP operator injection | models-as-a-service hostname, showroom | N/A |
+
+Recommended centralization in `values-global.yaml` (then drop duplicate overrides in `values-hub.yaml`):
+```yaml
+global:
+  workshop:
+    userCount: 30
+  maas:
+    externalHost: maas-rhdp.apps.maas.redhatworkshops.io
+    native:
+      enabled: true
+    authorinoTls: true
+  argocdMcp:
+    enabled: true
+```
+
+Showroom lab namespaces for modules 09/10 (`charts/all/showroom/values.yaml` → `workshopNamespacesHub`): `models-as-a-service`, `argocd-mcp`, `vp-gitops`, `openshift-ingress`. ClusterRole `workshop-lab-reader` includes `maas.opendatahub.io` get/list/watch.
 
 ## Porting from hybrid-mesh-platform
 

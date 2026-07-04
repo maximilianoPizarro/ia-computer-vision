@@ -217,3 +217,16 @@ Running each documented verification command for real turned up several that wou
 - **"Expected output" for an OIDC-protected route was `200`, but the real behavior is a `302` redirect to Keycloak.** When a route has an `AuthPolicy` with OIDC, an unauthenticated `curl` should be documented as returning `302` (with an explanation of what that proves), not `200` — otherwise the guide's own success criteria contradicts reality and users think something is broken when it is actually working correctly.
 
 **Practical audit technique**: extract every `[source,bash]` block with an `oc get`/`curl` command from a doc, run it against a real (or representative) cluster, and diff the real output against the doc's `.Expected output` block. Do this any time the underlying chart's application list, route names, or AuthPolicy coverage changes — documentation staleness on exactly these three axes is where this pattern's docs kept drifting.
+
+## Showroom lab guide (external repo)
+
+Antora content lives in https://github.com/maximilianoPizarro/showroom-ia-computer-vision (not this repo). Module numbering:
+
+| Module | File | Topic |
+|--------|------|-------|
+| 09 | `09-maas-native-rhoai.adoc` | Native RHOAI 3.4 MaaS, Gen AI Studio API keys |
+| 10 | `10-argocd-mcp-lightspeed.adoc` | Argo CD MCP, OpenShift Lightspeed, multi-cluster GitOps |
+
+Activity overview diagrams (PatternFly styling, Red Hat product badges): `content/modules/ROOT/images/m09-maas-native-activity.svg`, `m10-argocd-mcp-activity.svg`. Deploy by pushing to the showroom Git repo; the hub `showroom` chart clones `showroom.content.repoUrl` at sync time.
+
+Document new terminal helpers in `docs/content/patterns/ia-computer-vision/workshop.adoc` whenever adding functions to `charts/all/showroom/templates/showroom.yaml`.

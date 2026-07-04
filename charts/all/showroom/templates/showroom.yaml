@@ -415,6 +415,31 @@ spec:
               echo "  oc get pods -n ${ns}"
             }
 
+            maas-native-status() {
+              sa-login 2>/dev/null || hub-login "${1:-user1}"
+              echo "=== MaaS tenant and CRs ==="
+              oc get tenant,externalmodel,maassubscription,maasauthpolicy -n models-as-a-service 2>/dev/null || true
+              oc get tenant default-tenant -n models-as-a-service \
+                -o jsonpath='Tenant Ready: {.status.conditions[?(@.type=="Ready")].status}{"\n"}' 2>/dev/null || true
+              echo "=== MaaS gateway ==="
+              oc get gateway maas-default-gateway -n openshift-ingress \
+                -o jsonpath='Gateway hostname: {.spec.listeners[0].hostname}{"\n"}' 2>/dev/null || true
+              echo "=== Native MaaS endpoint ==="
+              echo "https://maas.${CLUSTER_DOMAIN}/v1"
+            }
+
+            argocd-mcp-status() {
+              sa-login 2>/dev/null || hub-login "${1:-user1}"
+              echo "=== argocd-mcp deployment ==="
+              oc get deploy argocd-mcp -n argocd-mcp 2>/dev/null || true
+              echo "=== MCP pod ==="
+              oc get pods -n argocd-mcp -l app=argocd-mcp 2>/dev/null || true
+              echo "=== ai-agent local user ==="
+              oc get secret ai-agent-local-user -n vp-gitops -o name 2>/dev/null || echo "(secret not found — sync argocd-local-users)"
+              echo "=== In-cluster endpoint ==="
+              echo "http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp"
+            }
+
             echo "╔══════════════════════════════════════════════════════════════╗"
             echo "║  AI Computer Vision Workshop Terminal                        ║"
             echo "╠══════════════════════════════════════════════════════════════╣"
@@ -422,7 +447,9 @@ spec:
             echo "║  spokes:       east-login | west-login                       ║"
             echo "║  NeuroFace CV: neuroface-cv-status | neuroface-cv-traffic    ║"
             echo "║  Edge apps:    neuroface-spoke-status                          ║"
-            echo "║  argocd:       argocd login argocd-server-openshift-gitops..   ║"
+            echo "║  MaaS native:  maas-native-status                              ║"
+            echo "║  Argo MCP:     argocd-mcp-status                               ║"
+            echo "║  argocd CLI:   argocd login vp-gitops-server-vp-gitops..       ║"
             echo "╠══════════════════════════════════════════════════════════════╣"
             echo "║  Hub: $CLUSTER_DOMAIN"
             echo "║  East: $EAST_DOMAIN"

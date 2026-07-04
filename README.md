@@ -42,7 +42,8 @@ After a full installation you obtain:
 - **Cross-cluster connectivity** — Skupper Service Interconnect linking hub and spoke services
 - **Service mesh telemetry** — OpenShift Service Mesh 3.2 ambient mode without sidecar injection
 - **Developer platform** — GitLab, Developer Hub (AI CV software template, Red Hat Developer Lightspeed, OpenShift DevSpaces), Keycloak
-- **AI platform** — OpenShift AI 3.4 DataScienceCluster on the hub for model serving workflows, plus AI Gateway as a single proxy for MaaS LLM access
+- **AI platform** — OpenShift AI 3.4 with native **Models as a Service** (Gen AI Studio, MaaS gateway) plus Kuadrant **AI Gateway** as a parallel proxy path
+- **GitOps MCP** — `mcp-for-argocd` on the hub for multi-cluster Argo CD queries (OpenShift Lightspeed client)
 - **Observability** — Grafana, OpenTelemetry, Kiali, and Thanos federation across clusters
 - **Workshop mode (default)** — 30 HTPasswd users, Showroom lab guide with embedded terminal
 

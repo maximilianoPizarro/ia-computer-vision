@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">Module 09  Native Models as a Service activity</title>
+  <desc id="desc">Workshop flow: userN opens OpenShift AI Gen AI Studio, creates an API key, and calls the native MaaS gateway backed by Connectivity Link.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f0f0f0; }
+      .card { fill: #ffffff; stroke: #d2d2d2; stroke-width: 1; }
+      .masthead { fill: #151515; }
+      .accent { fill: #ee0000; }
+      .title { fill: #ffffff; font-family: "Red Hat Text", "Overpass", Arial, sans-serif; font-size: 20px; font-weight: 600; }
+      .subtitle { fill: #c9190b; font-family: "Red Hat Text", "Overpass", Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+      .h2 { fill: #151515; font-family: "Red Hat Display", "Overpass", Arial, sans-serif; font-size: 18px; font-weight: 700; }
+      .body { fill: #4f5255; font-family: "Red Hat Text", "Overpass", Arial, sans-serif; font-size: 13px; }
+      .step-num { fill: #0066cc; font-family: "Red Hat Display", Arial, sans-serif; font-size: 16px; font-weight: 700; }
+      .pill-rh { fill: #ee0000; }
+      .pill-ocp { fill: #ee0000; }
+      .pill-rhcl { fill: #0066cc; }
+      .pill-up { fill: #3e8635; }
+      .pill-text { fill: #ffffff; font-family: "Red Hat Text", Arial, sans-serif; font-size: 11px; font-weight: 600; }
+      .pill-text-dark { fill: #151515; font-family: "Red Hat Text", Arial, sans-serif; font-size: 11px; font-weight: 600; }
+      .arrow { stroke: #6a6e73; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .lane { fill: #e7f1fa; stroke: #0066cc; stroke-width: 1; stroke-dasharray: 4 3; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6a6e73"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="960" height="520"/>
+  <rect class="masthead" width="960" height="56"/>
+  <rect class="accent" y="56" width="960" height="3"/>
+  <!-- Red Hat logo mark (simplified hat) -->
+  <g transform="translate(20,14) scale(0.22)">
+    <path fill="#ee0000" d="M127.47,83.49c12.51,0,30.61-2.58,30.61-17.46a14,14,0,0,0-.31-3.42l-7.45-32.36c-1.72-7.12-3.23-10.35-15.73-16.6C124.89,8.69,103.76.5,97.51.5,91.69.5,90,8,83.06,8c-6.68,0-11.64-5.6-17.89-5.6-6,0-9.91,4.09-12.93,12.5,0,0-8.41,23.72-9.49,27.16A6.43,6.43,0,0,0,42.53,44c0,9.22,36.3,39.45,84.94,39.45M160,72.07c1.73,8.19,1.73,9.05,1.73,10.13,0,14-15.74,21.77-36.43,21.77C78.54,104,37.58,76.6,37.58,58.49a18.45,18.45,0,0,1,1.51-7.33C22.27,52,.5,55,.5,74.22c0,31.48,74.59,70.28,133.65,70.28,45.28,0,56.7-20.48,56.7-36.65,0-12.72-11-27.16-30.83-35.78"/>
+    <path fill="#ffffff" d="M579.74,92.8c0,11.89,7.15,17.67,20.19,17.67a52.11,52.11,0,0,0,11.89-1.68V95a24.84,24.84,0,0,1-7.68,1.16c-5.37,0-7.36-1.68-7.36-6.73V68.3h15.56V54.1H596.78v-18l-17,3.68V54.1H568.49V68.3h11.25Z"/>
+  </g>
+  <text x="72" y="34" class="title">Module 09  Native Models as a Service</text>
+  <text x="72" y="48" class="subtitle">PatternFly activity overview · ux.redhat.com</text>
+
+  <text x="32" y="92" class="h2">What you will do as userN (~15 min)</text>
+  <text x="32" y="114" class="body">Explore RHOAI 3.4 native MaaS on the hub: Gen AI Studio, API keys, and inference via the Connectivity Link gateway.</text>
+
+  <!-- Product pills -->
+  <g transform="translate(32,128)">
+    <rect class="pill-rh" x="0" y="0" width="118" height="24" rx="12"/>
+    <text x="12" y="16" class="pill-text">OpenShift AI 3.4</text>
+    <rect class="pill-rhcl" x="126" y="0" width="150" height="24" rx="12"/>
+    <text x="138" y="16" class="pill-text">Connectivity Link</text>
+    <rect class="pill-rh" x="284" y="0" width="92" height="24" rx="12"/>
+    <text x="296" y="16" class="pill-text">OpenShift</text>
+    <rect class="pill-up" x="384" y="0" width="88" height="24" rx="12"/>
+    <text x="396" y="16" class="pill-text">RHDP MaaS</text>
+  </g>
+
+  <!-- Steps -->
+  <rect class="card" x="32" y="176" width="896" height="88" rx="4"/>
+  <circle cx="56" cy="220" r="16" fill="#e7f1fa"/>
+  <text x="50" y="226" class="step-num">1</text>
+  <text x="84" y="208" class="h2">Open OpenShift AI dashboard</text>
+  <text x="84" y="228" class="body">Log in as userN · Navigate to Gen AI Studio / Models as a Service</text>
+  <text x="84" y="248" class="body">Confirm menu items enabled by OdhDashboardConfig patch</text>
+
+  <path class="arrow" d="M480 264 L480 284"/>
+
+  <rect class="card" x="32" y="288" width="430" height="88" rx="4"/>
+  <circle cx="56" cy="332" r="16" fill="#e7f1fa"/>
+  <text x="50" y="338" class="step-num">2</text>
+  <text x="84" y="320" class="h2">Verify group + GitOps CRs</text>
+  <text x="84" y="340" class="body">maas-workshop-users · Tenant · Subscription · AuthPolicy</text>
+  <text x="84" y="360" class="body">Terminal: maas-native-status</text>
+
+  <rect class="card" x="498" y="288" width="430" height="88" rx="4"/>
+  <circle cx="522" cy="332" r="16" fill="#e7f1fa"/>
+  <text x="516" y="338" class="step-num">3</text>
+  <text x="550" y="320" class="h2">Create API key in dashboard</text>
+  <text x="550" y="340" class="body">Gen AI Studio ’ API keys ’ copy Bearer token</text>
+  <text x="550" y="360" class="body">Member of maas-workshop-users (user1..user30)</text>
+
+  <path class="arrow" d="M480 376 L480 396"/>
+
+  <rect class="lane" x="32" y="400" width="896" height="96" rx="4"/>
+  <circle cx="56" cy="448" r="16" fill="#0066cc"/>
+  <text x="50" y="454" class="step-num" fill="#ffffff">4</text>
+  <text x="84" y="430" class="h2">Test inference on native gateway</text>
+  <text x="84" y="450" class="body">curl https://maas.&lt;hub_domain&gt;/v1/chat/completions with Bearer token</text>
+  <text x="84" y="470" class="body">Gateway: maas-default-gateway (data-science-gateway-class) ’ upstream RHDP models</text>
+
+  <!-- Architecture mini-flow -->
+  <text x="600" y="430" class="body" font-weight="600">Flow</text>
+  <text x="600" y="448" class="body">userN ’ RHOAI UI ’ API key</text>
+  <text x="600" y="466" class="body">’ maas gateway ’ Authorino ’ RHDP LLM</text>
+  <text x="600" y="484" class="body">Parallel path: Module 05 AI Gateway (Kuadrant)</text>
+</svg>

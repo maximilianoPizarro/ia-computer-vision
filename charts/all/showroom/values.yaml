@@ -33,6 +33,10 @@ showroom:
       - redhat-connectivity-link-operator
       - service-interconnect
       - redhat-ods-applications
+      - models-as-a-service
+      - argocd-mcp
+      - vp-gitops
+      - openshift-ingress
     workshopNamespacesSpoke:
       - neuroface
       - neuroface-cv

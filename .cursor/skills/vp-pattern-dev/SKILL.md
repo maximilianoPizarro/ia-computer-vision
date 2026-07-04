@@ -142,6 +142,9 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 | `developer-hub` | local | 4 | workshop |
 | `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 5 | mesh (required for neuroface-gateway Istio) |
 | `openshift-ai-hub` | local | 5 | ai |
+| `models-as-a-service` | local | 6 | ai (native RHOAI 3.4 MaaS: Tenant, Gateway, Gen AI Studio) |
+| `argocd-local-users` | local | 0 | platform/hub (ai-agent local user + scoped RBAC) |
+| `argocd-mcp` | local | 3 | hub (mcp-for-argocd, hub-only) |
 | `mailpit` | local | 5 | workshop (Mailpit UI + PPE Kafka consumer) |
 | `rhbk-iam` | local | 2 | workshop (per-user realms: neuroface/maas/cv, `backstage-provisioner` client) |
 | `hub-interconnect` | local | 5 | mesh (Skupper VAN + Kafka listener) |
@@ -161,6 +164,8 @@ Verify the live app list with `oc get application -n vp-gitops` — it drifts fr
 | Chart | Type | Wave | ArgoProject |
 |-------|------|------|-------------|
 | `platform-users` | local | 0 | platform (creates `acm-import` SA with cluster-admin) |
+| `argocd-local-users` | local | 0 | platform (ai-agent for MCP — verify ACM mustonlyhave on spokes) |
+| `argocd-mcp-spoke-export` | local | 1 | platform (exports ai-agent token to ConfigMap for hub sync) |
 | `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 1 | mesh |
 | `openshift-external-secrets` | VP chart | 2 | external-secrets |
 | `observability` | local | 2 | observability (also deploys spoke DSC for KServe CRDs) |
@@ -411,6 +416,34 @@ When a survey of every `type: openapi` catalog entity turned up that `neuroface-
 
 ### ACM `ConfigurationPolicy` `mustonlyhave` can revert ArgoCD CR `spec.rbac` / `spec.localUsers`
 The published VP `acm` chart (`charts.validatedpatterns.io/acm:0.2.*`) pushes `ConfigurationPolicy` objects to east/west with `complianceType: mustonlyhave` for the `vp-gitops` `ArgoCD` CR's `spec.rbac` (and potentially other fields). `mustonlyhave` requires the live object to match the policy's literal block exactly — adding `spec.localUsers` (e.g. `ai-agent` for MCP) or extra `rbac.policy` lines via a separate chart (`argocd-local-users`) may be reverted on the next policy evaluation. **First verify after merge**: `oc get argocd vp-gitops -n vp-gitops -o yaml` — confirm `spec.localUsers` and `ai-agent-local-user` Secret still exist minutes later. If reverted on spokes, mitigation is out-of-band: set the east/west gitops policy `remediationAction: inform`, or extend the upstream `acm` chart policy template. Do not assume a Git-only SSA patch sticks without checking.
+
+### Native MaaS (RHOAI 3.4) + legacy AI Gateway run in parallel during migration
+`openshift-ai-hub` sets `kserve.modelsAsService: Managed` when `maas.native.enabled=true`. Chart `models-as-a-service` (hub, wave 6) deploys `Tenant`, `ExternalModel`, `MaaSSubscription`, Gateway `maas-default-gateway`, and patches `OdhDashboardConfig` (`modelAsService`, `genAiStudio`, `maasAuthPolicies`). The legacy Kuadrant path (`workshop-kuadrant-apis.apis.maas.enabled`) stays enabled until native MaaS is validated — then disable legacy and optionally delete orphaned `Kuadrant` CR in `kuadrant-system`. **Authorino TLS** for native MaaS lives in `redhat-connectivity-link-operator` (not `kuadrant-system`); gateway TLS secret is `cert-manager-ingress-cert` in `openshift-ingress`. MaaS CR apiGroup is `maas.opendatahub.io/v1alpha1`.
+
+### Argo CD MCP token chain (do not reuse `spokeCredentials` tokens)
+`spokeCredentials.clusters.*.token` (Pattern CR `extraParameters` → `acm-hub-spoke`) is for **ACM cluster import** only. Argo CD MCP uses a separate chain:
+1. `argocd-local-users` (hub + spokes, wave 0) — `ai-agent` local user + scoped RBAC
+2. `argocd-mcp-spoke-export` (spokes, wave 1) — PostSync Job writes token + URL to ConfigMap `argocd-mcp-hub-export`
+3. `argocd-mcp` (hub, wave 3) — hub PostSync Job patches Vault `secret/hub/argocd-mcp-tokens`; spoke sync Job reads spoke ConfigMaps via **ManagedClusterView**; ESO builds `argocd-mcp-hub-creds` + `token-registry.json`
+4. MCP endpoint: `http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp` (image `ghcr.io/argoproj-labs/mcp-for-argocd:v0.8.0`)
+
+**Sync pitfall**: do not sync `argocd-local-users` with `--force` when `ServerSideApply=true` is set — Argo CD rejects `--force` + `--server-side` together. **Showroom**: modules 09/10 document native MaaS and MCP; terminal helpers `maas-native-status` and `argocd-mcp-status` in `charts/all/showroom/templates/showroom.yaml`.
+
+### Centralize repeated overrides via `values-global.yaml` (recommended)
+Duplicate `userCount: "30"` and `maas.endpoint` across many hub application overrides. Prefer adding to `values-global.yaml`:
+```yaml
+global:
+  workshop:
+    userCount: 30
+  maas:
+    externalHost: maas-rhdp.apps.maas.redhatworkshops.io
+    native:
+      enabled: true
+  argocdMcp:
+    enabled: true
+    vaultPath: secret/hub/argocd-mcp-tokens
+```
+Then reference `{{ .Values.global.workshop.userCount }}` in chart defaults instead of repeating overrides in seven applications.
 
 ## Key constraints
 

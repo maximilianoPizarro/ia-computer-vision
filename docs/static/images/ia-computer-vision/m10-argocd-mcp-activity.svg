@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Module 10  Argo CD MCP and OpenShift Lightspeed activity</title>
+  <desc id="desc">Workshop flow: ai-agent local user, mcp-for-argocd server, multi-cluster token registry, and OpenShift Lightspeed MCP client for GitOps automation.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f0f0f0; }
+      .card { fill: #ffffff; stroke: #d2d2d2; stroke-width: 1; }
+      .masthead { fill: #151515; }
+      .accent { fill: #ee0000; }
+      .title { fill: #ffffff; font-family: "Red Hat Text", "Overpass", Arial, sans-serif; font-size: 20px; font-weight: 600; }
+      .subtitle { fill: #c9190b; font-family: "Red Hat Text", "Overpass", Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+      .h2 { fill: #151515; font-family: "Red Hat Display", "Overpass", Arial, sans-serif; font-size: 18px; font-weight: 700; }
+      .body { fill: #4f5255; font-family: "Red Hat Text", "Overpass", Arial, sans-serif; font-size: 13px; }
+      .step-num { fill: #0066cc; font-family: "Red Hat Display", Arial, sans-serif; font-size: 16px; font-weight: 700; }
+      .pill-rh { fill: #ee0000; }
+      .pill-gitops { fill: #ee0000; }
+      .pill-acm { fill: #0066cc; }
+      .pill-argo { fill: #ef7b4d; }
+      .pill-ls { fill: #151515; }
+      .pill-vault { fill: #000000; }
+      .pill-text { fill: #ffffff; font-family: "Red Hat Text", Arial, sans-serif; font-size: 11px; font-weight: 600; }
+      .arrow { stroke: #6a6e73; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .hub { fill: #e7f1fa; stroke: #0066cc; stroke-width: 1.5; }
+      .spoke { fill: #faeae5; stroke: #ef7b4d; stroke-width: 1.5; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6a6e73"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="960" height="540"/>
+  <rect class="masthead" width="960" height="56"/>
+  <rect class="accent" y="56" width="960" height="3"/>
+  <g transform="translate(20,14) scale(0.22)">
+    <path fill="#ee0000" d="M127.47,83.49c12.51,0,30.61-2.58,30.61-17.46a14,14,0,0,0-.31-3.42l-7.45-32.36c-1.72-7.12-3.23-10.35-15.73-16.6C124.89,8.69,103.76.5,97.51.5,91.69.5,90,8,83.06,8c-6.68,0-11.64-5.6-17.89-5.6-6,0-9.91,4.09-12.93,12.5,0,0-8.41,23.72-9.49,27.16A6.43,6.43,0,0,0,42.53,44c0,9.22,36.3,39.45,84.94,39.45M160,72.07c1.73,8.19,1.73,9.05,1.73,10.13,0,14-15.74,21.77-36.43,21.77C78.54,104,37.58,76.6,37.58,58.49a18.45,18.45,0,0,1,1.51-7.33C22.27,52,.5,55,.5,74.22c0,31.48,74.59,70.28,133.65,70.28,45.28,0,56.7-20.48,56.7-36.65,0-12.72-11-27.16-30.83-35.78"/>
+  </g>
+  <text x="72" y="34" class="title">Module 10  Argo CD MCP &amp; OpenShift Lightspeed</text>
+  <text x="72" y="48" class="subtitle">PatternFly activity overview · ux.redhat.com</text>
+
+  <text x="32" y="92" class="h2">What you will do as userN (~15 min)</text>
+  <text x="32" y="114" class="body">Verify the GitOps MCP stack on the hub and understand how Lightspeed queries Argo CD across hub + east + west.</text>
+
+  <g transform="translate(32,128)">
+    <rect class="pill-gitops" x="0" y="0" width="130" height="24" rx="12"/>
+    <text x="12" y="16" class="pill-text">OpenShift GitOps</text>
+    <rect class="pill-acm" x="138" y="0" width="56" height="24" rx="12"/>
+    <text x="150" y="16" class="pill-text">ACM</text>
+    <rect class="pill-argo" x="202" y="0" width="108" height="24" rx="12"/>
+    <text x="214" y="16" class="pill-text">Argo CD MCP</text>
+    <rect class="pill-ls" x="318" y="0" width="118" height="24" rx="12"/>
+    <text x="330" y="16" class="pill-text">Lightspeed</text>
+    <rect class="pill-rh" x="444" y="0" width="108" height="24" rx="12"/>
+    <text x="456" y="16" class="pill-text">Developer Hub</text>
+    <rect class="pill-vault" x="560" y="0" width="64" height="24" rx="12"/>
+    <text x="572" y="16" class="pill-text">Vault</text>
+  </g>
+
+  <!-- Architecture diagram -->
+  <rect class="hub" x="32" y="168" width="896" height="120" rx="6"/>
+  <text x="48" y="192" class="h2">Hub cluster</text>
+  <rect class="card" x="48" y="204" width="140" height="68" rx="4"/>
+  <text x="60" y="228" class="body" font-weight="600">argocd-local-users</text>
+  <text x="60" y="246" class="body">ai-agent + RBAC</text>
+  <text x="60" y="262" class="body">get / sync apps</text>
+
+  <rect class="card" x="204" y="204" width="140" height="68" rx="4"/>
+  <text x="216" y="228" class="body" font-weight="600">argocd-mcp</text>
+  <text x="216" y="246" class="body">mcp-for-argocd</text>
+  <text x="216" y="262" class="body">:3000/mcp</text>
+
+  <rect class="card" x="360" y="204" width="140" height="68" rx="4"/>
+  <text x="372" y="228" class="body" font-weight="600">Vault + ESO</text>
+  <text x="372" y="246" class="body">token-registry</text>
+  <text x="372" y="262" class="body">hub/east/west</text>
+
+  <rect class="card" x="516" y="204" width="180" height="68" rx="4"/>
+  <text x="528" y="228" class="body" font-weight="600">OpenShift Lightspeed</text>
+  <text x="528" y="246" class="body">MCP client (optional)</text>
+  <text x="528" y="262" class="body">Developer Hub /lightspeed</text>
+
+  <rect class="card" x="712" y="204" width="200" height="68" rx="4"/>
+  <text x="724" y="228" class="body" font-weight="600">Argo CD UI</text>
+  <text x="724" y="246" class="body">vp-gitops · userN read</text>
+  <text x="724" y="262" class="body">Applications hub/east/west</text>
+
+  <path class="arrow" d="M188 238 L204 238"/>
+  <path class="arrow" d="M344 238 L360 238"/>
+  <path class="arrow" d="M500 238 L516 238"/>
+
+  <rect class="spoke" x="120" y="308" width="360" height="56" rx="6"/>
+  <text x="136" y="332" class="body" font-weight="600">East spoke  argocd-mcp-spoke-export</text>
+  <text x="136" y="350" class="body">ConfigMap argocd-mcp-hub-export ’ ACM ManagedClusterView</text>
+
+  <rect class="spoke" x="520" y="308" width="360" height="56" rx="6"/>
+  <text x="536" y="332" class="body" font-weight="600">West spoke  argocd-mcp-spoke-export</text>
+  <text x="536" y="350" class="body">Same export pattern · token sync CronJob every 6h</text>
+
+  <path class="arrow" d="M300 288 L300 308"/>
+  <path class="arrow" d="M700 288 L700 308"/>
+
+  <!-- Lab steps -->
+  <rect class="card" x="32" y="384" width="896" height="136" rx="4"/>
+  <text x="48" y="408" class="h2">Lab steps (terminal + UI)</text>
+  <text x="48" y="432" class="body">` hub-login userN · a argocd-mcp-status (pod + endpoint) · b Argo CD UI filter apps</text>
+  <text x="48" y="452" class="body">c Inspect ai-agent local user secret (platform-managed) · d Example Lightspeed prompts when MCP wired</text>
+  <text x="48" y="472" class="body">Example prompt: Which Argo CD applications on east are OutOfSync?</text>
+  <text x="48" y="500" class="body" font-style="italic">Note: Lightspeed plugin may be disabled in sandbox; MCP server still runs for operators.</text>
+</svg>

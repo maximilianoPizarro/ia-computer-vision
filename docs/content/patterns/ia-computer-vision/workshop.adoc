@@ -65,6 +65,8 @@ sa-login                 # read-only Showroom service account
 neuroface-cv-status      # curl PPE status via neuroface-cv gateway
 neuroface-cv-traffic     # inspect HTTPRoute + Skupper connectors
 neuroface-spoke-status userN   # pods in neuroface-userN on spoke
+maas-native-status             # MaaS tenant, CRs, and gateway hostname
+argocd-mcp-status              # Argo CD MCP deployment and endpoint
 ----
 
 === Troubleshooting showroom pod
@@ -150,6 +152,32 @@ For operator interaction diagrams and expected results, see link:../scaffolding-
 . Open **Mailpit** from the OCP console menu → verify alert email arrived
 . Verify Kafka consumer: `oc logs -n mailpit deploy/ppe-kafka-mailpit -f`
 
+== Module 09 — Native Models as a Service in OpenShift AI
+
+Showroom module 09 walks through RHOAI 3.4 native MaaS (not the Kuadrant AI Gateway path from module 05):
+
+. Log in to the OpenShift AI dashboard as `userN`
+. Confirm **Gen AI Studio** and **Models as a Service** navigation (patched by chart `models-as-a-service`)
+. Run `maas-native-status` in the Showroom terminal — Tenant Ready, gateway hostname `maas.apps.<hub_domain>`
+. Create an API key in Gen AI Studio and test `curl` against `https://maas.apps.<hub_domain>/v1/chat/completions`
+
+Charts involved: `openshift-ai-hub` (`maas.native.enabled=true`), `models-as-a-service`, `workshop-kuadrant-apis` (`maas.authorinoTls=true`).
+
+== Module 10 — Argo CD MCP and OpenShift Lightspeed
+
+Showroom module 10 documents the GitOps MCP stack for multi-cluster queries:
+
+. Browse Argo CD at `https://vp-gitops-server-vp-gitops.apps.<hub_domain>/`
+. Run `argocd-mcp-status` — Deployment health and in-cluster endpoint `http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp`
+. Trace tokens: `argocd-local-users` → Vault `secret/hub/argocd-mcp-tokens` → ESO → MCP Deployment
+
+[NOTE]
+====
+OpenShift Lightspeed in Developer Hub may be disabled in sandbox (`plugins.lightspeed.enabled: false`). The MCP server still runs for operator wiring. Do not reuse `spokeCredentials` ACM import tokens for Argo CD MCP — they serve different purposes.
+====
+
+Charts involved: `argocd-local-users` (hub + spokes), `argocd-mcp-spoke-export` (spokes), `argocd-mcp` (hub).
+
 == Scaling workshop users
 
 Update `userCount` consistently in these application overrides:
@@ -158,6 +186,7 @@ Update `userCount` consistently in these application overrides:
 * `developer-hub`
 * `gitlab-operator`
 * `openshift-ai-hub`
+* `models-as-a-service`
 * `devspaces`
 * `showroom` (`showroom.terminal.userCount`)
 
@@ -190,5 +219,25 @@ Update `userCount` consistently in these application overrides:
 | `showroom`
 | Hub
 | 5
-| Lab guide + terminal
+| Lab guide + terminal (modules 01–10)
+
+| `models-as-a-service`
+| Hub
+| 6
+| Native RHOAI 3.4 MaaS (Tenant, Gateway, Gen AI Studio)
+
+| `argocd-local-users`
+| Hub, east, west
+| 0
+| ai-agent local user for MCP
+
+| `argocd-mcp-spoke-export`
+| East, west
+| 1
+| Export Argo CD token to ConfigMap for hub sync
+
+| `argocd-mcp`
+| Hub
+| 3
+| mcp-for-argocd HTTP server (multi-cluster)
 |===
