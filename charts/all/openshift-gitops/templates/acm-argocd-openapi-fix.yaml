@@ -62,6 +62,8 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
   template:
     spec:
       restartPolicy: OnFailure
@@ -99,10 +101,24 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
 spec:
   schedule: {{ .Values.acmArgocdOpenapiFix.schedule | default "*/2 * * * *" | quote }}
+  # Without these three settings, a hung/failing `oc` call or pod-creation
+  # error (e.g. a transiently missing ServiceAccount) never gets terminated
+  # -- every scheduled tick then leaves one more permanently-"Running" Job
+  # behind forever. Discovered live after 354 such Jobs accumulated over
+  # ~3.5 days (the ServiceAccount had been missing that whole time, so every
+  # single Job failed pod creation and just sat retrying indefinitely), which
+  # was enough sustained apiserver/pod churn to make the Argo CD application
+  # controller StatefulSet restart every 20-40 seconds around the clock.
+  # concurrencyPolicy alone does not stop an already-stuck run;
+  # activeDeadlineSeconds is what actually terminates it.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 2
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 60
+      backoffLimit: 2
       template:
         spec:
           restartPolicy: OnFailure
