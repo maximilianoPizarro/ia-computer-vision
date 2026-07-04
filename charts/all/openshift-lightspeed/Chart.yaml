@@ -1,0 +1,8 @@
+apiVersion: v2
+name: openshift-lightspeed
+description: OpenShift Lightspeed console assistant, preconfigured with the Argo CD MCP server and the workshop AI Gateway as LLM provider
+type: application
+version: 0.1.0
+maintainers:
+  - name: Maximiliano Pizarro
+    email: mapizarr@redhat.com

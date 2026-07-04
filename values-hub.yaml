@@ -11,6 +11,7 @@ clusterGroup:
     open-cluster-management: {}
     vault: {}
     argocd-mcp: {}
+    openshift-lightspeed: {}
     external-secrets-operator:
       operatorGroup: true
       targetNamespaces: []
@@ -61,6 +62,11 @@ clusterGroup:
       name: openshift-external-secrets-operator
       namespace: external-secrets-operator
       channel: stable-v1
+    lightspeed-operator:
+      name: lightspeed-operator
+      namespace: openshift-lightspeed
+      channel: stable
+      source: redhat-operators
     # rhacs:  # ACS disabled by default to save resources
     #   name: rhacs-operator
     #   namespace: openshift-operators
@@ -470,6 +476,13 @@ clusterGroup:
           value: "maas-rhdp.apps.maas.redhatworkshops.io"
         - name: maas.authorinoTls
           value: "true"
+
+    openshift-lightspeed:
+      name: openshift-lightspeed
+      namespace: openshift-lightspeed
+      argoProject: workshop
+      path: charts/all/openshift-lightspeed
+      syncWave: "7"
 
     acm-hub-spoke:
       name: acm-hub-spoke

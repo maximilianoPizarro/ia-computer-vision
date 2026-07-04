@@ -45,6 +45,8 @@ products:
     version: "3.2"
   - name: Red Hat Developer Hub
     version: fast
+  - name: Red Hat OpenShift Lightspeed
+    version: stable
   - name: Red Hat Build of Keycloak
     version: "26.4"
   - name: Red Hat OpenShift GitOps

@@ -1,0 +1,18 @@
+clusterDomain: ""
+namespace: openshift-lightspeed
+
+llm:
+  providerName: workshop-ai-gateway
+  # OpenAI-compatible AI Gateway (charts/all/workshop-kuadrant-apis). The
+  # ai-maas-auth AuthPolicy accepts this key with a standard "Bearer " prefix
+  # (added specifically for OpenShift Lightspeed's openai provider type) in
+  # addition to the APIKEY prefix used elsewhere in the workshop.
+  url: "" # default https://ai-gateway.<clusterDomain>/v1
+  model: llama-scout-17b
+  vaultPlatformApiKeyPath: secret/data/hub/ai-gateway-platform-keys
+
+# Argo CD MCP (charts/all/argocd-mcp) preconfigured out of the box. Add more
+# entries here for other in-cluster MCP servers.
+mcpServers:
+  - name: argocd-mcp
+    url: http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp

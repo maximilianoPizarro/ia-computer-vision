@@ -1,0 +1,34 @@
+{{- $aiGatewayUrl := include "openshift-lightspeed.aiGatewayUrl" . -}}
+{{- $providerName := .Values.llm.providerName | default "workshop-ai-gateway" -}}
+{{- $model := .Values.llm.model | default "llama-scout-17b" -}}
+---
+apiVersion: ols.openshift.io/v1alpha1
+kind: OLSConfig
+metadata:
+  name: cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  llm:
+    providers:
+      - name: {{ $providerName | quote }}
+        type: openai
+        credentialsSecretRef:
+          name: workshop-ai-gateway-credentials
+        url: {{ $aiGatewayUrl | quote }}
+        models:
+          - name: {{ $model | quote }}
+  ols:
+    defaultProvider: {{ $providerName | quote }}
+    defaultModel: {{ $model | quote }}
+  # Argo CD MCP requires the MCPServer feature gate.
+  featureGates:
+    - MCPServer
+  mcpServers:
+{{- range $srv := .Values.mcpServers }}
+    - name: {{ $srv.name | quote }}
+      url: {{ $srv.url | quote }}
+      {{- if $srv.timeout }}
+      timeout: {{ $srv.timeout }}
+      {{- end }}
+{{- end }}

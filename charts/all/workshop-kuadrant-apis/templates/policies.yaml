@@ -202,6 +202,24 @@ spec:
           authorizationHeader:
             prefix: APIKEY
         {{- $maasKey := include "workshop-kuadrant-apis.maasApiKey" . }}
+      # Same API keys, accepted with a standard "Bearer " prefix too -- OpenAI-
+      # compatible clients that don't support a custom auth scheme (e.g. the
+      # OpenShift Lightspeed Operator's `type: openai` LLM provider, which
+      # always sends "Authorization: Bearer <apitoken>") can reuse the
+      # long-lived, auto-generated platform-ai-gateway-key this way instead of
+      # a short-lived OIDC token. Authorino ORs every identity source, so this
+      # is purely additive -- APIKEY-prefixed clients (module 05, Developer
+      # Hub) are unaffected.
+      api-key-users-bearer:
+        apiKey:
+          allNamespaces: true
+          selector:
+            matchLabels:
+              app: workshop-llm-tokens
+              kuadrant.io/apikey: "true"
+        credentials:
+          authorizationHeader:
+            prefix: Bearer
       {{- if $maasOidcEnabled }}
       jwt-users:
         jwt:
