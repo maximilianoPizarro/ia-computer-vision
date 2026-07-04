@@ -298,12 +298,14 @@ clusterGroup:
           value: "true"
         - name: plugins.notificationsEmail.enabled
           value: "true"
-        # Lightspeed sidecars (llama-stack 0.1.4 + lightspeed-core 0.4.0), preconfigured
-        # with the Argo CD MCP server (charts/all/argocd-mcp) via lightspeed-stack.yaml's
-        # mcp_servers block. Verified running stable on the hub (Jul 2026) -- re-check after
-        # any RHDH/lightspeed-stack image bump before relying on this in a fresh install.
+        # Developer Hub's embedded Lightspeed plugin (llama-stack + lightspeed-core
+        # sidecars) stays disabled -- the workshop's MCP integration target is the
+        # standalone OpenShift Lightspeed operator (console assistant), not this
+        # plugin. mcp_servers preconfiguration in lightspeed-stack.yaml (see
+        # charts/all/developer-hub/templates/lightspeed.yaml) stays in place dormant
+        # for whenever this plugin is revisited, but is not part of the current plan.
         - name: plugins.lightspeed.enabled
-          value: "true"
+          value: "false"
         - name: spokeTokenSync.enabled
           value: "true"
         - name: kubernetesSpokes.enabled
