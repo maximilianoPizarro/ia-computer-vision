@@ -1,0 +1,158 @@
+{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- $argoNs := include "argocd-mcp.argoNamespace" . -}}
+{{- $ns := .Values.namespace | default "argocd-mcp" -}}
+{{- $secretName := .Values.localUserSecretName | default "ai-agent-local-user" -}}
+{{- $vaultPath := (.Values.vault | default dict).tokensPath | default "secret/hub/argocd-mcp-tokens" -}}
+{{- $image := .Values.cliImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-mcp-hub-token-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-mcp-hub-token-sync
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-mcp-hub-token-sync
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-mcp-hub-token-sync
+subjects:
+  - kind: ServiceAccount
+    name: argocd-mcp-hub-token-sync
+    namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-mcp-hub-token-sync-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    resourceNames: ["vault-0"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-mcp-hub-token-sync-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-mcp-hub-token-sync-vault
+subjects:
+  - kind: ServiceAccount
+    name: argocd-mcp-hub-token-sync
+    namespace: {{ $ns }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argocd-mcp-hub-token-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: argocd-mcp-hub-token-sync
+      containers:
+        - name: sync
+          image: {{ $image | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              ARGO_NS="{{ $argoNs }}"
+              SECRET="{{ $secretName }}"
+              VAULT_KV="{{ $vaultPath }}"
+              MAX_WAIT=180
+              INTERVAL=10
+              elapsed=0
+
+              echo "Waiting for ${SECRET} in ${ARGO_NS}..."
+              while ! oc get secret "${SECRET}" -n "${ARGO_NS}" &>/dev/null; do
+                if [ "${elapsed}" -ge "${MAX_WAIT}" ]; then
+                  echo "ERROR: ${SECRET} not found after ${MAX_WAIT}s"
+                  exit 1
+                fi
+                sleep "${INTERVAL}"
+                elapsed=$((elapsed + INTERVAL))
+              done
+
+              TOKEN=$(oc get secret "${SECRET}" -n "${ARGO_NS}" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || true)
+              if [ -z "${TOKEN}" ]; then
+                TOKEN=$(oc get secret "${SECRET}" -n "${ARGO_NS}" -o jsonpath='{.data.apiToken}' 2>/dev/null | base64 -d 2>/dev/null || true)
+              fi
+              if [ -z "${TOKEN}" ]; then
+                echo "ERROR: empty hub token"
+                exit 1
+              fi
+
+              ROUTE=$(oc get route {{ $argoNs }}-server -n "${ARGO_NS}" -o jsonpath='{.spec.host}' 2>/dev/null || true)
+              if [ -z "${ROUTE}" ]; then
+                ROUTE=$(oc get route -n "${ARGO_NS}" -l app.kubernetes.io/name={{ $argoNs }}-server -o jsonpath='{.items[0].spec.host}' 2>/dev/null || true)
+              fi
+              if [ -z "${ROUTE}" ]; then
+                echo "ERROR: could not resolve hub Argo CD route"
+                exit 1
+              fi
+              URL="https://${ROUTE}"
+
+              if oc get pod vault-0 -n vault >/dev/null 2>&1; then
+                oc exec -n vault vault-0 -- sh -c "
+                  set -e
+                  export VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true
+                  ROOT=\$(cat /vault/data/root-token 2>/dev/null || true)
+                  if [ -n \"\${ROOT}\" ]; then
+                    export VAULT_TOKEN=\${ROOT}
+                    vault kv patch ${VAULT_KV} hub-token=\"${TOKEN}\" hub-url=\"${URL}\"
+                    echo 'Patched Vault ${VAULT_KV} hub-token/hub-url.'
+                  else
+                    echo 'WARN: Vault root token not found — patch hub-token manually.'
+                    exit 1
+                  fi
+                "
+              else
+                echo "WARN: vault-0 not ready — skipping Vault patch"
+                exit 1
+              fi
+              echo "argocd-mcp-hub-token-sync complete."
+{{- end }}

@@ -1,0 +1,90 @@
+{{- $pg := .Values.postgres | default dict -}}
+{{- $res := $pg.resources | default dict -}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: models-as-a-service-postgres
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $pg.storage | default "2Gi" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: models-as-a-service-postgres
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: models-as-a-service-postgres
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  type: ClusterIP
+  selector:
+    app: models-as-a-service-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: models-as-a-service-postgres
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: models-as-a-service-postgres
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: models-as-a-service-postgres
+  template:
+    metadata:
+      labels:
+        app: models-as-a-service-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ $pg.image | default "registry.redhat.io/rhel9/postgresql-16:latest" | quote }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRESQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: models-as-a-service-db-credentials
+                  key: username
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: models-as-a-service-db-credentials
+                  key: password
+            - name: POSTGRESQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: models-as-a-service-db-credentials
+                  key: database
+          resources:
+            requests:
+              cpu: {{ ($res.requests | default dict).cpu | default "250m" | quote }}
+              memory: {{ ($res.requests | default dict).memory | default "512Mi" | quote }}
+            limits:
+              cpu: {{ ($res.limits | default dict).cpu | default "1" | quote }}
+              memory: {{ ($res.limits | default dict).memory | default "1Gi" | quote }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgsql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: models-as-a-service-postgres

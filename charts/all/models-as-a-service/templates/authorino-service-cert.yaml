@@ -1,0 +1,11 @@
+{{- $auth := .Values.authorino | default dict -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $auth.serviceName | default "authorino-authorino-authorization" }}
+  namespace: {{ $auth.serviceNamespace | default "redhat-connectivity-link-operator" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: ServerSideApply=true
+    service.beta.openshift.io/serving-cert-secret-name: authorino-server-cert

@@ -1,0 +1,8 @@
+argoNamespace: vp-gitops
+
+localUser:
+  name: ai-agent
+  apiKey: true
+  login: false
+  tokenLifetime: "720h"
+  autoRenewToken: true

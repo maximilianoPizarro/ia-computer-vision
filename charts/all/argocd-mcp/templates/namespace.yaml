@@ -1,0 +1,10 @@
+{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace | default "argocd-mcp" }}
+  labels:
+    app.kubernetes.io/part-of: argocd-mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}

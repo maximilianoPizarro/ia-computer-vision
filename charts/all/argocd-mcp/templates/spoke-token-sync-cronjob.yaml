@@ -1,0 +1,306 @@
+{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- $ns := .Values.namespace | default "argocd-mcp" -}}
+{{- $spoke := .Values.spokeExport | default dict -}}
+{{- $exportNs := $spoke.exportNamespace | default "vp-gitops" -}}
+{{- $exportCm := $spoke.configMapName | default "argocd-mcp-hub-export" -}}
+{{- $viewName := $spoke.viewName | default "argocd-mcp-hub-export-token" -}}
+{{- $clusters := $spoke.clusters | default (list "east" "west") -}}
+{{- $vaultPath := (.Values.vault | default dict).tokensPath | default "secret/hub/argocd-mcp-tokens" -}}
+{{- $syncImage := .Values.tokenSyncImage | default "registry.redhat.io/ubi9/python-311:latest" -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-mcp-spoke-token-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-mcp-spoke-token-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: ["view.open-cluster-management.io"]
+    resources: ["managedclusterviews"]
+    verbs: ["get", "list", "create", "delete", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-mcp-spoke-token-sync
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-mcp-spoke-token-sync
+subjects:
+  - kind: ServiceAccount
+    name: argocd-mcp-spoke-token-sync
+    namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-mcp-spoke-token-sync-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    resourceNames: ["vault-0"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-mcp-spoke-token-sync-vault
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-mcp-spoke-token-sync-vault
+subjects:
+  - kind: ServiceAccount
+    name: argocd-mcp-spoke-token-sync
+    namespace: {{ $ns }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-mcp-spoke-token-sync-script
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  sync.py: |
+    #!/usr/bin/env python3
+    import json
+    import os
+    import ssl
+    import sys
+    import time
+    import urllib.error
+    import urllib.request
+    from pathlib import Path
+
+    CLUSTERS = [c.strip() for c in os.environ.get("CLUSTERS", "east,west").split(",") if c.strip()]
+    EXPORT_NS = os.environ.get("EXPORT_NAMESPACE", "vp-gitops")
+    EXPORT_CM = os.environ.get("EXPORT_CONFIGMAP", "argocd-mcp-hub-export")
+    VIEW_NAME = os.environ.get("VIEW_NAME", "argocd-mcp-hub-export-token")
+    VAULT_KV = os.environ.get("VAULT_KV_PATH", "secret/hub/argocd-mcp-tokens")
+    MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "12"))
+    RETRY_INTERVAL = int(os.environ.get("RETRY_INTERVAL", "30"))
+
+    SA_TOKEN_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    SA_CA_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
+    API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
+    API_BASE = f"https://{API_HOST}:{API_PORT}"
+
+
+    def api_request(method, path, body=None):
+        token = SA_TOKEN_PATH.read_text().strip()
+        ctx = ssl.create_default_context(cafile=str(SA_CA_PATH))
+        headers = {"Authorization": f"Bearer {token}"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode()
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(f"{API_BASE}{path}", data=data, method=method, headers=headers)
+        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+            raw = resp.read().decode()
+            return json.loads(raw) if raw else {}
+
+
+    def fetch_spoke_export(cluster):
+        view_path = f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews/{VIEW_NAME}"
+        try:
+            api_request("DELETE", view_path)
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+        body = {
+            "apiVersion": "view.open-cluster-management.io/v1beta1",
+            "kind": "ManagedClusterView",
+            "metadata": {"name": VIEW_NAME},
+            "spec": {
+                "scope": {
+                    "apiGroup": "",
+                    "kind": "ConfigMap",
+                    "version": "v1",
+                    "resource": "configmaps",
+                    "name": EXPORT_CM,
+                    "namespace": EXPORT_NS,
+                }
+            },
+        }
+        api_request("POST", f"/apis/view.open-cluster-management.io/v1beta1/namespaces/{cluster}/managedclusterviews", body)
+        for _ in range(60):
+            view = api_request("GET", view_path)
+            result = view.get("status", {}).get("result") or {}
+            data = result.get("data") or {}
+            token = (data.get("token") or "").strip()
+            url = (data.get("url") or "").strip()
+            if token and url:
+                return token, url
+            time.sleep(2)
+        raise RuntimeError(f"timeout waiting for spoke export from {cluster}")
+
+
+    def patch_vault(entries):
+        import subprocess
+        lines = [
+            "set -e",
+            "export VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true",
+            "ROOT=$(cat /vault/data/root-token 2>/dev/null || true)",
+            'if [ -z "${ROOT}" ]; then echo "ERROR: Vault root token not found"; exit 1; fi',
+            "export VAULT_TOKEN=${ROOT}",
+            f"vault kv patch {VAULT_KV} \\",
+        ]
+        for key, value in entries.items():
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(f'  {key}="{escaped}" \\')
+        lines[-1] = lines[-1].rstrip(" \\")
+        script = "\n".join(lines)
+        subprocess.run(["oc", "exec", "-n", "vault", "vault-0", "--", "sh", "-c", script], check=True)
+
+
+    def main():
+        for attempt in range(1, MAX_RETRIES + 1):
+            vault_patch = {}
+            try:
+                for cluster in CLUSTERS:
+                    token, url = fetch_spoke_export(cluster)
+                    vault_patch[f"{cluster}-token"] = token
+                    vault_patch[f"{cluster}-url"] = url
+                    print(f"OK: fetched export from {cluster}", file=sys.stderr)
+                patch_vault(vault_patch)
+                print(f"Updated Vault with {len(CLUSTERS)} spoke token(s)", file=sys.stderr)
+                return
+            except Exception as e:
+                print(f"WARN: attempt {attempt}/{MAX_RETRIES} failed: {e}", file=sys.stderr)
+                if attempt < MAX_RETRIES:
+                    time.sleep(RETRY_INTERVAL)
+        sys.exit(1)
+
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argocd-mcp-spoke-token-sync-hook
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: argocd-mcp-spoke-token-sync
+      restartPolicy: OnFailure
+      containers:
+        - name: sync
+          image: {{ $syncImage | quote }}
+          command: ["python3", "/scripts/sync.py"]
+          env:
+            - name: CLUSTERS
+              value: {{ join "," $clusters | quote }}
+            - name: EXPORT_NAMESPACE
+              value: {{ $exportNs | quote }}
+            - name: EXPORT_CONFIGMAP
+              value: {{ $exportCm | quote }}
+            - name: VIEW_NAME
+              value: {{ $viewName | quote }}
+            - name: VAULT_KV_PATH
+              value: {{ $vaultPath | quote }}
+            - name: MAX_RETRIES
+              value: "20"
+            - name: RETRY_INTERVAL
+              value: "30"
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: script
+          configMap:
+            name: argocd-mcp-spoke-token-sync-script
+            defaultMode: 0755
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: argocd-mcp-spoke-token-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  schedule: {{ $spoke.syncSchedule | default "0 */6 * * *" | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: argocd-mcp-spoke-token-sync
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: {{ $syncImage | quote }}
+              command: ["python3", "/scripts/sync.py"]
+              env:
+                - name: CLUSTERS
+                  value: {{ join "," $clusters | quote }}
+                - name: EXPORT_NAMESPACE
+                  value: {{ $exportNs | quote }}
+                - name: EXPORT_CONFIGMAP
+                  value: {{ $exportCm | quote }}
+                - name: VIEW_NAME
+                  value: {{ $viewName | quote }}
+                - name: VAULT_KV_PATH
+                  value: {{ $vaultPath | quote }}
+                - name: MAX_RETRIES
+                  value: "5"
+                - name: RETRY_INTERVAL
+                  value: "15"
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+          volumes:
+            - name: script
+              configMap:
+                name: argocd-mcp-spoke-token-sync-script
+                defaultMode: 0755
+{{- end }}

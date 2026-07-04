@@ -1,0 +1,17 @@
+{{- $odh := .Values.odhDashboard | default dict -}}
+---
+apiVersion: opendatahub.io/v1alpha
+kind: OdhDashboardConfig
+metadata:
+  name: {{ $odh.name | default "odh-dashboard-config" }}
+  namespace: {{ $odh.namespace | default "redhat-ods-applications" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: ServerSideApply=true,SkipDryRunOnMissingResource=true
+spec:
+  dashboardConfig:
+    modelAsService: true
+    genAiStudio: true
+    maasAuthPolicies: true
+    observabilityDashboard: false
+    vLLMDeploymentOnMaaS: false

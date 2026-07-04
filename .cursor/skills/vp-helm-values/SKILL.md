@@ -359,6 +359,9 @@ Backstage's proxy-backend plugin only forwards headers considered "CORS-safe" to
 ### `kubernetes.customResources` entries must match what's actually installed and served
 RHDH's kubernetes-plugin queries every configured `customResources` GVK for every namespace tied to a Topology-visible entity, regardless of whether that specific entity needs it. Any entry for a CRD/operator this pattern doesn't install by default (Strimzi, Camel K) 404s forever in the Topology view unless gated behind a real `values.yaml` flag (`kafka.enabled`, `camel.enabled` — make sure the flag is a genuine top-level key, not accidentally nested under an unrelated block). Also verify the configured `apiVersion` is actually `served: true` for that CRD (`oc get crd <plural>.<group> -o jsonpath='{range .spec.versions[*]}{.name}: served={.served}{"\n"}{end}'`) — a CRD can list a newer version in its schema without yet serving it, and sibling entries in the same `customResources` block can be on different versions.
 
+### ACM `mustonlyhave` on ArgoCD CR blocks naive `localUsers`/`rbac` patches on spokes
+Same risk as documented in `vp-pattern-dev`: patching `ArgoCD` `vp-gitops` with `spec.localUsers` + extended `spec.rbac` (for `argocd-local-users` / MCP) may not stick on east/west because ACM's gitops `ConfigurationPolicy` enforces an exact `spec.rbac` block. Always verify post-sync on all three clusters before wiring downstream consumers (MCP Deployment, token sync Jobs).
+
 ## Porting from hybrid-mesh-platform
 
 When porting charts from hybrid-mesh-platform:

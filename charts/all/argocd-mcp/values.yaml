@@ -1,0 +1,31 @@
+clusterRole: hub
+namespace: argocd-mcp
+argoNamespace: vp-gitops
+localUserSecretName: ai-agent-local-user
+
+vault:
+  tokensPath: secret/hub/argocd-mcp-tokens
+  tokensDataPath: secret/data/hub/argocd-mcp-tokens
+
+spokeExport:
+  configMapName: argocd-mcp-hub-export
+  exportNamespace: vp-gitops
+  clusters:
+    - east
+    - west
+  viewName: argocd-mcp-hub-export-token
+  syncSchedule: "0 */6 * * *"
+
+mcp:
+  image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0
+  port: 3000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+cliImage: registry.redhat.io/openshift4/ose-cli:latest
+tokenSyncImage: registry.redhat.io/ubi9/python-311:latest

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: models-as-a-service
+description: Native RHOAI 3.4 Models-as-a-Service — Gateway, Postgres, Tenant, external models
+type: application
+version: 0.1.0
+appVersion: "3.4"

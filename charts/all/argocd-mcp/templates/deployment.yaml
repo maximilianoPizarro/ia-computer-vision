@@ -1,0 +1,80 @@
+{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- $ns := .Values.namespace | default "argocd-mcp" -}}
+{{- $mcp := .Values.mcp | default dict -}}
+{{- $port := $mcp.port | default 3000 -}}
+{{- $res := $mcp.resources | default dict -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-mcp
+  namespace: {{ $ns }}
+  labels:
+    app: argocd-mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-mcp
+  template:
+    metadata:
+      labels:
+        app: argocd-mcp
+    spec:
+      containers:
+        - name: mcp
+          image: {{ $mcp.image | default "ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0" | quote }}
+          command: ["node", "dist/index.js", "http", "--stateless"]
+          ports:
+            - name: http
+              containerPort: {{ $port }}
+              protocol: TCP
+          env:
+            - name: ARGOCD_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-mcp-hub-creds
+                  key: ARGOCD_BASE_URL
+            - name: ARGOCD_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-mcp-hub-creds
+                  key: ARGOCD_API_TOKEN
+            - name: ARGOCD_TOKEN_REGISTRY_PATH
+              value: /app/argocd-mcp/token-registry.json
+          # MCP_READ_ONLY is intentionally NOT set — sync is allowed; delete/prune
+          # are blocked by ai-agent Argo CD RBAC (defense in depth).
+          # TODO: expose via Developer Hub plugin for in-dashboard MCP clients.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ ($res.requests | default dict).cpu | default "50m" | quote }}
+              memory: {{ ($res.requests | default dict).memory | default "128Mi" | quote }}
+            limits:
+              cpu: {{ ($res.limits | default dict).cpu | default "500m" | quote }}
+              memory: {{ ($res.limits | default dict).memory | default "512Mi" | quote }}
+          volumeMounts:
+            - name: token-registry
+              mountPath: /app/argocd-mcp
+              readOnly: true
+      volumes:
+        - name: token-registry
+          secret:
+            secretName: argocd-mcp-token-registry
+            items:
+              - key: token-registry.json
+                path: token-registry.json
+{{- end }}

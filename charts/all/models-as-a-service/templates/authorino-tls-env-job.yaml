@@ -1,0 +1,104 @@
+{{- $auth := .Values.authorino | default dict -}}
+{{- $deployNs := $auth.deploymentNamespace | default "redhat-connectivity-link-operator" -}}
+{{- $deployName := $auth.deploymentName | default "authorino" -}}
+{{- $image := $auth.tlsEnvJobImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: authorino-tls-env
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: authorino-tls-env
+  namespace: {{ $deployNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: [{{ $deployName | quote }}]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: authorino-tls-env
+  namespace: {{ $deployNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: authorino-tls-env
+subjects:
+  - kind: ServiceAccount
+    name: authorino-tls-env
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authorino-tls-env
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: authorino-tls-env
+      containers:
+        - name: patch
+          image: {{ $image | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              CA=/etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt
+              echo "Setting Authorino TLS env vars on deployment/{{ $deployName }} in {{ $deployNs }}..."
+              oc set env deployment/{{ $deployName }} \
+                -n {{ $deployNs }} \
+                SSL_CERT_FILE="${CA}" \
+                REQUESTS_CA_BUNDLE="${CA}"
+              echo "authorino-tls-env complete."
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: authorino-tls-env
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: authorino-tls-env
+          containers:
+            - name: patch
+              image: {{ $image | quote }}
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  CA=/etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt
+                  oc set env deployment/{{ $deployName }} \
+                    -n {{ $deployNs }} \
+                    SSL_CERT_FILE="${CA}" \
+                    REQUESTS_CA_BUNDLE="${CA}" \
+                    >/dev/null 2>&1 || true

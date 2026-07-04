@@ -36,6 +36,9 @@ maas:
   endpoint: ""
   # Set via values override or Vault. Example: https://maas-rhdp.apps.maas.redhatworkshops.io
   apiKey: ""
+  # Native RHOAI 3.4 Models-as-a-Service (Tenant/ExternalModel/MaaSSubscription).
+  native:
+    enabled: false
   credentialsSecretName: openshift-ai-maas-credentials
   credentialsSecretKey: api-key
   models:

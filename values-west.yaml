@@ -122,6 +122,23 @@ clusterGroup:
     - '/overrides/values-{{ $.Values.global.clusterVersion }}-{{ $.Values.clusterGroup.name }}.yaml'
 
   applications:
+    argocd-local-users:
+      name: argocd-local-users
+      namespace: vp-gitops
+      argoProject: platform
+      path: charts/all/argocd-local-users
+      syncWave: "0"
+
+    argocd-mcp-spoke-export:
+      name: argocd-mcp-spoke-export
+      namespace: vp-gitops
+      argoProject: platform
+      path: charts/all/argocd-mcp-spoke-export
+      syncWave: "1"
+      overrides:
+        - name: clusterRole
+          value: spoke
+
     platform-users:
       name: platform-users
       namespace: openshift-gitops

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: argocd-local-users
+description: Argo CD local user ai-agent and scoped RBAC for MCP / Lightspeed
+type: application
+version: 0.1.0

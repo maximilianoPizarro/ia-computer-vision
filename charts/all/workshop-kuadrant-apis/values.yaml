@@ -1,5 +1,9 @@
 clusterDomain: ""
 
+# Native RHOAI MaaS (Connectivity Link): enable TLS on the singleton Authorino CR.
+maas:
+  authorinoTls: false
+
 workshopGateway:
   namespace: workshop-kuadrant-apis
   name: workshop-apis-gateway

@@ -46,7 +46,11 @@ metadata:
 spec:
   listener:
     tls:
-      enabled: false
+      enabled: {{ .Values.maas.authorinoTls | default false }}
+      {{- if .Values.maas.authorinoTls | default false }}
+      certSecretRef:
+        name: authorino-server-cert
+      {{- end }}
   oidcServer:
     tls:
       enabled: false

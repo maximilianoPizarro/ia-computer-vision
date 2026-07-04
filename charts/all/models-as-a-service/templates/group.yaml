@@ -1,0 +1,13 @@
+{{- $count := int (.Values.userCount | default 30) -}}
+{{- $group := .Values.maasGroup | default dict -}}
+---
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: {{ $group.name | default "maas-workshop-users" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+users:
+{{- range $i := until $count }}
+  - {{ printf "user%d" (add $i 1) | quote }}
+{{- end }}

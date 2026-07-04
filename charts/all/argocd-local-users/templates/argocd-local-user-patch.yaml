@@ -1,0 +1,33 @@
+{{- $argoNs := include "argocd-local-users.argoNamespace" . -}}
+{{- $user := .Values.localUser | default dict -}}
+{{- $userName := $user.name | default "ai-agent" -}}
+---
+# Patches the singleton ArgoCD CR (vp-gitops) with a scoped ai-agent local user.
+# WARNING: spec.rbac may be governed by ACM ConfigurationPolicy (mustonlyhave) on
+# spokes — verify localUsers/rbac stick after sync (see chart README / vp-pattern-dev skill).
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: {{ $argoNs }}
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: ServerSideApply=true
+spec:
+  localUsers:
+    - name: {{ $userName }}
+      apiKey: {{ $user.apiKey | default true }}
+      login: {{ $user.login | default false }}
+      tokenLifetime: {{ $user.tokenLifetime | default "720h" | quote }}
+      autoRenewToken: {{ $user.autoRenewToken | default true }}
+  rbac:
+    defaultPolicy: role:readonly
+    policy: |-
+      g, system:cluster-admins, role:admin
+      g, cluster-admins, role:admin
+      g, admin, role:admin
+      p, role:ai-agent, applications, get, */*, allow
+      p, role:ai-agent, applications, sync, */*, allow
+      p, role:ai-agent, logs, get, */*, allow
+      g, {{ $userName }}, role:ai-agent
+    scopes: '[groups,email]'

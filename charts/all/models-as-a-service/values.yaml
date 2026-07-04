@@ -1,0 +1,66 @@
+clusterDomain: ""
+userCount: 30
+
+namespace: models-as-a-service
+
+gateway:
+  namespace: openshift-ingress
+  name: maas-default-gateway
+  gatewayClassName: data-science-gateway-class
+  hostnamePrefix: maas
+  tlsSecretName: router-certs-default
+
+authorino:
+  # RHCL operator deploys Authorino into its install namespace on this pattern (not kuadrant-system).
+  serviceNamespace: redhat-connectivity-link-operator
+  serviceName: authorino-authorino-authorization
+  deploymentNamespace: redhat-connectivity-link-operator
+  deploymentName: authorino
+  tlsEnvJobImage: registry.redhat.io/openshift4/ose-cli:latest
+
+postgres:
+  image: registry.redhat.io/rhel9/postgresql-16:latest
+  storage: 2Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+vault:
+  dbSecretPath: secret/data/hub/models-as-a-service-db
+  platformApiKeyPath: secret/data/hub/ai-gateway-platform-keys
+
+externalModel:
+  provider: openai
+  endpoint: maas-rhdp.apps.maas.redhatworkshops.io
+  credentialSecretName: maas-rhdp-api-key
+  models:
+    - id: llama-scout-17b
+      displayName: Llama Scout 17B (workshop default)
+    - id: granite-3-2-8b-instruct
+      displayName: Granite 3.2 8B Instruct (Lightspeed default)
+    - id: deepseek-r1-distill-qwen-14b
+      displayName: DeepSeek R1 Distill Qwen 14B
+    - id: codellama-7b-instruct
+      displayName: CodeLlama 7B Instruct
+
+maasGroup:
+  name: maas-workshop-users
+
+subscription:
+  name: maas-workshop-subscription
+  priority: 10
+
+authPolicy:
+  name: maas-workshop-auth-policy
+
+tokenRateLimit:
+  limit: 50
+  window: 1m
+
+odhDashboard:
+  namespace: redhat-ods-applications
+  name: odh-dashboard-config

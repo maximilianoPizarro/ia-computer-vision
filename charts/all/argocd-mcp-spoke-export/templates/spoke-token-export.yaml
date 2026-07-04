@@ -1,0 +1,183 @@
+{{- if ne (.Values.clusterRole | default "hub") "hub" }}
+{{- $argoNs := include "argocd-mcp-spoke-export.argoNamespace" . -}}
+{{- $secretName := .Values.localUserSecretName | default "ai-agent-local-user" -}}
+{{- $cmName := .Values.exportConfigMapName | default "argocd-mcp-hub-export" -}}
+{{- $image := .Values.cliImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-mcp-spoke-export
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $cmName }}
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-mcp-spoke-export
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ $cmName | quote }}]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-mcp-spoke-export
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-mcp-spoke-export
+subjects:
+  - kind: ServiceAccount
+    name: argocd-mcp-spoke-export
+    namespace: {{ $argoNs }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argocd-mcp-spoke-export-hook
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: argocd-mcp-spoke-export
+      restartPolicy: OnFailure
+      containers:
+        - name: export
+          image: {{ $image | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              NS="{{ $argoNs }}"
+              SECRET="{{ $secretName }}"
+              CM="{{ $cmName }}"
+              MAX_WAIT=120
+              INTERVAL=10
+              elapsed=0
+
+              echo "Waiting for Secret ${SECRET} in ${NS}..."
+              while ! oc get secret "${SECRET}" -n "${NS}" &>/dev/null; do
+                if [ "${elapsed}" -ge "${MAX_WAIT}" ]; then
+                  echo "ERROR: ${SECRET} not found after ${MAX_WAIT}s"
+                  exit 1
+                fi
+                sleep "${INTERVAL}"
+                elapsed=$((elapsed + INTERVAL))
+              done
+
+              TOKEN=$(oc get secret "${SECRET}" -n "${NS}" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || true)
+              if [ -z "${TOKEN}" ]; then
+                TOKEN=$(oc get secret "${SECRET}" -n "${NS}" -o jsonpath='{.data.apiToken}' 2>/dev/null | base64 -d 2>/dev/null || true)
+              fi
+              if [ -z "${TOKEN}" ]; then
+                echo "ERROR: empty token in ${SECRET}"
+                exit 1
+              fi
+
+              ROUTE=$(oc get route -n "${NS}" -l app.kubernetes.io/name={{ $argoNs }}-server -o jsonpath='{.items[0].spec.host}' 2>/dev/null || true)
+              if [ -z "${ROUTE}" ]; then
+                ROUTE=$(oc get route {{ $argoNs }}-server -n "${NS}" -o jsonpath='{.spec.host}' 2>/dev/null || true)
+              fi
+              if [ -z "${ROUTE}" ]; then
+                ROUTE=$(oc get route -n "${NS}" -o jsonpath='{.items[?(@.spec.to.kind=="Service")].spec.host}' 2>/dev/null | awk '{print $1}')
+              fi
+              if [ -z "${ROUTE}" ]; then
+                echo "ERROR: could not resolve Argo CD route in ${NS}"
+                exit 1
+              fi
+              URL="https://${ROUTE}"
+
+              oc patch configmap "${CM}" -n "${NS}" --type merge -p \
+                "{\"data\":{\"token\":\"${TOKEN}\",\"url\":\"${URL}\",\"updatedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}"
+              echo "OK: exported Argo CD MCP token for hub sync (${URL})"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: argocd-mcp-spoke-export
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  schedule: {{ .Values.exportTokenSchedule | default "0 */6 * * *" | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: argocd-mcp-spoke-export
+          restartPolicy: OnFailure
+          containers:
+            - name: export
+              image: {{ $image | quote }}
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  NS="{{ $argoNs }}"
+                  SECRET="{{ $secretName }}"
+                  CM="{{ $cmName }}"
+                  if ! oc get secret "${SECRET}" -n "${NS}" &>/dev/null; then
+                    echo "ERROR: ${SECRET} not found"
+                    exit 1
+                  fi
+                  TOKEN=$(oc get secret "${SECRET}" -n "${NS}" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || true)
+                  if [ -z "${TOKEN}" ]; then
+                    TOKEN=$(oc get secret "${SECRET}" -n "${NS}" -o jsonpath='{.data.apiToken}' 2>/dev/null | base64 -d 2>/dev/null || true)
+                  fi
+                  ROUTE=$(oc get route {{ $argoNs }}-server -n "${NS}" -o jsonpath='{.spec.host}' 2>/dev/null || true)
+                  if [ -z "${ROUTE}" ]; then
+                    ROUTE=$(oc get route -n "${NS}" -l app.kubernetes.io/name={{ $argoNs }}-server -o jsonpath='{.items[0].spec.host}' 2>/dev/null || true)
+                  fi
+                  URL="https://${ROUTE}"
+                  oc patch configmap "${CM}" -n "${NS}" --type merge -p \
+                    "{\"data\":{\"token\":\"${TOKEN}\",\"url\":\"${URL}\",\"updatedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}"
+                  echo "OK: refreshed Argo CD MCP export"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+{{- end }}

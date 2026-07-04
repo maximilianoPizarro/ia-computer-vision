@@ -10,6 +10,7 @@ clusterGroup:
   namespaces:
     open-cluster-management: {}
     vault: {}
+    argocd-mcp: {}
     external-secrets-operator:
       operatorGroup: true
       targetNamespaces: []
@@ -39,6 +40,7 @@ clusterGroup:
       operatorGroup: true
       targetNamespaces: []
     redhat-ods-applications: {}
+    models-as-a-service: {}
     devspaces: {}
     openshift-cluster-observability-operator:
       operatorGroup: true
@@ -171,6 +173,13 @@ clusterGroup:
         - name: clusterRole
           value: hub
 
+    argocd-local-users:
+      name: argocd-local-users
+      namespace: vp-gitops
+      argoProject: hub
+      path: charts/all/argocd-local-users
+      syncWave: "0"
+
     platform-users:
       name: platform-users
       namespace: openshift-gitops
@@ -216,6 +225,16 @@ clusterGroup:
       chart: openshift-external-secrets
       chartVersion: 0.0.*
       syncWave: "2"
+
+    argocd-mcp:
+      name: argocd-mcp
+      namespace: argocd-mcp
+      argoProject: hub
+      path: charts/all/argocd-mcp
+      syncWave: "3"
+      overrides:
+        - name: clusterRole
+          value: hub
 
     rhbk:
       name: rhbk
@@ -307,6 +326,20 @@ clusterGroup:
           value: "30"
         - name: maas.endpoint
           value: "https://maas-rhdp.apps.maas.redhatworkshops.io"
+        - name: maas.native.enabled
+          value: "true"
+
+    models-as-a-service:
+      name: models-as-a-service
+      namespace: models-as-a-service
+      argoProject: ai
+      path: charts/all/models-as-a-service
+      syncWave: "6"
+      overrides:
+        - name: userCount
+          value: "30"
+        - name: clusterRole
+          value: hub
 
     workshop-registration:
       name: workshop-registration
@@ -433,6 +466,8 @@ clusterGroup:
           value: "false"
         - name: apis.maas.host
           value: "maas-rhdp.apps.maas.redhatworkshops.io"
+        - name: maas.authorinoTls
+          value: "true"
 
     acm-hub-spoke:
       name: acm-hub-spoke

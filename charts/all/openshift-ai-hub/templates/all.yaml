@@ -1,4 +1,5 @@
 {{- $maas := .Values.maas | default dict -}}
+{{- $nativeMaas := ($maas.native | default dict).enabled | default false -}}
 {{- $endpoint := $maas.endpoint | default "" -}}
 {{- $secretName := $maas.credentialsSecretName | default "openshift-ai-maas-credentials" -}}
 {{- $defaultSecretKey := $maas.credentialsSecretKey | default "api-key" -}}
@@ -43,6 +44,8 @@ spec:
     kserve:
       managementState: Managed
       defaultDeploymentMode: {{ $deployMode | quote }}
+      modelsAsService:
+        managementState: {{ if $nativeMaas }}Managed{{ else }}Removed{{ end }}
       serving:
         managementState: {{ if $serverless }}Managed{{ else }}Removed{{ end }}
     kueue:

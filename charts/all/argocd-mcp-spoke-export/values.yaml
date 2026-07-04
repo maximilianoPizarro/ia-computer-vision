@@ -1,0 +1,6 @@
+clusterRole: spoke
+argoNamespace: vp-gitops
+localUserSecretName: ai-agent-local-user
+exportConfigMapName: argocd-mcp-hub-export
+exportTokenSchedule: "0 */6 * * *"
+cliImage: registry.redhat.io/openshift4/ose-cli:latest

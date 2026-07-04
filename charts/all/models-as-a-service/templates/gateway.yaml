@@ -1,0 +1,38 @@
+{{- $gw := .Values.gateway | default dict -}}
+{{- $hostname := include "models-as-a-service.maasHostname" . -}}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ $gw.name | default "maas-default-gateway" }}
+  namespace: {{ $gw.namespace | default "openshift-ingress" }}
+  labels:
+    app.kubernetes.io/part-of: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    opendatahub.io/managed: "false"
+    security.opendatahub.io/authorino-tls-bootstrap: "true"
+spec:
+  gatewayClassName: {{ $gw.gatewayClassName | default "data-science-gateway-class" }}
+  listeners:
+    - name: http
+      hostname: {{ $hostname | quote }}
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      hostname: {{ $hostname | quote }}
+      port: 443
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: {{ $gw.tlsSecretName | default "router-certs-default" }}
