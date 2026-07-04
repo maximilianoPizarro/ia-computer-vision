@@ -276,7 +276,7 @@ Workshop mode is enabled by default with 30 pre-provisioned users (`user1`–`us
 | `developer-hub` / `gitlab-operator` / `devspaces` | Per-user Developer Hub, GitLab, and DevSpaces access |
 | `showroom` | Antora lab guide with embedded `oc` terminal |
 
-Access Showroom at `https://showroom-showroom.apps.<hub_domain>`.
+Access Showroom at `https://showroom-showroom.apps.<hub_domain>`. You can also [preview the workshop guide online](https://maximilianopizarro.github.io/ia-computer-vision-pages/modules/main/index.html) to see how the lab environment looks.
 
 To change the number of users, update the `userCount` override in `values-hub.yaml`, `values-east.yaml`, and `values-west.yaml`. See [Workshop mode documentation](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/workshop/).
 

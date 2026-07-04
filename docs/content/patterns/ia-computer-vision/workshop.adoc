@@ -36,7 +36,7 @@ Special accounts: `platformadmin` (platform engineering group) and `admin` (work
 
 == Showroom lab guide
 
-The Showroom deployment serves an Antora lab guide from link:https://github.com/maximilianoPizarro/showroom-ia-computer-vision[showroom-ia-computer-vision].
+The Showroom deployment serves an Antora lab guide from link:https://github.com/maximilianoPizarro/showroom-ia-computer-vision[showroom-ia-computer-vision]. You can also link:https://maximilianopizarro.github.io/ia-computer-vision-pages/modules/main/index.html[preview the workshop guide online] to see how the lab environment looks.
 
 [source,text]
 ----

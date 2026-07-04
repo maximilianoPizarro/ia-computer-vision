@@ -732,7 +732,7 @@ https://neuroface.apps.<hub_domain>
 https://showroom-showroom.apps.<hub_domain>
 ----
 
-Log in with `user1` / `Welcome123!` to access the embedded terminal and lab exercises.
+Log in with `user1` / `Welcome123!` to access the embedded terminal and lab exercises. You can also link:https://maximilianopizarro.github.io/ia-computer-vision-pages/modules/main/index.html[preview the workshop guide online] to see how the lab environment looks.
 
 == Next steps
 

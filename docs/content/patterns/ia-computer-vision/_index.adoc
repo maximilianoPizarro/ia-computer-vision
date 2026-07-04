@@ -173,5 +173,5 @@ link:architecture/[Read the full architecture document &rarr;]
 
 [NOTE]
 ====
-Workshop mode is enabled by default with 30 pre-provisioned users. See the link:https://github.com/maximilianoPizarro/ia-computer-vision[pattern repository README] for Showroom and user provisioning details.
+Workshop mode is enabled by default with 30 pre-provisioned users. See the link:https://github.com/maximilianoPizarro/ia-computer-vision[pattern repository README] for Showroom and user provisioning details. You can also link:https://maximilianopizarro.github.io/ia-computer-vision-pages/modules/main/index.html[preview the workshop guide online].
 ====
