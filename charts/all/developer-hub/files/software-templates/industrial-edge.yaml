@@ -58,7 +58,7 @@ spec:
         clusterDomain:
           title: Hub cluster apps domain
           type: string
-          description: "Hub RHDP apps domain for GitLab, Quay, Developer Hub (e.g. apps.cluster-r7964.dynamic2.redhatworkshops.io)"
+          description: "Hub RHDP apps domain for GitLab, Quay, Developer Hub (e.g. apps.cluster.example.com)"
           default: apps.cluster.example.com
       dependencies:
         targetCluster:

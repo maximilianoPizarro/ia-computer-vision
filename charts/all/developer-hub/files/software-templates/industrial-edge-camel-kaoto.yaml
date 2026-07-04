@@ -50,7 +50,7 @@ spec:
           title: Hub apps domain
           type: string
           description: GitLab on hub
-          default: apps.cluster-xqg4c.dynamic2.redhatworkshops.io
+          default: apps.cluster.example.com
       dependencies:
         targetCluster:
           oneOf:
@@ -59,13 +59,13 @@ spec:
                   const: east
                 spokeAppsDomain:
                   type: string
-                  default: apps.cluster-2847b.dynamic2.redhatworkshops.io
+                  default: apps.cluster.example.com
             - properties:
                 targetCluster:
                   const: west
                 spokeAppsDomain:
                   type: string
-                  default: apps.cluster-5zjkk.dynamic2.redhatworkshops.io
+                  default: apps.cluster.example.com
     - title: Integration Endpoints
       properties:
         mqttBrokerUri:

@@ -40,7 +40,7 @@ spec:
         clusterDomain:
           title: Hub cluster apps domain
           type: string
-          default: apps.cluster-xqg4c.dynamic2.redhatworkshops.io
+          default: apps.cluster.example.com
         uniqueName:
           title: Catalog entity name (owner-name)
           type: string

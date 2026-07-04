@@ -37,7 +37,7 @@ spec:
         clusterDomain:
           title: Hub apps domain
           type: string
-          description: "Hub RHDP apps domain including apps. prefix (e.g. apps.cluster-xqg4c.dynamic2.redhatworkshops.io)"
+          description: "Hub RHDP apps domain including apps. prefix (e.g. apps.cluster.example.com)"
           default: apps.cluster.example.com
         memory:
           title: VM memory
