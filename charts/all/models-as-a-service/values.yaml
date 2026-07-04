@@ -8,7 +8,7 @@ gateway:
   name: maas-default-gateway
   gatewayClassName: data-science-gateway-class
   hostnamePrefix: maas
-  tlsSecretName: router-certs-default
+  tlsSecretName: cert-manager-ingress-cert
 
 authorino:
   # RHCL operator deploys Authorino into its install namespace on this pattern (not kuadrant-system).
