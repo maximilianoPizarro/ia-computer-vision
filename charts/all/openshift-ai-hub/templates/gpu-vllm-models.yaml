@@ -1,0 +1,123 @@
+{{- $gpu := .Values.gpu | default dict -}}
+{{- if $gpu.enabled }}
+{{- $ns := $gpu.namespace | default "gpu-models" -}}
+{{- $image := $gpu.runtimeImage | default "quay.io/modh/vllm@sha256:8a3dd8ad6e15fe7b8e5e471037519719d4d8ad3db9d69389f2beded36a6f5b21" -}}
+---
+# Real, GPU-backed vLLM model serving -- downloads weights from Hugging Face
+# into a PVC-backed cache on first start. This is an opt-in alternative to
+# the CPU proxy-stub "maas-workshop" InferenceServices in all.yaml, meant for
+# a hub-only install with GPU worker nodes (see values-hub-gpu.yaml and
+# ideas-for-customization.adoc "Enabling GPU workers on the hub"). It never
+# runs unless gpu.enabled=true is explicitly set.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    opendatahub.io/dashboard: "true"
+    pod-security.kubernetes.io/enforce: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    openshift.io/description: "Real GPU-backed vLLM model serving (opt-in, hub-only GPU install)"
+{{- range $m := $gpu.models }}
+{{- $gpuCount := $m.gpuCount | default 1 }}
+{{- $runtimeName := printf "vllm-gpu-runtime-%s" $m.name }}
+---
+# One ServingRuntime per model (not shared) so each can mount its own
+# PVC-backed Hugging Face cache by name -- Kubernetes' $(VAR) substitution
+# does not apply to volumes[].persistentVolumeClaim.claimName, only to
+# container command/args/env, so the claim name has to be baked in here.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $m.name }}-cache
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ $m.storage | default "40Gi" }}
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: {{ $runtimeName }}
+  namespace: {{ $ns }}
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    openshift.io/display-name: {{ printf "vLLM GPU ServingRuntime — %s" $m.name | quote }}
+spec:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  multiModel: false
+  supportedModelFormats:
+    - name: vLLM
+      autoSelect: true
+  containers:
+    - name: kserve-container
+      image: {{ $image | quote }}
+      command: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+      args:
+        - --port=8080
+        - --model={{ $m.huggingFaceId }}
+        - --served-model-name={{ $m.name }}
+        - --max-model-len={{ $m.maxModelLen | default 8192 }}
+        - --tensor-parallel-size={{ $gpuCount }}
+      env:
+        - name: HF_HOME
+          value: /models-cache
+        {{- if $m.hfTokenSecretName }}
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ $m.hfTokenSecretName }}
+              key: {{ $m.hfTokenSecretKey | default "token" }}
+        {{- end }}
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      volumeMounts:
+        - name: models-cache
+          mountPath: /models-cache
+      resources:
+        limits:
+          nvidia.com/gpu: {{ $gpuCount | quote }}
+          memory: {{ $m.memoryLimit | default "32Gi" }}
+        requests:
+          nvidia.com/gpu: {{ $gpuCount | quote }}
+          cpu: {{ $m.cpuRequest | default "4" | quote }}
+          memory: {{ $m.memoryRequest | default "16Gi" }}
+  volumes:
+    - name: models-cache
+      persistentVolumeClaim:
+        claimName: {{ $m.name }}-cache
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ $m.name }}
+  namespace: {{ $ns }}
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    serving.kserve.io/deploymentMode: RawDeployment
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: {{ $runtimeName }}
+      # storageUri intentionally omitted -- the ServingRuntime's own --model
+      # arg drives vLLM to pull straight from Hugging Face into the
+      # PVC-backed HF_HOME cache above on first start (no S3/OCI required).
+{{- end }}
+{{- end }}

@@ -1,3 +1,6 @@
+# See templates/gpu-vllm-models.yaml and the `gpu:` block near the bottom of
+# this file for the opt-in, hub-only GPU model serving alternative (never
+# enabled by values-hub.yaml itself -- see values-hub-gpu.yaml at repo root).
 clusterDomain: ""
 userCount: 30
 userProjects:
@@ -59,3 +62,44 @@ playground:
 mcp:
   enabled: true
   deployServer: true
+
+# Real local GPU-backed model serving (vLLM downloads weights from Hugging
+# Face into a PVC-backed cache) -- OFF by default. This is an ALTERNATIVE
+# for a GPU-enabled hub-only install (no spokes needed); it does not touch
+# or replace the default CPU proxy-stub "maas-workshop" InferenceServices
+# above. Enable via the values-hub-gpu.yaml overlay, never in values-hub.yaml
+# directly, so the default (CPU, current) install is completely unaffected.
+# See docs/content/patterns/ia-computer-vision/ideas-for-customization.adoc
+# ("Enabling GPU workers on the hub") for full instructions.
+#
+# Model list uses official, Red Hat-validated FP8-quantized checkpoints from
+# https://huggingface.co/RedHatAI (LLM Compressor + vLLM, ~50% smaller than
+# fp16 with ~97-101% accuracy recovery per Red Hat's published benchmarks)
+# instead of community/upstream repos -- same model families as the
+# maas.models list above, swapped for their RedHatAI FP8-dynamic variants.
+gpu:
+  enabled: false
+  namespace: gpu-models
+  runtimeImage: "quay.io/modh/vllm@sha256:8a3dd8ad6e15fe7b8e5e471037519719d4d8ad3db9d69389f2beded36a6f5b21"
+  # Sized for AWS g6.12xlarge (4x NVIDIA L4, 24 GiB VRAM each). FP8 halves
+  # VRAM vs fp16, so all three now fit one L4 each (3 of 4 GPUs used) --
+  # verify actual headroom (--max-model-len, --gpu-memory-utilization)
+  # against your instance before relying on these for anything but a demo.
+  models:
+    - name: qwen2-5-coder-7b-instruct
+      huggingFaceId: RedHatAI/Qwen2.5-Coder-7B-Instruct-FP8-dynamic
+      gpuCount: 1
+      storage: 20Gi
+      maxModelLen: 8192
+    - name: granite-3-1-8b-instruct
+      huggingFaceId: RedHatAI/granite-3.1-8b-instruct-FP8-dynamic
+      gpuCount: 1
+      storage: 20Gi
+      maxModelLen: 8192
+    - name: deepseek-r1-distill-qwen-14b
+      huggingFaceId: RedHatAI/DeepSeek-R1-Distill-Qwen-14B-FP8-dynamic
+      # FP8 brings this down to ~14Gi -- fits a single 24Gi L4 (no tensor
+      # parallelism needed, unlike the unquantized fp16 checkpoint).
+      gpuCount: 1
+      storage: 30Gi
+      maxModelLen: 8192

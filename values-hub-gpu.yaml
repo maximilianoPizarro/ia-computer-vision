@@ -1,0 +1,61 @@
+# OPT-IN overlay for a GPU-enabled, hub-only install (no spokes needed).
+#
+# This file is NOT loaded automatically -- values-hub.yaml (the default,
+# CPU-only, current release) stays completely unchanged and unaffected.
+# To use this overlay, pass it as an EXTRA Helm values file on top of the
+# normal install, e.g.:
+#
+#   EXTRA_HELM_OPTS='-f /path/to/values-hub-gpu.yaml' ./pattern.sh make install
+#
+# or add it to `helmOverrides`/an extra `-f` in your own install tooling.
+#
+# Requires an AWS worker node with an NVIDIA GPU, e.g. g6.12xlarge (4x L4,
+# 24 GiB VRAM each) -- see docs/content/patterns/ia-computer-vision/
+# ideas-for-customization.adoc, "Enabling GPU workers on the hub", and
+# cluster-sizing.adoc for the full sizing rationale.
+#
+# IMPORTANT: Helm merges multiple -f files by deep-merging maps, but LISTS
+# (like an application's `overrides:`) are replaced wholesale, not merged by
+# item. The openshift-ai-hub `overrides:` list below intentionally repeats
+# every entry from values-hub.yaml's own openshift-ai-hub application, plus
+# the new gpu.enabled override -- if you change one, change the other, or
+# this list will silently drop fields (see vp-pattern-dev skill for the
+# same class of bug elsewhere in this repo).
+
+clusterGroup:
+  namespaces:
+    openshift-nfd:
+      operatorGroup: true
+      targetNamespaces: []
+    nvidia-gpu-operator:
+      operatorGroup: true
+      targetNamespaces: []
+
+  subscriptions:
+    nfd:
+      name: nfd
+      namespace: openshift-nfd
+      channel: stable
+      source: redhat-operators
+    gpu-operator:
+      name: gpu-operator-certified
+      namespace: nvidia-gpu-operator
+      channel: v24.9
+      source: certified-operators
+
+  applications:
+    openshift-ai-hub:
+      name: openshift-ai-hub
+      namespace: redhat-ods-applications
+      argoProject: ai
+      path: charts/all/openshift-ai-hub
+      syncWave: "5"
+      overrides:
+        - name: userCount
+          value: "30"
+        - name: maas.endpoint
+          value: "https://maas-rhdp.apps.maas.redhatworkshops.io"
+        - name: maas.native.enabled
+          value: "true"
+        - name: gpu.enabled
+          value: "true"
