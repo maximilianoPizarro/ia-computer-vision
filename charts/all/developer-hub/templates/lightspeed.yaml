@@ -16,6 +16,10 @@
 {{- $model := $ai.model | default "llama-scout-17b" -}}
 {{- $tag := $ls.pluginTag | default "bs_1.45.3__1.2.3" -}}
 {{- $vaultKey := $ls.vaultPlatformApiKeyPath | default "secret/data/hub/ai-gateway-platform-keys" -}}
+{{- $mcpServers := $ls.mcpServers -}}
+{{- if not $mcpServers -}}
+{{- $mcpServers = list (dict "name" "argocd-mcp" "url" "http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp") -}}
+{{- end -}}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -50,6 +54,19 @@ data:
       type: sqlite
       sqlite:
         db_path: "/tmp/data/conversations/lcs_cache.db"
+    # Argo CD MCP (charts/all/argocd-mcp) preconfigured here so OpenShift
+    # Lightspeed can query/sync GitOps applications out of the box. Requires
+    # the model-context-protocol tool_runtime provider in llama-stack-run.yaml
+    # (see providers.tool_runtime) -- the provider_id there must stay in sync
+    # with what lightspeed-stack expects (default "model-context-protocol").
+    mcp_servers:
+{{- range $srv := $mcpServers }}
+      - name: {{ $srv.name | quote }}
+        url: {{ $srv.url | quote }}
+        {{- if $srv.providerId }}
+        provider_id: {{ $srv.providerId | quote }}
+        {{- end }}
+{{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap

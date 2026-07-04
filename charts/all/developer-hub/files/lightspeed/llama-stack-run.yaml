@@ -97,6 +97,11 @@ providers:
     - provider_id: rag-runtime
       provider_type: inline::rag-runtime
       config: {}
+    # Default provider_id lightspeed-stack expects for its own mcp_servers
+    # config block (see lightspeed-stack.yaml ConfigMap) -- do not rename.
+    - provider_id: model-context-protocol
+      provider_type: remote::model-context-protocol
+      config: {}
   files:
     - provider_id: localfs
       provider_type: inline::localfs
@@ -134,8 +139,9 @@ tool_groups:
         embedding_model: sentence-transformers/all-mpnet-base-v2
         provider_id: rhdh-docs
         vector_db_id: rhdh-product-docs-1_9
-  - provider_id: mcp-gateway
-    provider_type: remote::mcp
-    config:
-      url: ${env.MCP_GATEWAY_URL:=http://mcp-gateway-istio.mcp-system.svc.cluster.local:8080/mcp}
-      timeout: 120
+# MCP servers are NOT registered here -- per lightspeed-stack docs, tools
+# configured directly in llama-stack's run.yaml tool_groups are not
+# accessible to lightspeed-core agents. MCP servers must be declared in
+# lightspeed-stack.yaml's mcp_servers section instead (see lightspeed.yaml
+# template); this file only needs the model-context-protocol tool_runtime
+# provider above so llama-stack can serve whatever lightspeed-stack asks for.

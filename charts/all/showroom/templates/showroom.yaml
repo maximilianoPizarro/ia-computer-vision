@@ -285,31 +285,18 @@ spec:
             export HOME=/home/lab-user
             BIN="/home/lab-user/.local/bin"
             mkdir -p "$BIN"
-            if [ ! -f "$BIN/rosa" ]; then
-              curl -sL "https://mirror.openshift.com/pub/openshift-v4/clients/rosa/latest/rosa-linux.tar.gz" | tar xz -C "$BIN" rosa 2>/dev/null || true
-            fi
+            # Only install CLIs actually referenced by showroom lab modules (01-10) or the
+            # terminal banner below. rosa/aws/az/gcloud were inherited from the
+            # hybrid-mesh-platform source pattern, are unused here, and made first-boot
+            # (empty PVC) startup take several extra minutes downloading multi-hundred-MB
+            # SDKs (azure-cli via pip venv and the gcloud SDK tarball were the worst
+            # offenders) for zero workshop value — removed for a fast, reproducible
+            # terminal open time on every fresh pattern install.
             if [ ! -f "$BIN/yq" ]; then
-              curl -sL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" -o "$BIN/yq" && chmod +x "$BIN/yq" 2>/dev/null || true
+              curl -sL --max-time 60 "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" -o "$BIN/yq" && chmod +x "$BIN/yq" 2>/dev/null || true
             fi
             if [ ! -f "$BIN/argocd" ]; then
-              curl -sL "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64" -o "$BIN/argocd" && chmod +x "$BIN/argocd" 2>/dev/null || true
-            fi
-            if [ ! -f "$BIN/aws" ]; then
-              curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscli.zip && \
-              cd /tmp && unzip -qo awscli.zip && ./aws/install --bin-dir "$BIN" --install-dir "$BIN/aws-install" --update 2>/dev/null && rm -rf /tmp/aws* || true
-            fi
-            if [ ! -x "$BIN/az" ]; then
-              AZ_VENV="/home/lab-user/.local/lib/azure-cli"
-              python3 -m venv "$AZ_VENV" && \
-              "$AZ_VENV/bin/pip" install --quiet azure-cli && \
-              ln -sf "$AZ_VENV/bin/az" "$BIN/az" || true
-            fi
-            if [ ! -f "$BIN/gcloud" ]; then
-              curl -sL "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz" | tar xz -C /home/lab-user/.local 2>/dev/null && \
-              /home/lab-user/.local/google-cloud-sdk/install.sh --quiet --path-update=false --usage-reporting=false 2>/dev/null && \
-              ln -sf /home/lab-user/.local/google-cloud-sdk/bin/gcloud "$BIN/gcloud" && \
-              ln -sf /home/lab-user/.local/google-cloud-sdk/bin/gsutil "$BIN/gsutil" && \
-              ln -sf /home/lab-user/.local/google-cloud-sdk/bin/bq "$BIN/bq" || true
+              curl -sL --max-time 120 "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64" -o "$BIN/argocd" && chmod +x "$BIN/argocd" 2>/dev/null || true
             fi
             mkdir -p /home/lab-user/.bashrc.d
             cat > /home/lab-user/.bashrc.d/workshop.sh << 'BASHRC'

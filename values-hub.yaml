@@ -298,10 +298,12 @@ clusterGroup:
           value: "true"
         - name: plugins.notificationsEmail.enabled
           value: "true"
-        # Lightspeed sidecars (llama-stack 0.1.4 + lightspeed-core 0.4.0) crash on hub;
-        # re-enable when llama-stack-run.yaml and image pins are validated end-to-end.
+        # Lightspeed sidecars (llama-stack 0.1.4 + lightspeed-core 0.4.0), preconfigured
+        # with the Argo CD MCP server (charts/all/argocd-mcp) via lightspeed-stack.yaml's
+        # mcp_servers block. Verified running stable on the hub (Jul 2026) -- re-check after
+        # any RHDH/lightspeed-stack image bump before relying on this in a fresh install.
         - name: plugins.lightspeed.enabled
-          value: "false"
+          value: "true"
         - name: spokeTokenSync.enabled
           value: "true"
         - name: kubernetesSpokes.enabled
