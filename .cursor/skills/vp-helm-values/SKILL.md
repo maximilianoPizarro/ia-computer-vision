@@ -106,7 +106,7 @@ Use `syncWave` in applications or `argocd.argoproj.io/sync-wave` annotation in t
 ### Hub sync waves
 | Wave | Purpose | Applications |
 |------|---------|-------------|
-| 0 | Platform base | openshift-gitops, platform-users, **argocd-local-users** |
+| 0 | Platform base | openshift-gitops (sole owner of ArgoCD CR rbac/localUsers on hub), platform-users |
 | 1 | Operators + ACM | observability, acm |
 | 2 | Secrets infrastructure | vault, openshift-external-secrets, rhbk |
 | 3 | Developer tools + MCP | gitlab-operator, **argocd-mcp** |
@@ -361,6 +361,9 @@ RHDH's kubernetes-plugin queries every configured `customResources` GVK for ever
 
 ### ACM `mustonlyhave` on ArgoCD CR blocks naive `localUsers`/`rbac` patches on spokes
 Same risk as documented in `vp-pattern-dev`: patching `ArgoCD` `vp-gitops` with `spec.localUsers` + extended `spec.rbac` (for `argocd-local-users` / MCP) may not stick on east/west because ACM's gitops `ConfigurationPolicy` enforces an exact `spec.rbac` block. Always verify post-sync on all three clusters before wiring downstream consumers (MCP Deployment, token sync Jobs).
+
+### Never let two charts server-side-apply the same field on one singleton CR (ArgoCD included)
+On the hub, `charts/all/openshift-gitops` is now the **sole owner** of `ArgoCD/vp-gitops` `spec.rbac`/`spec.localUsers` (toggle: `argocdLocalUser.enabled`). `charts/all/argocd-local-users` must only be deployed where `openshift-gitops` chart is *not* also deployed (currently: east/west only). This mirrors the Kuadrant/Kiali "one owner only" rule — Argo CD's SSA for CRs appears to share field-manager identity across Applications, so two charts patching the same field on the same object race silently (no error, just vanishing/truncated fields) even with `ServerSideApply=true` on both.
 
 ### Pattern CR `extraParameters` vs Vault paths (MaaS + MCP)
 

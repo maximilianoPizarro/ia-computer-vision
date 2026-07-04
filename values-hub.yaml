@@ -172,13 +172,11 @@ clusterGroup:
       overrides:
         - name: clusterRole
           value: hub
-
-    argocd-local-users:
-      name: argocd-local-users
-      namespace: vp-gitops
-      argoProject: hub
-      path: charts/all/argocd-local-users
-      syncWave: "0"
+        # Sole owner of ArgoCD/vp-gitops spec.rbac + spec.localUsers on the
+        # hub — do NOT also deploy charts/all/argocd-local-users here (SSA
+        # field-ownership race, see charts/all/openshift-gitops/templates/argocd.yaml).
+        - name: argocdLocalUser.enabled
+          value: "true"
 
     platform-users:
       name: platform-users

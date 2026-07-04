@@ -131,7 +131,7 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 ### Hub charts (values-hub.yaml)
 | Chart | Type | Wave | ArgoProject |
 |-------|------|------|-------------|
-| `openshift-gitops` | local | 0 | platform |
+| `openshift-gitops` | local | 0 | platform (also sole owner of `ArgoCD/vp-gitops` `spec.rbac`/`spec.localUsers` on hub via `argocdLocalUser.enabled=true`) |
 | `platform-users` | local | 0 | platform |
 | `observability` | local | 1 | observability |
 | `acm` | VP chart | 1 | hub |
@@ -143,7 +143,6 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 | `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 5 | mesh (required for neuroface-gateway Istio) |
 | `openshift-ai-hub` | local | 5 | ai |
 | `models-as-a-service` | local | 6 | ai (native RHOAI 3.4 MaaS: Tenant, Gateway, Gen AI Studio) |
-| `argocd-local-users` | local | 0 | platform/hub (ai-agent local user + scoped RBAC) |
 | `argocd-mcp` | local | 3 | hub (mcp-for-argocd, hub-only) |
 | `mailpit` | local | 5 | workshop (Mailpit UI + PPE Kafka consumer) |
 | `rhbk-iam` | local | 2 | workshop (per-user realms: neuroface/maas/cv, `backstage-provisioner` client) |
@@ -164,7 +163,7 @@ Verify the live app list with `oc get application -n vp-gitops` — it drifts fr
 | Chart | Type | Wave | ArgoProject |
 |-------|------|------|-------------|
 | `platform-users` | local | 0 | platform (creates `acm-import` SA with cluster-admin) |
-| `argocd-local-users` | local | 0 | platform (ai-agent for MCP — verify ACM mustonlyhave on spokes) |
+| `argocd-local-users` | local | 0 | platform (sole owner of `spec.rbac`/`localUsers` on spoke `vp-gitops` — **not deployed on hub**, see openshift-gitops singleton note; verify ACM mustonlyhave on spokes) |
 | `argocd-mcp-spoke-export` | local | 1 | platform (exports ai-agent token to ConfigMap for hub sync) |
 | `servicemesh-config` | VP chart (`servicemesh:0.1.*`) | 1 | mesh |
 | `openshift-external-secrets` | VP chart | 2 | external-secrets |
@@ -422,12 +421,15 @@ The published VP `acm` chart (`charts.validatedpatterns.io/acm:0.2.*`) pushes `C
 
 ### Argo CD MCP token chain (do not reuse `spokeCredentials` tokens)
 `spokeCredentials.clusters.*.token` (Pattern CR `extraParameters` → `acm-hub-spoke`) is for **ACM cluster import** only. Argo CD MCP uses a separate chain:
-1. `argocd-local-users` (hub + spokes, wave 0) — `ai-agent` local user + scoped RBAC
+1. `ai-agent` local user + scoped RBAC on each cluster's singleton `ArgoCD/vp-gitops` CR — **hub**: `charts/all/openshift-gitops` (`argocdLocalUser.enabled=true`); **east/west**: `charts/all/argocd-local-users` (wave 0). Never deploy both charts' RBAC-owning template on the *same* cluster (see singleton-ownership pitfall below).
 2. `argocd-mcp-spoke-export` (spokes, wave 1) — PostSync Job writes token + URL to ConfigMap `argocd-mcp-hub-export`
 3. `argocd-mcp` (hub, wave 3) — hub PostSync Job patches Vault `secret/hub/argocd-mcp-tokens`; spoke sync Job reads spoke ConfigMaps via **ManagedClusterView**; ESO builds `argocd-mcp-hub-creds` + `token-registry.json`
 4. MCP endpoint: `http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp` (image `ghcr.io/argoproj-labs/mcp-for-argocd:v0.8.0`)
 
-**Sync pitfall**: do not sync `argocd-local-users` with `--force` when `ServerSideApply=true` is set — Argo CD rejects `--force` + `--server-side` together. **Showroom**: modules 09/10 document native MaaS and MCP; terminal helpers `maas-native-status` and `argocd-mcp-status` in `charts/all/showroom/templates/showroom.yaml`.
+**Sync pitfall**: do not sync `argocd-local-users`/`openshift-gitops` with `--force` when `ServerSideApply=true` is set — Argo CD rejects `--force` + `--server-side` together. **Showroom**: modules 09/10 document native MaaS and MCP; terminal helpers `maas-native-status` and `argocd-mcp-status` in `charts/all/showroom/templates/showroom.yaml`.
+
+### Singleton-ownership incident: `openshift-gitops` chart and `argocd-local-users` both patching `ArgoCD/vp-gitops` on the hub
+Discovered live on the hub (Jul 2026): both `charts/all/openshift-gitops` (wave 0) and `charts/all/argocd-local-users` (also wave 0, deployed on hub too at the time) declared `spec.rbac` on the *same* `ArgoCD/vp-gitops` CR via `ServerSideApply=true`. Argo CD's SSA implementation appears to reuse a shared field-manager identity across different Applications applying the same object, so whichever Application's sync ran most recently silently won or partially truncated the other's fields — `spec.localUsers` disappeared entirely and `spec.rbac.policy` lost its last lines, **with the sync operation reporting `Succeeded`/no error**. This is the exact same failure class as the documented Kuadrant/Authorino/Limitador and Kiali singleton pitfalls, just for the ArgoCD CR instead of a CRD-managed singleton. **Fix applied**: consolidated hub ownership into `openshift-gitops` chart (`argocdLocalUser.enabled` flag adds the ai-agent `localUsers` entry + `rbac.policy` lines conditionally); removed the `argocd-local-users` Application from `values-hub.yaml` (kept for east/west, where no competing chart exists). **Detection technique**: if a chart's SSA-applied CR fields keep vanishing/truncating despite `status.operationState.phase: Succeeded` and no visible errors, grep the whole repo for every other chart/template that touches the same `kind`+`name`+`namespace` — do not assume a clean sync means the live object matches your manifest; always `oc get <kind> <name> -o yaml` and diff against `helm template` output.
 
 ### Centralize repeated overrides via `values-global.yaml` (recommended)
 Duplicate `userCount: "30"` and `maas.endpoint` across many hub application overrides. Prefer adding to `values-global.yaml`:

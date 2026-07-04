@@ -6,8 +6,13 @@ in-cluster MCP client.
 
 ## Architecture
 
-1. **`argocd-local-users`** (hub + east + west): creates `ai-agent` local user with scoped RBAC
-   (`get`/`sync` applications, `get` logs — no delete/prune).
+1. **`ai-agent` local user** — creates the `ai-agent` local user with scoped RBAC (`get`/`sync`
+   applications, `get` logs — no delete/prune) on each cluster's singleton `ArgoCD/vp-gitops` CR:
+   - **Hub**: `charts/all/openshift-gitops` (`argocdLocalUser.enabled=true`) is the sole owner of
+     `spec.rbac`/`spec.localUsers` there. Do NOT also deploy `charts/all/argocd-local-users` on the
+     hub — two charts server-side-applying the same fields on the same CR silently race (whichever
+     syncs last wins/truncates the other, with no error). See the chart's `argocd.yaml` comment.
+   - **East/west**: `charts/all/argocd-local-users` is the sole owner there (no competing chart).
 2. **`argocd-mcp-spoke-export`** (east + west): copies `ai-agent-local-user` token + route URL
    into ConfigMap `argocd-mcp-hub-export` in `vp-gitops`.
 3. **`argocd-mcp`** (hub): sync Jobs write tokens to Vault (`secret/hub/argocd-mcp-tokens`);
@@ -32,7 +37,8 @@ Stateless HTTP transport (`--stateless`). Health: `GET /healthz`.
 
 ## Manual verification
 
-1. After `argocd-local-users` syncs, confirm the user sticks (ACM policy risk on spokes):
+1. After `openshift-gitops` (hub) or `argocd-local-users` (spokes) syncs, confirm the user sticks
+   (ACM policy risk on spokes; SSA field-ownership risk on hub if a second chart is ever added):
    ```bash
    oc get argocd vp-gitops -n vp-gitops -o yaml | grep -A5 localUsers
    oc get secret ai-agent-local-user -n vp-gitops

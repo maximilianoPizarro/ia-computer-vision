@@ -435,7 +435,7 @@ spec:
               echo "=== MCP pod ==="
               oc get pods -n argocd-mcp -l app=argocd-mcp 2>/dev/null || true
               echo "=== ai-agent local user ==="
-              oc get secret ai-agent-local-user -n vp-gitops -o name 2>/dev/null || echo "(secret not found — sync argocd-local-users)"
+              oc get secret ai-agent-local-user -n vp-gitops -o name 2>/dev/null || echo "(secret not found — sync openshift-gitops on hub, argocd-local-users on spokes)"
               echo "=== In-cluster endpoint ==="
               echo "http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp"
             }

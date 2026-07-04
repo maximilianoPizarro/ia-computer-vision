@@ -2,6 +2,7 @@
 {{- if .Values.global -}}
 {{- $argoNs = .Values.global.vpArgoNamespace | default $argoNs -}}
 {{- end -}}
+{{- $localUser := .Values.argocdLocalUser | default dict -}}
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
@@ -76,13 +77,37 @@ spec:
     provider: dex
     dex:
       openShiftOAuth: true
+  # NOTE: this chart is the SOLE owner of spec.rbac and spec.localUsers on
+  # the hub's singleton ArgoCD/vp-gitops CR. Do NOT add a second chart that
+  # server-side-applies these fields on the hub (e.g. argocd-local-users) --
+  # both Applications share the same field manager identity for SSA on this
+  # object, so whichever syncs last silently wins/truncates the other's
+  # values (localUsers disappearing, rbac.policy lines dropped) with no
+  # error surfaced anywhere. Same failure class as the Kuadrant/Kiali
+  # singleton pitfalls documented in the vp-pattern-dev skill. On east/west
+  # spokes, this chart is NOT deployed, so charts/all/argocd-local-users
+  # remains the sole (and safe) owner there.
   rbac:
     defaultPolicy: role:admin
     policy: |
       g, system:cluster-admins, role:admin
       g, system:masters, role:admin
       g, admin, role:admin
+      {{- if $localUser.enabled }}
+      p, role:ai-agent, applications, get, */*, allow
+      p, role:ai-agent, applications, sync, */*, allow
+      p, role:ai-agent, logs, get, */*, allow
+      g, {{ $localUser.name | default "ai-agent" }}, role:ai-agent
+      {{- end }}
     scopes: '[groups]'
+  {{- if $localUser.enabled }}
+  localUsers:
+    - name: {{ $localUser.name | default "ai-agent" }}
+      apiKey: {{ $localUser.apiKey | default true }}
+      login: {{ $localUser.login | default false }}
+      tokenLifetime: {{ $localUser.tokenLifetime | default "720h" | quote }}
+      autoRenewToken: {{ $localUser.autoRenewToken | default true }}
+  {{- end }}
   redis:
     resources:
       limits:
