@@ -57,6 +57,17 @@ Stateless HTTP transport (`--stateless`). Health: `GET /healthz`.
 On east/west, ACM `ConfigurationPolicy` may revert `spec.localUsers`/`spec.rbac` on the
 `vp-gitops` ArgoCD CR. See `.cursor/skills/vp-pattern-dev/SKILL.md` for mitigation options.
 
+## Known issue: hub `rbac.policy` reverts (sync permission not yet effective)
+
+On the hub, `spec.localUsers` (the `ai-agent` user + real API token) is stable and read-only
+API calls work. `spec.rbac.policy`/`defaultPolicy`/`scopes` currently reverts to a stale value
+within under a second of every patch/sync, for a cause not yet root-caused (not the
+`argocd-local-users` chart — confirmed deleted; not a webhook — audited all mutating webhooks;
+survives an `openshift-gitops-operator` pod restart). Practical effect: `ai-agent` can `get`
+but not `sync` applications until this is fixed. See the "Unresolved" entry in
+`.cursor/skills/vp-pattern-dev/SKILL.md` for the full investigation trail and suggested next
+debugging step (tail operator logs while patching, in two parallel sessions).
+
 ## Future
 
 - TODO: Developer Hub plugin to expose MCP from the catalog UI.
