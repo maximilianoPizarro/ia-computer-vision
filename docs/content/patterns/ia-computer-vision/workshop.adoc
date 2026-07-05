@@ -156,8 +156,9 @@ For operator interaction diagrams and expected results, see link:../scaffolding-
 
 Showroom module 09 walks through RHOAI 3.4 native MaaS (not the Kuadrant AI Gateway path from module 05):
 
-. Log in to the OpenShift AI dashboard as `userN`
-. Confirm **Gen AI Studio** and **Models as a Service** navigation (patched by chart `models-as-a-service`)
+. Log in to the OpenShift AI dashboard as `userN` (workshop user in group `maas-workshop-users`)
+. Under **Gen AI studio**, confirm **Playground**, **AI asset endpoints**, and **API keys** (requires `genAiStudio`/`modelAsService` in `OdhDashboardConfig` plus Llama Stack Operator `Managed` in `DataScienceCluster` — both set by charts `models-as-a-service` and `openshift-ai-hub`)
+. In **Playground > Create playground**, pick a MaaS model; under Settings > MCP, enable **ArgoCD-GitOps-MCP** (from ConfigMap `gen-ai-aa-mcp-servers`)
 . Run `maas-native-status` in the Showroom terminal — Tenant Ready, gateway hostname `maas.apps.<hub_domain>`
 . Create an API key in Gen AI Studio and test `curl` against `https://maas.apps.<hub_domain>/v1/chat/completions`
 

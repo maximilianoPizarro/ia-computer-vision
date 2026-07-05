@@ -404,6 +404,15 @@ spec:
 
             maas-native-status() {
               sa-login 2>/dev/null || hub-login "${1:-user1}"
+              echo "=== Gen AI studio dashboard flags ==="
+              oc get odhdashboardconfig odh-dashboard-config -n redhat-ods-applications \
+                -o jsonpath='genAiStudio={.spec.dashboardConfig.genAiStudio} modelAsService={.spec.dashboardConfig.modelAsService}{"\n"}' 2>/dev/null || true
+              echo "=== Llama Stack Operator (required for Playground + MCP tab) ==="
+              oc get datasciencecluster default-dsc -n redhat-ods-applications \
+                -o jsonpath='llamastackoperator={.spec.components.llamastackoperator.managementState}{"\n"}' 2>/dev/null || true
+              oc get pods -n redhat-ods-applications -l control-plane=controller-manager 2>/dev/null | grep -i llama || true
+              echo "=== MCP servers ConfigMap ==="
+              oc get configmap gen-ai-aa-mcp-servers -n redhat-ods-applications -o jsonpath='{range $k,$v := .data}{$k}{"\n"}{end}' 2>/dev/null || echo "(missing — sync openshift-ai-hub)"
               echo "=== MaaS tenant and CRs ==="
               oc get tenant,externalmodel,maassubscription,maasauthpolicy -n models-as-a-service 2>/dev/null || true
               oc get tenant default-tenant -n models-as-a-service \

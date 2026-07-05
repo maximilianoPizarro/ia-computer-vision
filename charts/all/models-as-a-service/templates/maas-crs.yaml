@@ -63,8 +63,7 @@ metadata:
 spec:
   owner:
     groups:
-      - kind: Group
-        name: {{ $group | quote }}
+      - name: {{ $group | quote }}
     users: []
   modelRefs:
 {{- range $m := $models }}

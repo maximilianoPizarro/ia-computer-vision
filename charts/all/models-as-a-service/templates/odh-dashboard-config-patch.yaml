@@ -13,5 +13,10 @@ spec:
     modelAsService: true
     genAiStudio: true
     maasAuthPolicies: true
+    aiAssetCustomEndpoints: true
     observabilityDashboard: false
     vLLMDeploymentOnMaaS: false
+  genAiStudioConfig:
+    aiAssetCustomEndpoints:
+      externalProviders: false
+      clusterDomains: []

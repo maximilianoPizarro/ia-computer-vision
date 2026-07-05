@@ -57,15 +57,15 @@ maas:
     - id: codellama-7b-instruct
       displayName: CodeLlama 7B Instruct
       secretKey: api-key
-# RHOAI 3.4 Gen AI Studio Playground is a native dashboard feature, enabled
-# cluster-wide by OdhDashboardConfig spec.dashboardConfig.genAiStudio=true
-# (see charts/all/models-as-a-service/templates/odh-dashboard-config-patch.yaml).
-# There is no separate Helm-deployable "playground" component -- users create
-# playgrounds interactively from Gen AI studio > Playground > Create playground,
-# picking any deployed model that has an AI asset endpoint (any InferenceService
-# with opendatahub.io/dashboard: "true", e.g. the GPU models below or the
-# native MaaS ExternalModels). This flag is kept only to gate the informational
-# ConfigMap below.
+# RHOAI 3.4 Gen AI Studio Playground + MCP tab require BOTH:
+#   1. OdhDashboardConfig genAiStudio/modelAsService (charts/all/models-as-a-service)
+#   2. Llama Stack Operator Managed in DataScienceCluster (this chart, gated below)
+# Users create playgrounds from Gen AI studio > Playground > Create playground,
+# picking models with an AI asset endpoint (GPU InferenceServices or native MaaS
+# ExternalModels). MCP servers are registered via mcp.servers ConfigMap below.
+genAiStudio:
+  # When true (default), sets spec.components.llamastackoperator.managementState=Managed.
+  llamaStackOperator: true
 playground:
   enabled: true
 # Model Context Protocol (MCP) tool servers for the Gen AI Studio Playground's

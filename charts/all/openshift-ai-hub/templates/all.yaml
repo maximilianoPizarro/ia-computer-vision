@@ -1,5 +1,8 @@
 {{- $maas := .Values.maas | default dict -}}
 {{- $nativeMaas := ($maas.native | default dict).enabled | default false -}}
+{{- $playground := (.Values.playground | default dict).enabled | default false -}}
+{{- $genAi := (.Values.genAiStudio | default dict) -}}
+{{- $llamaStack := ($genAi.llamaStackOperator | default $playground) -}}
 {{- $endpoint := $maas.endpoint | default "" -}}
 {{- $secretName := $maas.credentialsSecretName | default "openshift-ai-maas-credentials" -}}
 {{- $defaultSecretKey := $maas.credentialsSecretKey | default "api-key" -}}
@@ -51,7 +54,7 @@ spec:
     kueue:
       managementState: Removed
     llamastackoperator:
-      managementState: Removed
+      managementState: {{ if $llamaStack }}Managed{{ else }}Removed{{ end }}
     modelregistry:
       managementState: Removed
     ray:

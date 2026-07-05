@@ -24,11 +24,25 @@ The legacy Kuadrant `AuthPolicy`/`RateLimitPolicy` path (`apis.maas.enabled`) st
 enabled in parallel until you validate native MaaS, then set
 `workshop-kuadrant-apis.apis.maas.enabled=false`.
 
-## Gen AI Studio: Playground and MCP servers
+## Gen AI Studio: Playground, MaaS, and MCP servers
 
-`genAiStudio: true` (set by this chart's `OdhDashboardConfig` patch) enables the **Playground** and **API keys** tabs in the dashboard's Gen AI studio nav. Playground itself needs no extra deployment -- from the dashboard, click **Gen AI studio > Playground > Create playground** and pick any deployed model with an AI asset endpoint (native MaaS `ExternalModel`s from this chart, or the GPU-served `InferenceService`s from `charts/all/openshift-ai-hub` when `gpu.enabled=true`).
+This chart's `OdhDashboardConfig` patch sets `genAiStudio`, `modelAsService`, and
+`maasAuthPolicies` so the dashboard shows **Gen AI studio** with **Playground**,
+**AI asset endpoints** (native MaaS models), and **API keys**.
 
-**MCP (Model Context Protocol) tool servers** for the Playground's MCP tab are registered separately, by `charts/all/openshift-ai-hub` (`mcp.servers`, ConfigMap `gen-ai-aa-mcp-servers` in `redhat-ods-applications`) -- by default this registers the pattern's own `argocd-mcp` server so Playground chats can query/sync Argo CD Applications as a tool. Add more entries to `mcp.servers` for other in-cluster or external MCP servers.
+**Llama Stack Operator** must also be `Managed` in `DataScienceCluster` — without
+it the dashboard only shows API keys under Gen AI studio. Chart
+`openshift-ai-hub` enables this when `genAiStudio.llamaStackOperator=true`
+(default) or `playground.enabled=true`.
+
+**MCP (Model Context Protocol) tool servers** for the Playground MCP tab are
+registered by `charts/all/openshift-ai-hub` (`mcp.servers` → ConfigMap
+`gen-ai-aa-mcp-servers` in `redhat-ods-applications`). By default this registers
+`argocd-mcp` so Playground chats can query/sync Argo CD Applications as a tool.
+
+Workshop users (`user1`..`userN` in group `maas-workshop-users`) see MaaS models
+and can create API keys. Log in as a workshop user — not `kubeadmin` — to verify
+the full Gen AI studio nav.
 
 ## Manual steps after first sync
 
