@@ -1,0 +1,16 @@
+# OPT-IN overlay for RHPDS / pre-provisioned OpenShift AI 3 sandboxes.
+#
+# Use when Service Mesh is already installed on channel `stable` (v3.1.x)
+# and the pattern's default `stable-3.2` causes OLM ResolutionFailed.
+#
+# Pattern CR example:
+#   extraValueFiles:
+#     - /values-hub-gpu.yaml
+#     - /values-hub-single-node.yaml
+#     - /values-hub-rhpds.yaml
+#     - /values-hub-only.yaml
+
+clusterGroup:
+  subscriptions:
+    servicemesh:
+      channel: stable
