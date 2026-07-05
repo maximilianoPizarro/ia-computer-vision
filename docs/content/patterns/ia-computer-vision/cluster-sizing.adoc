@@ -33,6 +33,33 @@ This page documents cluster sizing requirements, network prerequisites, and the 
 
 Each `m6a.2xlarge` instance provides 8 vCPU and 32 GiB memory. Each `m6a.4xlarge` provides 16 vCPU and 64 GiB memory.
 
+=== Single-node RHPDS sandboxes (e.g. g6.12xlarge GPU demo)
+
+RHPDS "Red Hat OpenShift AI 3" catalog sandboxes provision a **single node** that is simultaneously control plane and worker. That node runs the full OpenShift control plane, RHACM/multicluster-engine, OpenShift Pipelines, RHOAI, and the GPU Operator *before* the pattern installs anything -- this baseline alone consumes roughly half of OpenShift's **default 250 max-pods-per-node** kubelet limit, even though the underlying instance (e.g. `g6.12xlarge`: 48 vCPU, 192 GiB RAM, 4x NVIDIA L4) has abundant CPU/memory headroom. The constraint is the pod-count ceiling, not hardware.
+
+Symptoms of hitting this ceiling: ArgoCD's own `application-controller` pod stuck `Pending` ("Too many pods"), RHACM's `ocm-proxyserver` stuck `Pending` (breaks `clusterview`/`proxy.open-cluster-management.io` API aggregation and blocks namespace deletion cluster-wide), GitLab/DevSpaces/Developer Hub pods `Pending`, GPU model `InferenceService`s stuck `Pending`.
+
+**Fix: raise `maxPods` via `KubeletConfig` before installing the pattern.** The default OVN-Kubernetes `hostPrefix: 23` (512 addresses per node) comfortably supports raising the limit to 500:
+
+[source,yaml]
+----
+apiVersion: machineconfiguration.openshift.io/v1
+kind: KubeletConfig
+metadata:
+  name: max-pods-single-node
+spec:
+  machineConfigPoolSelector:
+    matchLabels:
+      pools.operator.machineconfiguration.openshift.io/master: ""
+  kubeletConfig:
+    maxPods: 500
+    podsPerCore: 0
+----
+
+Apply with `oc apply -f` and wait for the `master` `MachineConfigPool` to roll out (`oc get mcp master -w`) -- this **reboots the single node** (5-15 minutes of full cluster unavailability, including the API server). Verify with `oc get node -o jsonpath='{.items[0].status.allocatable.pods}'` (expect `500`).
+
+With `maxPods` raised, the full hub profile (`values-hub-gpu.yaml` + `values-hub-single-node.yaml` + `values-hub-rhpds.yaml` + `values-hub-only.yaml`) fits, including GitLab, Developer Hub, DevSpaces, and RHBK -- `values-hub-gpu-minimal.yaml` (which disables all of those) is only needed as a fallback on sandboxes where `maxPods` cannot be changed.
+
 === Sandbox sizing (m6a.2xlarge workers)
 
 In a tested sandbox deployment with `m6a.2xlarge` workers (3 control + 3 worker nodes per cluster), the hub reached **98-99% CPU request allocation** on the 3 schedulable worker nodes with all operators running. The following adjustments were needed:

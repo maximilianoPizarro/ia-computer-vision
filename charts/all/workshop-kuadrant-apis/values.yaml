@@ -40,6 +40,20 @@ apis:
     pathPrefix: /mcp
     rewritePathPrefix: /mcp
     displayName: Workshop MCP Gateway (ArgoCD + k8s tools)
+  llama:
+    enabled: false
+    # RHOAI catalog pre-installed demo model (KServe/vLLM), served directly from
+    # its predictor Service -- bypasses the RHOAI-native openshift-ai-inference
+    # Gateway/AuthPolicy chain entirely (that path requires its own MaaS identity
+    # setup, separate from this workshop's Kuadrant API-key tiers). Only enable
+    # on clusters where this InferenceService actually exists (e.g. RHPDS
+    # "Red Hat OpenShift AI 3" catalog installs) -- see values-hub-rhpds.yaml.
+    serviceName: llama-32-3b-instruct-predictor
+    serviceNamespace: my-first-model
+    port: 80
+    pathPrefix: /llama
+    rewritePathPrefix: /v1/completions
+    displayName: Llama 3.2 3B Instruct (RHOAI catalog pre-installed)
   maas:
     enabled: true
     host: maas-rhdp.apps.maas.redhatworkshops.io

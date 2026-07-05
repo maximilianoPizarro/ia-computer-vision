@@ -1,18 +1,26 @@
-# OPT-IN overlay for a GPU-model-serving-only hub, no workshop/dev platform.
+# FALLBACK overlay for a GPU-model-serving-only hub, no workshop/dev platform.
 #
-# Single-node RHPDS sandboxes (e.g. g6.12xlarge) run the FULL OpenShift
-# control plane plus RHACM, Pipelines, RHOAI, and the GPU operator on the
-# SAME node as the pattern (this is not a normal multi-node hub where the
-# control plane lives elsewhere). That baseline alone consumes ~110-130 of
-# the kubelet's 250 max-pods, leaving too little headroom for the pattern's
-# default workshop platform (GitLab HA, Developer Hub, DevSpaces, 30-user
-# Keycloak realms, Showroom, AI Gateway) on top of GPU model serving --
-# in practice this even starves ArgoCD's own application-controller pod.
+# PREFER raising the node's kubelet maxPods via KubeletConfig instead of this
+# overlay -- see docs/content/patterns/ia-computer-vision/cluster-sizing.adoc,
+# "Single-node RHPDS sandboxes". Single-node RHPDS sandboxes (e.g. g6.12xlarge)
+# run the FULL OpenShift control plane plus RHACM, Pipelines, RHOAI, and the
+# GPU operator on the SAME node as the pattern (this is not a normal
+# multi-node hub where the control plane lives elsewhere). That baseline
+# alone consumes ~110-130 of the kubelet's DEFAULT 250 max-pods, leaving too
+# little headroom for the pattern's default workshop platform (GitLab HA,
+# Developer Hub, DevSpaces, 30-user Keycloak realms, Showroom, AI Gateway) on
+# top of GPU model serving -- in practice this even starves ArgoCD's own
+# application-controller and RHACM's ocm-proxyserver pods. The node's actual
+# hardware (e.g. g6.12xlarge: 48 vCPU, 192 GiB RAM) is NOT the constraint --
+# raising maxPods to 500 (safe with the default /23 pod-CIDR hostPrefix)
+# fits the full profile with room to spare, and is the better fix if you can
+# reboot the node (5-15 min) as a one-time day-2 step before installing.
 #
-# This overlay strips the pattern down to what a GPU-serving-only demo
-# actually needs: Vault/ESO, OpenShift AI, and the vLLM InferenceServices.
-# Compose with values-hub-gpu.yaml, values-hub-single-node.yaml, and
-# values-hub-rhpds.yaml (values-hub-only.yaml already covers Skupper/ACM):
+# Only use this overlay when maxPods cannot be changed (immutable sandbox).
+# It strips the pattern down to what a GPU-serving-only demo actually needs:
+# Vault/ESO, OpenShift AI, and the vLLM InferenceServices. Compose with
+# values-hub-gpu.yaml, values-hub-single-node.yaml, and values-hub-rhpds.yaml
+# (values-hub-only.yaml already covers Skupper/ACM):
 #
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml

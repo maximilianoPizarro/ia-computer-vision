@@ -43,6 +43,26 @@ spec:
       port: {{ .Values.apis.mcp.port | default 8080 }}
       protocol: TCP
 {{- end }}
+{{- if and .Values.apis.llama.enabled .Values.apis.llama.serviceName }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workshop-ext-llama
+  namespace: {{ $gwNs }}
+  labels:
+    app.kubernetes.io/part-of: workshop-kuadrant-apis
+    workshop.kuadrant.io/api: llama
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ExternalName
+  externalName: {{ printf "%s.%s.svc.cluster.local" .Values.apis.llama.serviceName (.Values.apis.llama.serviceNamespace | default "my-first-model") | quote }}
+  ports:
+    - name: http
+      port: {{ .Values.apis.llama.port | default 80 }}
+      protocol: TCP
+{{- end }}
 {{- if and .Values.apis.maas.enabled .Values.apis.maas.host }}
 ---
 apiVersion: v1
