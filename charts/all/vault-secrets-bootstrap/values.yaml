@@ -1,0 +1,10 @@
+vault:
+  namespace: vault
+  serviceName: vault
+  port: 8200
+  authRole: secret-manager
+
+bootstrap:
+  enabled: true
+  image: registry.redhat.io/ubi9/ubi-minimal:latest
+  checkPath: secret/data/hub/rhbk-credentials

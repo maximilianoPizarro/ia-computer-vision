@@ -226,7 +226,9 @@ cp values-secret.yaml.template ~/values-secret-ia-computer-vision.yaml
 
 ### Option B — Console install (Pattern CR)
 
-When you install via the OCP console, `make load-secrets` does not run. You must load secrets into Vault manually after Vault initializes (wave 2):
+When you install via the OCP console, `make load-secrets` does not run. The `vault-secrets-bootstrap` chart (wave 3, hub only) automatically seeds `secret/hub/*` in Vault after Vault and ESO are ready — no manual steps required for a standard install.
+
+If bootstrap was skipped or failed, load secrets manually after Vault initializes (wave 2):
 
 ```bash
 # Generate passwords and load into Vault
