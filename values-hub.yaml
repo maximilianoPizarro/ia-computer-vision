@@ -7,6 +7,28 @@ main:
 
 clusterGroup:
   name: hub
+  # Sole sanctioned way to set spec.rbac on the singleton ArgoCD CR when
+  # global.singleArgoCD=true -- the clustergroup chart (charts.validatedpatterns.io)
+  # renders this on every sync of the top-level clustergroup Application,
+  # which happens very frequently (Pattern Operator drift-correction).
+  # Setting spec.rbac from any local chart's own Application loses this
+  # race almost every time with no visible error. See
+  # charts/all/openshift-gitops/templates/argocd.yaml for the full writeup.
+  # The ai-agent policy lines below back the Argo CD MCP server
+  # (charts/all/argocd-mcp) local user -- harmless no-op if that user was
+  # never created (argocdLocalUser.enabled=false).
+  argoCD:
+    rbac:
+      defaultPolicy: role:admin
+      policy: |
+        g, system:cluster-admins, role:admin
+        g, system:masters, role:admin
+        g, admin, role:admin
+        p, role:ai-agent, applications, get, */*, allow
+        p, role:ai-agent, applications, sync, */*, allow
+        p, role:ai-agent, logs, get, */*, allow
+        g, ai-agent, role:ai-agent
+      scopes: '[groups]'
   namespaces:
     open-cluster-management: {}
     vault: {}

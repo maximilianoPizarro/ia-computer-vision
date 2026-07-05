@@ -77,29 +77,29 @@ spec:
     provider: dex
     dex:
       openShiftOAuth: true
-  # NOTE: this chart is the SOLE owner of spec.rbac and spec.localUsers on
-  # the hub's singleton ArgoCD/vp-gitops CR. Do NOT add a second chart that
-  # server-side-applies these fields on the hub (e.g. argocd-local-users) --
-  # both Applications share the same field manager identity for SSA on this
-  # object, so whichever syncs last silently wins/truncates the other's
-  # values (localUsers disappearing, rbac.policy lines dropped) with no
-  # error surfaced anywhere. Same failure class as the Kuadrant/Kiali
-  # singleton pitfalls documented in the vp-pattern-dev skill. On east/west
-  # spokes, this chart is NOT deployed, so charts/all/argocd-local-users
-  # remains the sole (and safe) owner there.
-  rbac:
-    defaultPolicy: role:admin
-    policy: |
-      g, system:cluster-admins, role:admin
-      g, system:masters, role:admin
-      g, admin, role:admin
-      {{- if $localUser.enabled }}
-      p, role:ai-agent, applications, get, */*, allow
-      p, role:ai-agent, applications, sync, */*, allow
-      p, role:ai-agent, logs, get, */*, allow
-      g, {{ $localUser.name | default "ai-agent" }}, role:ai-agent
-      {{- end }}
-    scopes: '[groups]'
+  # NOTE on spec.rbac: do NOT set it here. When global.singleArgoCD=true,
+  # the VP-published `clustergroup` chart (charts.validatedpatterns.io,
+  # v0.9.50+) is itself the renderer/owner of the singleton ArgoCD CR and
+  # applies spec.rbac from its own `clusterGroup.argoCD.rbac` values key on
+  # effectively every sync of the top-level clustergroup Application --
+  # which syncs very frequently (the Validated Patterns Operator's Pattern
+  # controller touches its Helm parameters roughly every 10-15s as part of
+  # its own periodic drift-correction). Setting spec.rbac from this chart's
+  # own Application (even with ServerSideApply=true) just loses that race
+  # almost every time with no error anywhere -- confirmed live via
+  # `--show-managed-fields`: a generic "manager" identity re-applies
+  # clusterGroup.argoCD.rbac's value within the same second as any other
+  # write to spec.rbac. Set the desired policy via
+  # `clusterGroup.argoCD.rbac` in values-hub.yaml instead (top-level
+  # clusterGroup key, not an application override) -- see its "ai-agent"
+  # rbac policy lines there for the argocd-mcp local user.
+  #
+  # spec.localUsers has no clustergroup-chart equivalent key, so this chart
+  # remains the correct (and uncontested) place to set it on the hub. On
+  # east/west spokes, this chart is not deployed at all, so
+  # charts/all/argocd-local-users remains the sole owner of both fields
+  # there (singleArgoCD's clustergroup-chart RBAC ownership is a hub-only
+  # concern since only the hub renders the actual singleton CR there).
   {{- if $localUser.enabled }}
   localUsers:
     - name: {{ $localUser.name | default "ai-agent" }}
