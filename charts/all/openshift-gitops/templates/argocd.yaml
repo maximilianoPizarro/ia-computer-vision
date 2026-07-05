@@ -77,29 +77,40 @@ spec:
     provider: dex
     dex:
       openShiftOAuth: true
-  # NOTE on spec.rbac: do NOT set it here. When global.singleArgoCD=true,
-  # the VP-published `clustergroup` chart (charts.validatedpatterns.io,
-  # v0.9.50+) is itself the renderer/owner of the singleton ArgoCD CR and
-  # applies spec.rbac from its own `clusterGroup.argoCD.rbac` values key on
-  # effectively every sync of the top-level clustergroup Application --
-  # which syncs very frequently (the Validated Patterns Operator's Pattern
-  # controller touches its Helm parameters roughly every 10-15s as part of
-  # its own periodic drift-correction). Setting spec.rbac from this chart's
-  # own Application (even with ServerSideApply=true) just loses that race
-  # almost every time with no error anywhere -- confirmed live via
-  # `--show-managed-fields`: a generic "manager" identity re-applies
-  # clusterGroup.argoCD.rbac's value within the same second as any other
-  # write to spec.rbac. Set the desired policy via
-  # `clusterGroup.argoCD.rbac` in values-hub.yaml instead (top-level
-  # clusterGroup key, not an application override) -- see its "ai-agent"
-  # rbac policy lines there for the argocd-mcp local user.
+  # NOTE on spec.rbac: do NOT set it here -- CONFIRMED root cause (not
+  # speculation) via live --show-managed-fields + reading the actual
+  # charts.validatedpatterns.io sources: when global.singleArgoCD=true, the
+  # singleton ArgoCD CR is NOT rendered by any local chart or by
+  # clustergroup-chart's own argocd.yaml (that template's singleArgoCD=true
+  # branch is empty by design -- it defers to ACM). It is instead rendered
+  # and continuously RE-ENFORCED by the `acm` chart's
+  # templates/policies/ocp-gitops-policy.yaml, as an ACM governance
+  # ConfigurationPolicy with `complianceType: mustonlyhave` +
+  # `remediationAction: enforce`. That policy hardcodes
+  # spec.rbac={defaultPolicy: role:readonly, policy: "g, system:cluster-
+  # admins/cluster-admins/admin, role:admin", scopes: [groups,email]} with
+  # NO values override hook anywhere in the chart (checked up to the latest
+  # published version, 0.2.8) -- ACM's policy controller re-enforces this
+  # exact spec on its own (fast) evaluation cycle, so any write to
+  # spec.rbac from anywhere else (this chart, `oc patch`, clustergroup-
+  # chart's clusterGroup.argoCD.rbac key, etc.) gets overwritten within
+  # about a second, with no error surfaced anywhere. This is a genuine
+  # upstream Validated Patterns framework gap for the (still fairly new)
+  # singleArgoCD option, not something fixable from this pattern repo.
+  # Practical effect: local users (see spec.localUsers below, which IS
+  # respected -- ACM's policy only touches spec.rbac) authenticate fine but
+  # fall through to defaultPolicy: role:readonly unless bound to
+  # role:admin/cluster-admins by name, so the argocd-mcp `ai-agent` user
+  # can list/get Applications but cannot sync them. Tracked as a known
+  # limitation until upstream adds an override key (mirroring how
+  # clustergroup-chart added `clusterGroup.argoCD.rbac` in v0.9.50 for the
+  # non-singleArgoCD path).
   #
-  # spec.localUsers has no clustergroup-chart equivalent key, so this chart
-  # remains the correct (and uncontested) place to set it on the hub. On
-  # east/west spokes, this chart is not deployed at all, so
+  # spec.localUsers has no ACM-policy equivalent, so this chart remains the
+  # correct (and uncontested) place to set it on the hub. On east/west
+  # spokes, this chart is not deployed at all, so
   # charts/all/argocd-local-users remains the sole owner of both fields
-  # there (singleArgoCD's clustergroup-chart RBAC ownership is a hub-only
-  # concern since only the hub renders the actual singleton CR there).
+  # there (the ACM policy above only targets the hub's singleton instance).
   {{- if $localUser.enabled }}
   localUsers:
     - name: {{ $localUser.name | default "ai-agent" }}

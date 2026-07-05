@@ -7,16 +7,23 @@ main:
 
 clusterGroup:
   name: hub
-  # Sole sanctioned way to set spec.rbac on the singleton ArgoCD CR when
-  # global.singleArgoCD=true -- the clustergroup chart (charts.validatedpatterns.io)
-  # renders this on every sync of the top-level clustergroup Application,
-  # which happens very frequently (Pattern Operator drift-correction).
-  # Setting spec.rbac from any local chart's own Application loses this
-  # race almost every time with no visible error. See
-  # charts/all/openshift-gitops/templates/argocd.yaml for the full writeup.
-  # The ai-agent policy lines below back the Argo CD MCP server
-  # (charts/all/argocd-mcp) local user -- harmless no-op if that user was
-  # never created (argocdLocalUser.enabled=false).
+  # NOTE: clusterGroup.argoCD.rbac below is INERT for this pattern. It's the
+  # sanctioned override key for the per-clustergroup, non-singleArgoCD path
+  # in clustergroup-chart (charts.validatedpatterns.io, v0.9.50+) -- but this
+  # pattern uses global.singleArgoCD=true, and confirmed by reading the
+  # actual chart sources, that path is a no-op there (its argocd.yaml
+  # template's singleArgoCD=true branch renders nothing at all). For
+  # singleArgoCD, the singleton ArgoCD CR's spec.rbac is instead hardcoded
+  # and continuously re-enforced by the `acm` chart's ACM governance Policy
+  # (ocp-gitops-policy.yaml, complianceType: mustonlyhave), which has no
+  # values override hook as of the latest published version (0.2.8). Any
+  # write to spec.rbac from anywhere -- including this key -- gets reverted
+  # within about a second. See charts/all/openshift-gitops/templates/
+  # argocd.yaml for the full writeup and current impact (ai-agent MCP user
+  # can list/get Applications but not sync). Left set here (harmless) as
+  # forward-compatible documentation of the desired end-state, in case a
+  # future clustergroup-chart/acm-chart version routes singleArgoCD's rbac
+  # through this same key.
   argoCD:
     rbac:
       defaultPolicy: role:admin
