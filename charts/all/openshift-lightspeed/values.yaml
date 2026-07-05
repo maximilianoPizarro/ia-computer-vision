@@ -12,6 +12,7 @@ llm:
   vaultPlatformApiKeyPath: secret/data/hub/ai-gateway-platform-keys
   credentialsEnabled: true
   credentialsSecretName: workshop-ai-gateway-credentials
+  localCredentialsSecretName: gpu-vllm-local-credentials
 
 # Argo CD MCP (charts/all/argocd-mcp) preconfigured out of the box. Add more
 # entries here for other in-cluster MCP servers.

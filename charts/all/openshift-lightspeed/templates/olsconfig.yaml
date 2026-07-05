@@ -1,8 +1,11 @@
 {{- $aiGatewayUrl := include "openshift-lightspeed.aiGatewayUrl" . -}}
 {{- $providerName := .Values.llm.providerName | default "workshop-ai-gateway" -}}
 {{- $model := .Values.llm.model | default "llama-scout-17b" -}}
-{{- $credSecret := .Values.llm.credentialsSecretName | default "workshop-ai-gateway-credentials" -}}
 {{- $credEnabled := ne (.Values.llm.credentialsEnabled | toString | default "true") "false" -}}
+{{- $credSecret := .Values.llm.credentialsSecretName | default "workshop-ai-gateway-credentials" -}}
+{{- if not $credEnabled -}}
+{{- $credSecret = .Values.llm.localCredentialsSecretName | default "gpu-vllm-local-credentials" -}}
+{{- end -}}
 ---
 apiVersion: ols.openshift.io/v1alpha1
 kind: OLSConfig
@@ -15,10 +18,8 @@ spec:
     providers:
       - name: {{ $providerName | quote }}
         type: openai
-        {{- if and $credEnabled $credSecret }}
         credentialsSecretRef:
           name: {{ $credSecret | quote }}
-        {{- end }}
         url: {{ $aiGatewayUrl | quote }}
         models:
           - name: {{ $model | quote }}
