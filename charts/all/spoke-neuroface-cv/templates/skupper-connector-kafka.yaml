@@ -1,3 +1,4 @@
+{{- if and (ne (.Values.kafka.enabled | toString | default "true") "false") (ne (.Values.skupper.enabled | toString | default "true") "false") }}
 {{- $cn := include "spoke-neuroface-cv.clusterName" . }}
 apiVersion: skupper.io/v2alpha1
 kind: Connector
@@ -10,3 +11,4 @@ spec:
   routingKey: kafka-{{ $cn }}-tst
   host: cv-kafka-kafka-bootstrap.neuroface-cv.svc.cluster.local
   port: 9093
+{{- end }}

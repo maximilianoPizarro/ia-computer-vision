@@ -1,0 +1,99 @@
+{{- if eq (.Values.hubLocal.enabled | toString | default "false") "true" }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: neuroface-cv-lb
+  namespace: neuroface-gateway-system
+  labels:
+    backstage.io/kubernetes-id: neuroface-gateway
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  parentRefs:
+    - name: neuroface-gateway
+      namespace: neuroface-gateway-system
+  hostnames:
+    - neuroface-cv.{{ include "neuroface-gateway.clusterDomain" . }}
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
+        - name: neuroface-cv-hub
+          port: 8080
+          weight: 100
+    - matches:
+        - path:
+            type: Exact
+            value: /api/ppe/status
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /health
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
+        - name: neuroface-cv-hub
+          port: 8080
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/ppe/v1/predict
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /v1/predict
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
+        - name: neuroface-cv-hub
+          port: 8080
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/ppe
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
+        - name: neuroface-cv-hub
+          port: 8080
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /health
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
+        - name: neuroface-cv-hub
+          port: 8080
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/predict
+      filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
+        - name: neuroface-cv-hub
+          port: 8080
+          weight: 100
+    - filters:
+        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
+      backendRefs:
+        - name: neuroface-cv-hub
+          port: 8080
+          weight: 100
+{{- end }}

@@ -1,3 +1,4 @@
+{{- if ne (.Values.skupper.enabled | toString | default "true") "false" }}
 apiVersion: skupper.io/v2alpha1
 kind: Connector
 metadata:
@@ -9,3 +10,4 @@ spec:
   routingKey: neuroface-cv-{{ include "spoke-neuroface-cv.clusterName" . }}
   host: yolo-ppe-serving.neuroface-cv.svc.cluster.local
   port: 8080
+{{- end }}

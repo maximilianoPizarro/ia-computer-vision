@@ -3,11 +3,9 @@
 # Disables Skupper, hub-interconnect, skupper-network-observer, and
 # acm-hub-spoke to avoid Missing/Degraded apps and reduce pod count.
 #
-# Also deploys the upstream neuroface chart (chat-only, no OVMS/PPE/Kafka)
-# directly on the hub via multiSource, wired to the hub's own GPU-served
-# model -- since neuroface-gateway load-balances across east/west spoke
-# backends that don't exist in a hub-only install, this gives the pattern a
-# working NeuroFace demo regardless.
+# Also deploys the upstream neuroface chart on the hub and routes the standard
+# workshop DNS names (neuroface.apps.* / neuroface-cv.apps.*) via
+# neuroface-gateway hubLocal mode — no east/west Skupper backends required.
 #
 # Pattern CR example:
 #   extraValueFiles:
@@ -23,6 +21,7 @@ clusterGroup:
 
   namespaces:
     neuroface-hub: {}
+    neuroface-cv: {}
 
   applications:
     hub-interconnect:
@@ -31,8 +30,47 @@ clusterGroup:
       disabled: true
     acm-hub-spoke:
       disabled: true
+
     neuroface-gateway:
-      disabled: true
+      overrides:
+        - name: hubLocal.enabled
+          value: "true"
+        - name: hubLocal.appService
+          value: neuroface-frontend.neuroface-hub.svc.cluster.local
+        - name: hubLocal.cvService
+          value: yolo-ppe-serving.neuroface-cv.svc.cluster.local
+        - name: gateway.replicas
+          value: "1"
+        - name: kuadrant.enabled
+          value: "true"
+        - name: kuadrant.realms[0].name
+          value: cv
+        - name: kuadrant.realms[0].httpRoute
+          value: neuroface-cv-lb
+        - name: kuadrant.realms[0].redirectAuth
+          value: "false"
+
+    spoke-neuroface-cv:
+      name: spoke-neuroface-cv
+      namespace: neuroface-cv
+      argoProject: ai
+      path: charts/all/spoke-neuroface-cv
+      syncWave: "6"
+      overrides:
+        - name: clusterName
+          value: hub
+        - name: skupper.enabled
+          value: "false"
+        - name: kafka.enabled
+          value: "false"
+        - name: modelSeed.enabled
+          value: "true"
+        - name: yoloPpeServing.modelStorage.endpoint
+          value: http://gitlab-minio-svc.gitlab-system.svc:9000
+        - name: yoloPpeServing.hpa.minReplicas
+          value: "1"
+        - name: yoloPpeServing.hpa.maxReplicas
+          value: "1"
 
     neuroface-hub:
       name: neuroface-hub
@@ -70,7 +108,7 @@ clusterGroup:
         - name: ppe.enabled
           value: "false"
         - name: route.enabled
-          value: "true"
+          value: "false"
         - name: persistence.enabled
           value: "true"
         - name: persistence.size

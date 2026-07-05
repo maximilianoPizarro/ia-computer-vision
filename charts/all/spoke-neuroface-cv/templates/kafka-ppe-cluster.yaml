@@ -1,3 +1,4 @@
+{{- if ne (.Values.kafka.enabled | toString | default "true") "false" }}
 {{- $cn := include "spoke-neuroface-cv.clusterName" . }}
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -70,3 +71,4 @@ spec:
   replicas: 1
   config:
     retention.ms: "604800000"
+{{- end }}

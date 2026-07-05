@@ -1,0 +1,81 @@
+{{- if eq (.Values.modelSeed.enabled | toString | default "false") "true" }}
+{{- $ms := .Values.modelSeed -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ppe-model-seed
+  namespace: gitlab-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: {{ $ms.image | default "registry.redhat.io/ubi9/python-311:latest" | quote }}
+          command:
+            - bash
+            - -c
+            - |
+              pip install -q boto3 2>&1 | tail -1
+              python3 << 'PYEOF'
+              import boto3, urllib.request, os, sys
+
+              endpoint = os.environ["S3_ENDPOINT"]
+              key = os.environ["S3_ACCESS_KEY"]
+              secret = os.environ["S3_SECRET_KEY"]
+              bucket = os.environ.get("S3_BUCKET", "models")
+              obj_key = os.environ.get("S3_OBJECT_KEY", "ppe-detection/model/best.pt")
+              model_url = os.environ.get("MODEL_URL", "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt")
+
+              s3 = boto3.client("s3", endpoint_url=endpoint,
+                  aws_access_key_id=key, aws_secret_access_key=secret,
+                  region_name="us-east-1")
+
+              try:
+                  s3.head_object(Bucket=bucket, Key=obj_key)
+                  print("Model already exists at s3://%s/%s -- skip" % (bucket, obj_key))
+                  sys.exit(0)
+              except s3.exceptions.ClientError:
+                  pass
+
+              try:
+                  s3.head_bucket(Bucket=bucket)
+              except s3.exceptions.ClientError:
+                  s3.create_bucket(Bucket=bucket)
+                  print("Created bucket %s" % bucket)
+
+              print("Downloading %s ..." % model_url)
+              urllib.request.urlretrieve(model_url, "/tmp/model.pt")
+              sz = os.path.getsize("/tmp/model.pt")
+              print("Downloaded: %.1f MB" % (sz / 1024 / 1024))
+
+              s3.upload_file("/tmp/model.pt", bucket, obj_key)
+              resp = s3.head_object(Bucket=bucket, Key=obj_key)
+              print("Uploaded s3://%s/%s (%.1f MB)" % (bucket, obj_key, resp["ContentLength"] / 1024 / 1024))
+              PYEOF
+          env:
+            - name: S3_ENDPOINT
+              value: "http://gitlab-minio-svc.gitlab-system.svc:9000"
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-minio-secret
+                  key: accesskey
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-minio-secret
+                  key: secretkey
+            - name: S3_BUCKET
+              value: {{ $ms.bucket | default "models" | quote }}
+            - name: S3_OBJECT_KEY
+              value: {{ $ms.objectKey | default "ppe-detection/model/best.pt" | quote }}
+            - name: MODEL_URL
+              value: {{ $ms.modelUrl | default "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt" | quote }}
+{{- end }}

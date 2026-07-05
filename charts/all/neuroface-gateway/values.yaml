@@ -1,4 +1,10 @@
 clusterDomain: ""
+# Hub-only installs (no east/west spokes): route neuroface.apps / neuroface-cv.apps
+# to in-cluster backends instead of Skupper external services.
+hubLocal:
+  enabled: false
+  appService: neuroface-frontend.neuroface-hub.svc.cluster.local
+  cvService: yolo-ppe-serving.neuroface-cv.svc.cluster.local
 gateway:
   replicas: 2
 clusters:
