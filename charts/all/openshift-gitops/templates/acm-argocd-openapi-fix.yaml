@@ -76,8 +76,26 @@ spec:
             - -ec
             - |
               set -euo pipefail
-              echo "Scaling ocm-proxyserver to 0 (broken clusterview OpenAPI for Argo CD)..."
-              oc scale deployment/ocm-proxyserver -n multicluster-engine --replicas=0 2>/dev/null || true
+              # Only restart the Argo CD controller if this run actually had
+              # to fix something. The VP Operator's Pattern reconcile loop
+              # touches the clustergroup Application's Helm parameters every
+              # ~10-15s (by design, for drift correction), which triggers a
+              # PostSync hook run on effectively every sync -- if this hook
+              # always restarts the controller unconditionally, the
+              # controller (and every downstream sync it's mid-way through)
+              # gets interrupted on a tight, near-continuous cycle, even when
+              # ocm-proxyserver was already scaled down and its APIServices
+              # already removed from a previous run. Restarting only on
+              # actual change breaks that loop while still fixing the
+              # Sync=Unknown issue whenever it genuinely recurs (e.g. ACM
+              # recreating the deployment/APIServices on its own schedule).
+              changed=false
+              ready="$(oc get deployment ocm-proxyserver -n multicluster-engine -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)"
+              if [[ "${ready:-0}" != "0" ]]; then
+                echo "Scaling ocm-proxyserver to 0 (broken clusterview OpenAPI for Argo CD)..."
+                oc scale deployment/ocm-proxyserver -n multicluster-engine --replicas=0 2>/dev/null || true
+                changed=true
+              fi
               for name in \
                 v1.clusterview.open-cluster-management.io \
                 v1alpha1.clusterview.open-cluster-management.io \
@@ -85,12 +103,17 @@ spec:
                 if oc get apiservice "$name" -o jsonpath='{.spec.service.name}' 2>/dev/null | grep -qx ocm-proxyserver; then
                   echo "Deleting APIService $name (ocm-proxyserver backend)"
                   oc delete apiservice "$name" --ignore-not-found
+                  changed=true
                 fi
               done
-              echo "Restarting Argo CD application controller..."
-              oc rollout restart statefulset/{{ $argoNs }}-application-controller -n {{ $argoNs }}
-              oc rollout status statefulset/{{ $argoNs }}-application-controller -n {{ $argoNs }} --timeout=180s
-              echo "Done. Hub apps should report OutOfSync/Synced instead of Unknown."
+              if [[ "$changed" == "true" ]]; then
+                echo "Restarting Argo CD application controller..."
+                oc rollout restart statefulset/{{ $argoNs }}-application-controller -n {{ $argoNs }}
+                oc rollout status statefulset/{{ $argoNs }}-application-controller -n {{ $argoNs }} --timeout=180s
+                echo "Done. Hub apps should report OutOfSync/Synced instead of Unknown."
+              else
+                echo "Nothing to fix (ocm-proxyserver already scaled down, no broken APIServices found) -- controller left untouched."
+              fi
 ---
 apiVersion: batch/v1
 kind: CronJob
