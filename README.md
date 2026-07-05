@@ -258,11 +258,15 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/workshop-registration \
 oc exec vault-0 -n vault -- vault kv put secret/hub/minio-credentials \
   accesskey="$(openssl rand -base64 16)" secretkey="$(openssl rand -base64 24)"
 
-oc exec vault-0 -n vault -- vault kv put secret/hub/keycloak-realm-clients \
-  neuroface.user1.clientSecret="$(openssl rand -base64 24)" \
-  neuroface.user2.clientSecret="$(openssl rand -base64 24)" \
-  maas.user1.clientSecret="$(openssl rand -base64 24)" \
-  cv.user1.clientSecret="$(openssl rand -base64 24)"
+# rhbk-iam reads ONE Vault secret per user per realm (not a single combined
+# object) -- repeat for every user up to userCount, for each of the three
+# realms (neuroface, maas, cv):
+for realm in neuroface maas cv; do
+  for i in $(seq 1 30); do
+    oc exec vault-0 -n vault -- vault kv put "secret/hub/keycloak/realms/${realm}/user${i}" \
+      clientSecret="$(openssl rand -base64 24)"
+  done
+done
 
 oc exec vault-0 -n vault -- vault kv put secret/hub/keycloak/realms/cv/backstage-provisioner \
   clientSecret="$(openssl rand -base64 24)"
@@ -276,7 +280,7 @@ oc exec vault-0 -n vault -- vault kv put secret/hub/keycloak/realms/cv/backstage
 | `ai-gateway-platform-keys` | `platformApiKey` | Auto-generated | Kuadrant API key for AI Gateway (used by Lightspeed and NeuroFace chat) |
 | `workshop-registration` | `adminToken` | Auto-generated | Workshop self-registration app (Showroom) |
 | `minio-credentials` | `accesskey`, `secretkey` | Auto-generated | NeuroFace CV model storage (overridden by GitLab's bundled Minio on spokes, see below) |
-| `keycloak-realm-clients` | `neuroface.user1.clientSecret`, `neuroface.user2.clientSecret`, `maas.user1.clientSecret`, `cv.user1.clientSecret` | Auto-generated | Per-user Keycloak client secrets (`rhbk-iam` realms) |
+| `keycloak/realms/{neuroface,maas,cv}/user{N}` | `clientSecret` (one path per user per realm, `N` up to `userCount`) | Auto-generated | Per-user Keycloak client secrets (`rhbk-iam` realms) |
 | `keycloak/realms/cv/backstage-provisioner` | `clientSecret` | Auto-generated | Developer Hub Keycloak Admin REST provisioner (OIDC credentials self-service template) |
 | `spoke-credentials` | `east-token`, `east-api-url`, `west-token`, `west-api-url` | Via Pattern CR `extraParameters` (inline mode) | ACM auto-import |
 
