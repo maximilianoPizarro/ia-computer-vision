@@ -3,6 +3,12 @@
 # Disables Skupper, hub-interconnect, skupper-network-observer, and
 # acm-hub-spoke to avoid Missing/Degraded apps and reduce pod count.
 #
+# Also deploys the upstream neuroface chart (chat-only, no OVMS/PPE/Kafka)
+# directly on the hub via multiSource, wired to the hub's own GPU-served
+# model -- since neuroface-gateway load-balances across east/west spoke
+# backends that don't exist in a hub-only install, this gives the pattern a
+# working NeuroFace demo regardless.
+#
 # Pattern CR example:
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml
@@ -15,6 +21,9 @@ clusterGroup:
     skupper:
       disabled: true
 
+  namespaces:
+    neuroface-hub: {}
+
   applications:
     hub-interconnect:
       disabled: true
@@ -22,6 +31,48 @@ clusterGroup:
       disabled: true
     acm-hub-spoke:
       disabled: true
+
+    neuroface-hub:
+      name: neuroface-hub
+      namespace: neuroface-hub
+      argoProject: mesh
+      repoURL: https://maximilianopizarro.github.io/neuroface/
+      chart: neuroface
+      chartVersion: 1.4.*
+      syncWave: "7"
+      overrides:
+        - name: fullnameOverride
+          value: neuroface
+        - name: backend.image.tag
+          value: v1.5.1
+        - name: frontend.image.tag
+          value: v1.5.1
+        - name: chat.enabled
+          value: "true"
+        - name: chat.modelEndpoint
+          value: "http://qwen2-5-coder-7b-instruct-predictor.gpu-models.svc.cluster.local:8080"
+        - name: chat.modelName
+          value: qwen2-5-coder-7b-instruct
+        - name: chat.apiKey
+          value: ""
+        - name: chat.autoServiceAccount
+          value: "false"
+        - name: chat.maxTokens
+          value: "512"
+        - name: chat.systemPrompt
+          value: "You are NeuroFace, a helpful AI assistant running on the AI Computer Vision pattern's hub cluster. Be concise and informative."
+        - name: ovms.enabled
+          value: "false"
+        - name: litellm.enabled
+          value: "false"
+        - name: ppe.enabled
+          value: "false"
+        - name: route.enabled
+          value: "true"
+        - name: persistence.enabled
+          value: "true"
+        - name: persistence.size
+          value: 1Gi
 
     developer-hub:
       overrides:
