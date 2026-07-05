@@ -80,7 +80,7 @@ mcp:
 gpu:
   enabled: false
   namespace: gpu-models
-  runtimeImage: "quay.io/modh/vllm@sha256:8a3dd8ad6e15fe7b8e5e471037519719d4d8ad3db9d69389f2beded36a6f5b21"
+  runtimeImage: "registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0"
   # Sized for AWS g6.12xlarge (4x NVIDIA L4, 24 GiB VRAM each). FP8 halves
   # VRAM vs fp16, so all three now fit one L4 each (3 of 4 GPUs used) --
   # verify actual headroom (--max-model-len, --gpu-memory-utilization)

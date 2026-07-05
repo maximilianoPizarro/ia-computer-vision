@@ -1,7 +1,7 @@
 {{- $gpu := .Values.gpu | default dict -}}
 {{- if $gpu.enabled }}
 {{- $ns := $gpu.namespace | default "gpu-models" -}}
-{{- $image := $gpu.runtimeImage | default "quay.io/modh/vllm@sha256:8a3dd8ad6e15fe7b8e5e471037519719d4d8ad3db9d69389f2beded36a6f5b21" -}}
+{{- $image := $gpu.runtimeImage | default "registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0" -}}
 ---
 # Real, GPU-backed vLLM model serving -- downloads weights from Hugging Face
 # into a PVC-backed cache on first start. This is an opt-in alternative to
