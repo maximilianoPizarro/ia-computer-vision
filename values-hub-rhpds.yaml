@@ -11,6 +11,11 @@
 # gpu-operator-certified, rhods-operator) Failed/TooManyOperatorGroups,
 # since it can't automatically pick a namespace scope with two present.
 #
+# Also pins the ZTunnel CR version to match the Istio version that
+# servicemeshoperator3 v3.1.0 (RHPDS's preinstalled channel `stable`)
+# actually supports -- the pattern's default v1.28.8 is rejected by that
+# older operator's CRD validation ("Unsupported value" on spec.version).
+#
 # Also exposes the RHOAI catalog's pre-installed "llama-32-3b-instruct" demo
 # model (KServe/vLLM in the my-first-model namespace) through the workshop
 # Kuadrant API gateway, alongside httpbin/REST Countries/MCP -- same
@@ -39,6 +44,11 @@ clusterGroup:
       operatorGroup: false
 
   applications:
+    istio-ztunnel:
+      overrides:
+        - name: version
+          value: v1.26.2
+
     workshop-kuadrant-apis:
       overrides:
         - name: apis.mcp.enabled
