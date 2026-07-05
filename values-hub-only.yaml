@@ -102,6 +102,13 @@ clusterGroup:
           value: qwen2-5-coder-7b-instruct
         - name: llm.credentialsEnabled
           value: "false"
+        # Must match openshift-ai-hub gpu.models[].maxModelLen / vLLM --max-model-len.
+        - name: llm.contextWindowSize
+          value: "8192"
+        - name: llm.maxTokensForResponse
+          value: "1024"
+        - name: llm.toolBudgetRatio
+          value: "0.35"
 
     observability:
       overrides:

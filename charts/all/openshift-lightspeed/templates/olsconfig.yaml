@@ -23,6 +23,21 @@ spec:
         url: {{ $aiGatewayUrl | quote }}
         models:
           - name: {{ $model | quote }}
+            {{- $ctxWin := int (.Values.llm.contextWindowSize | default 0) }}
+            {{- if gt $ctxWin 0 }}
+            contextWindowSize: {{ $ctxWin }}
+            {{- end }}
+            {{- $maxResp := int (.Values.llm.maxTokensForResponse | default 0) }}
+            {{- $toolRatio := .Values.llm.toolBudgetRatio | default 0 }}
+            {{- if or (gt $maxResp 0) (gt ($toolRatio | float) 0.0) }}
+            parameters:
+              {{- if gt $maxResp 0 }}
+              maxTokensForResponse: {{ $maxResp }}
+              {{- end }}
+              {{- if gt ($toolRatio | float) 0.0 }}
+              toolBudgetRatio: {{ $toolRatio }}
+              {{- end }}
+            {{- end }}
   ols:
     defaultProvider: {{ $providerName | quote }}
     defaultModel: {{ $model | quote }}

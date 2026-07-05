@@ -42,6 +42,12 @@ In the OpenShift web console, open the Lightspeed chat (bottom-right "?" menu
 or the dedicated icon) and ask something like *"Which Argo CD applications on
 the hub are OutOfSync?"* — the assistant should call the `argocd-mcp` tools.
 
+When the LLM backend is a local vLLM model (hub-only GPU overlay), set
+`llm.contextWindowSize` to match the ServingRuntime `--max-model-len` (default
+8192 in `values-hub-only.yaml`). Lightspeed defaults to 128k tokens; MCP tool
+calls exceed smaller models and surface `[LLM Backend] The request exceeds the
+model's token limit`.
+
 ## Known limitation
 
 The Gen AI Studio native MaaS path (`models-as-a-service` chart) has an

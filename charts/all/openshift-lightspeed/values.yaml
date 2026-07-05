@@ -13,6 +13,11 @@ llm:
   credentialsEnabled: true
   credentialsSecretName: workshop-ai-gateway-credentials
   localCredentialsSecretName: gpu-vllm-local-credentials
+  # Omit (0) to use Lightspeed default (128k) for external MaaS models.
+  # Set to match vLLM --max-model-len when using a local GPU predictor (hub-only).
+  contextWindowSize: 0
+  maxTokensForResponse: 0
+  toolBudgetRatio: 0
 
 # Argo CD MCP (charts/all/argocd-mcp) preconfigured out of the box. Add more
 # entries here for other in-cluster MCP servers.
