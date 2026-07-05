@@ -4,5 +4,11 @@ metadata:
   name: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/part-of: models-as-a-service
+    # Required for this namespace to appear as a selectable "Project" in the
+    # OpenShift AI dashboard (Gen AI studio > Playground / AI asset endpoints
+    # are scoped to the currently selected project). Without this label the
+    # Tenant/ExternalModel/MaaSSubscription CRs deployed here are invisible
+    # from Gen AI studio even though the MaaS API itself works fine.
+    opendatahub.io/dashboard: "true"
   annotations:
     argocd.argoproj.io/sync-wave: "0"
