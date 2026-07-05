@@ -3,6 +3,7 @@
 {{- $argoNs = .Values.global.vpArgoNamespace | default $argoNs -}}
 {{- end -}}
 {{- $localUser := .Values.argocdLocalUser | default dict -}}
+{{- if $localUser.enabled }}
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
@@ -14,169 +15,51 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/sync-options: ServerSideApply=true
 spec:
-  server:
-    autoscale:
-      enabled: false
-    grpc:
-      ingress:
-        enabled: false
-    ingress:
-      enabled: false
-    resources:
-      limits:
-        cpu: 500m
-        memory: 256Mi
-      requests:
-        cpu: 125m
-        memory: 128Mi
-    route:
-      enabled: true
-  controller:
-    processors:
-      operation: 25
-      status: 50
-    env:
-      - name: ARGOCD_APPLICATION_CONTROLLER_KUBECTL_PARALLELISM_LIMIT
-        value: "20"
-    resources:
-      limits:
-        cpu: "4"
-        memory: 12Gi
-      requests:
-        cpu: "1"
-        memory: 6Gi
-  resourceExclusions: |
-    - apiGroups:
-      - tekton.dev
-      clusters:
-      - '*'
-      kinds:
-      - TaskRun
-      - PipelineRun
-    - apiGroups:
-      - clusterview.open-cluster-management.io
-      clusters:
-      - '*'
-      kinds:
-      - '*'
-    - apiGroups:
-      - internal.open-cluster-management.io
-      clusters:
-      - '*'
-      kinds:
-      - '*'
-  applicationSet:
-    resources:
-      limits:
-        cpu: "2"
-        memory: 1Gi
-      requests:
-        cpu: 250m
-        memory: 512Mi
-  sso:
-    provider: dex
-    dex:
-      openShiftOAuth: true
-  # NOTE on spec.rbac: do NOT set it here -- CONFIRMED root cause (not
-  # speculation) via live --show-managed-fields + reading the actual
-  # charts.validatedpatterns.io sources: when global.singleArgoCD=true, the
-  # singleton ArgoCD CR is NOT rendered by any local chart or by
-  # clustergroup-chart's own argocd.yaml (that template's singleArgoCD=true
-  # branch is empty by design -- it defers to ACM). It is instead rendered
-  # and continuously RE-ENFORCED by the `acm` chart's
-  # templates/policies/ocp-gitops-policy.yaml, as an ACM governance
-  # ConfigurationPolicy with `complianceType: mustonlyhave` +
-  # `remediationAction: enforce`. That policy hardcodes
-  # spec.rbac={defaultPolicy: role:readonly, policy: "g, system:cluster-
-  # admins/cluster-admins/admin, role:admin", scopes: [groups,email]} with
-  # NO values override hook anywhere in the chart (checked up to the latest
-  # published version, 0.2.8) -- ACM's policy controller re-enforces this
-  # exact spec on its own (fast) evaluation cycle, so any write to
-  # spec.rbac from anywhere else (this chart, `oc patch`, clustergroup-
-  # chart's clusterGroup.argoCD.rbac key, etc.) gets overwritten within
-  # about a second, with no error surfaced anywhere. This is a genuine
-  # upstream Validated Patterns framework gap for the (still fairly new)
-  # singleArgoCD option, not something fixable from this pattern repo.
-  # Practical effect: local users (see spec.localUsers below, which IS
-  # respected -- ACM's policy only touches spec.rbac) authenticate fine but
-  # fall through to defaultPolicy: role:readonly unless bound to
-  # role:admin/cluster-admins by name, so the argocd-mcp `ai-agent` user
-  # can list/get Applications but cannot sync them. Tracked as a known
-  # limitation until upstream adds an override key (mirroring how
-  # clustergroup-chart added `clusterGroup.argoCD.rbac` in v0.9.50 for the
-  # non-singleArgoCD path).
+  # ONLY spec.localUsers is set here. Every other field (server/controller/
+  # applicationSet/redis/repo/sso resources, resourceExclusions,
+  # resourceHealthChecks, rbac, ...) is deliberately left out.
   #
-  # spec.localUsers has no ACM-policy equivalent, so this chart remains the
-  # correct (and uncontested) place to set it on the hub. On east/west
-  # spokes, this chart is not deployed at all, so
+  # CONFIRMED root cause (via live --show-managed-fields plus reading the
+  # actual charts.validatedpatterns.io sources, not just their READMEs):
+  # with global.singleArgoCD=true, this singleton ArgoCD CR is not rendered
+  # by any local chart or by clustergroup-chart (its own argocd.yaml has an
+  # empty singleArgoCD=true branch -- it defers entirely to ACM). It is
+  # instead rendered AND CONTINUOUSLY RE-ENFORCED by the `acm` chart's
+  # templates/policies/ocp-gitops-policy.yaml, an ACM governance
+  # ConfigurationPolicy with `complianceType: mustonlyhave` +
+  # `remediationAction: enforce` that hardcodes a full spec (server,
+  # controller, applicationSet, redis, repo, sso, resourceExclusions,
+  # resourceHealthChecks, rbac -- with NO values override hook in any
+  # published chart version through 0.2.8).
+  #
+  # This chart previously ALSO set most of those same fields (different
+  # resource limits, extra resourceHealthChecks for Central/MultiClusterHub,
+  # extra resourceExclusions for ACM clusterview/internal APIs, etc.).
+  # Because ACM's controller re-enforces its own hardcoded values on a fast
+  # evaluation cycle while this chart's own Application sync re-applied
+  # ours via ServerSideApply=true, the two fought over every shared field
+  # continuously -- confirmed live in openshift-gitops-operator logs
+  # showing "Updating StatefulSet ... updating volumes"/"container
+  # resources" etc. on effectively every reconcile (every ~15-30s), each
+  # one restarting the corresponding Deployment/StatefulSet pod. Dropping
+  # every field ACM already owns stops that thrashing; ACM's hardcoded
+  # values (documented in the vp-pattern-dev skill) are perfectly adequate
+  # defaults, just not independently tunable today.
+  #
+  # spec.rbac specifically: local users authenticate fine but fall through
+  # to ACM's hardcoded `defaultPolicy: role:readonly` (cannot sync) unless
+  # bound by name to one of its hardcoded groups (system:cluster-admins,
+  # cluster-admins, admin) -- see the vp-pattern-dev skill for full writeup
+  # and mitigation options. spec.localUsers has no ACM-policy equivalent,
+  # so it is NOT touched by ACM and is safe (and necessary) to set here.
+  #
+  # On east/west spokes, this chart is not deployed at all --
   # charts/all/argocd-local-users remains the sole owner of both fields
   # there (the ACM policy above only targets the hub's singleton instance).
-  {{- if $localUser.enabled }}
   localUsers:
     - name: {{ $localUser.name | default "ai-agent" }}
       apiKey: {{ $localUser.apiKey | default true }}
       login: {{ $localUser.login | default false }}
       tokenLifetime: {{ $localUser.tokenLifetime | default "720h" | quote }}
       autoRenewToken: {{ $localUser.autoRenewToken | default true }}
-  {{- end }}
-  redis:
-    resources:
-      limits:
-        cpu: "1"
-        memory: 512Mi
-      requests:
-        cpu: 250m
-        memory: 256Mi
-  repo:
-    resources:
-      limits:
-        cpu: "2"
-        memory: 2Gi
-      requests:
-        cpu: 500m
-        memory: 512Mi
-  resourceHealthChecks:
-    - group: operators.coreos.com
-      kind: Subscription
-      check: |
-        hs = {}
-        hs.status = "Healthy"
-        hs.message = ""
-        if obj.status ~= nil then
-          if obj.status.conditions ~= nil then
-            for i, condition in ipairs(obj.status.conditions) do
-              if condition.type == "CatalogSourcesUnhealthy" then
-                if condition.status == "True" then
-                  hs.status = "Degraded"
-                  hs.message = condition.message
-                end
-              end
-            end
-          end
-        end
-        return hs
-    - group: platform.stackrox.io
-      kind: Central
-      check: |
-        hs = {}
-        if obj.status ~= nil and obj.status.conditions ~= nil then
-          for i, condition in ipairs(obj.status.conditions) do
-            if condition.type == "Deployed" and condition.status == "True" then
-              hs.status = "Healthy"
-              return hs
-            end
-          end
-        end
-        hs.status = "Progressing"
-        hs.message = "Waiting for Central to be deployed"
-        return hs
-    - group: operator.open-cluster-management.io
-      kind: MultiClusterHub
-      check: |
-        hs = {}
-        if obj.status ~= nil and obj.status.phase == "Running" then
-          hs.status = "Healthy"
-        else
-          hs.status = "Progressing"
-        end
-        return hs
+{{- end }}
