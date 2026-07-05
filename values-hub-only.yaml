@@ -3,6 +3,13 @@
 # Disables Skupper, hub-interconnect, skupper-network-observer, and
 # acm-hub-spoke to avoid Missing/Degraded apps and reduce pod count.
 #
+# Also deploys charts/all/neuroface-hub: the NeuroFace chat demo running
+# directly on the hub (no spoke needed), wired to a model already served on
+# the hub -- since values-hub-gpu.yaml's neuroface-gateway load-balances
+# across east/west spoke backends that don't exist in a hub-only install,
+# it never renders any route. This gives the pattern a working NeuroFace
+# demo regardless.
+#
 # Pattern CR example:
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml
@@ -15,6 +22,9 @@ clusterGroup:
     skupper:
       disabled: true
 
+  namespaces:
+    neuroface-hub: {}
+
   applications:
     hub-interconnect:
       disabled: true
@@ -22,6 +32,13 @@ clusterGroup:
       disabled: true
     acm-hub-spoke:
       disabled: true
+
+    neuroface-hub:
+      name: neuroface-hub
+      namespace: neuroface-hub
+      argoProject: mesh
+      path: charts/all/neuroface-hub
+      syncWave: "7"
 
     developer-hub:
       overrides:

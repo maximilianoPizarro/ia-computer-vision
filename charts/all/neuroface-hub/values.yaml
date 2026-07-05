@@ -1,0 +1,53 @@
+# OPT-IN: NeuroFace chat demo running directly on the hub, for hub-only
+# installs with no east/west spokes (see values-hub-only.yaml). The full
+# NeuroFace stack (chat + OVMS face detection + YOLO PPE + Kafka) only makes
+# sense on spoke clusters (charts/all/spoke-neuroface) reachable via Skupper
+# back to the hub -- this chart deploys ONLY the chat component, wired
+# directly to a model already served on the hub (GPU vLLM InferenceService
+# by default, e.g. charts/all/openshift-ai-hub's gpu.models, or native MaaS).
+#
+# Face detection (ovms) and PPE/Kafka stay disabled -- there is no hub-local
+# camera feed or PPE model to back them without a spoke.
+
+clusterName: hub
+
+neuroface:
+  fullnameOverride: neuroface
+  backend:
+    image:
+      tag: v1.5.1
+  frontend:
+    image:
+      tag: v1.5.1
+  chat:
+    enabled: true
+    # Any OpenAI-compatible chat/completions endpoint already running on the
+    # hub. Defaults to the hub-only GPU overlay's vLLM model
+    # (values-hub-gpu.yaml / values-hub-single-node.yaml); override to point
+    # at native MaaS instead if preferred.
+    modelEndpoint: "http://qwen2-5-coder-7b-instruct-predictor.gpu-models.svc.cluster.local:8080"
+    modelName: "qwen2-5-coder-7b-instruct"
+    apiKey: ""
+    # No OAuth-proxy/SA-token auth in front of the in-cluster vLLM Service --
+    # skip minting a K8s ServiceAccount token as a bearer credential.
+    autoServiceAccount: false
+    maxTokens: 512
+    systemPrompt: "You are NeuroFace, a helpful AI assistant running on the AI Computer Vision pattern's hub cluster. Be concise and informative."
+  ovms:
+    enabled: false
+  litellm:
+    enabled: false
+  ppe:
+    enabled: false
+  route:
+    enabled: true
+  # The backend always creates /data/images at startup regardless of this
+  # flag (upstream behavior) -- keep persistence on (small PVC) so that
+  # write succeeds under OpenShift's restricted SCC; disabling it leaves
+  # /data unmounted (read-only image filesystem) and the pod CrashLoopBackOffs
+  # with "PermissionError: [Errno 13] Permission denied: '/data/images'".
+  persistence:
+    enabled: true
+    size: 1Gi
+
+hubClusterDomain: ""
