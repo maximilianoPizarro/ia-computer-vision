@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: downloader
-          image: {{ .Values.neuroface.ovms.modelmesh.downloadJob.image | default "registry.access.redhat.com/ubi9/python-311:latest" }}
+          image: {{ dig "ovms" "modelmesh" "downloadJob" "image" "registry.access.redhat.com/ubi9/python-311:latest" .Values.neuroface }}
           command:
             - bash
             - -c

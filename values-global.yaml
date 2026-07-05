@@ -28,3 +28,5 @@ main:
     enabled: true
     clusterGroupChartVersion: "0.9.*"
     helmRepoUrl: https://charts.validatedpatterns.io
+  # External NeuroFace chart (not vendored): repoURL + chart + chartVersion on each
+  # neuroface / neuroface-hub application in values-{hub,east,west}.yaml.

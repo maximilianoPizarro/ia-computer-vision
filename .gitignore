@@ -1,6 +1,7 @@
 _ref_hmp/
 docs/public/
 charts/*.tgz
+**/charts/*.tgz
 .tmp/
 
 # Showroom lab guide content lives in its own repo (maximilianoPizarro/showroom-ia-computer-vision),

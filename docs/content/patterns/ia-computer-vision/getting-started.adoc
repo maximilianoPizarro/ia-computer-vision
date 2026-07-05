@@ -189,6 +189,7 @@ platform-users               Synced        Healthy
 servicemesh-config           Synced        Healthy
 skupper-network-observer     Synced        Healthy
 spoke-interconnect           Synced        Healthy
+neuroface                    Synced        Healthy
 spoke-neuroface              Synced        Healthy
 spoke-neuroface-cv           Synced        Healthy
 ----

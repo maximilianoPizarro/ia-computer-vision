@@ -144,7 +144,8 @@ ia-computer-vision/
 
 | App | Source | Overrides |
 |-----|--------|-----------|
-| spoke-neuroface | Local | `clusterName: east\|west` |
+| neuroface | External (`maximilianopizarro.github.io/neuroface/`) | Full stack overrides per spoke |
+| spoke-neuroface | Local (platform wrappers) | `clusterName: east\|west` |
 | spoke-neuroface-cv | Local | `clusterName: east\|west` |
 | spoke-interconnect | Local | `clusterName: east\|west` |
 | servicemesh-config | Local | ambient mode labels |

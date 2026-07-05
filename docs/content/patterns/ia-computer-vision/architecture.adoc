@@ -126,6 +126,8 @@ East and west spokes run identical software stacks. Helm overrides set `clusterN
 | Consistent lab credentials across hub and edge clusters for workshop and demo events.
 |===
 
+The `spoke-neuroface` local chart adds Skupper connectors, Gateway API routes, and ModelMesh helpers in the `neuroface` namespace. The NeuroFace application itself is **not** vendored in this repository: it is deployed as a separate Argo CD application from the upstream Helm repo link:https://maximilianopizarro.github.io/neuroface/[maximilianopizarro.github.io/neuroface/] (`chart: neuroface`, `chartVersion: 1.4.*`) using the Validated Patterns `repoURL` + `chartVersion` convention (same as `neuroface-hub` in `values-hub-only.yaml`). Argo CD pulls the chart at sync time; no `.tgz` is committed under `charts/`.
+
 === Per-user NeuroFace scaffolding (workshop)
 
 Developer Hub software template `ai-computer-vision` scaffolds a GitLab repo in the shared `ws-workshop` group. An Argo CD ApplicationSet on the **hub** (`vp-gitops`) watches for repos matching `neuroface-*` and deploys manifests from the `k8s/` directory to the spoke named in `k8s/target-cluster.yaml`. See link:../scaffolding-and-secrets/[Scaffolding and secrets] for the full operator flow.

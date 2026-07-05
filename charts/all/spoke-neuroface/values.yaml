@@ -5,6 +5,9 @@ spokeGateway:
   # Public OpenShift Route per spoke is disabled; use hub neuroface.apps.<hub> (50/50 LB).
   exposeRoute: false
 
+# Platform-wrapper config only (ModelMesh helpers, MaaS API key secret).
+# The NeuroFace workload itself is deployed by the external `neuroface` application
+# in values-east/west.yaml (repoURL + chartVersion — VP multiSource).
 neuroface:
   fullnameOverride: neuroface
   clusterName: ""

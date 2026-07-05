@@ -238,6 +238,78 @@ clusterGroup:
       path: charts/all/skupper-network-observer
       syncWave: "5"
 
+    # Upstream NeuroFace app (external Helm repo — VP multiSource, not vendored in Git).
+    neuroface:
+      name: neuroface
+      namespace: neuroface
+      argoProject: ai
+      repoURL: https://maximilianopizarro.github.io/neuroface/
+      chart: neuroface
+      chartVersion: 1.4.*
+      syncWave: "4"
+      overrides:
+        - name: fullnameOverride
+          value: neuroface
+        - name: clusterName
+          value: east
+        - name: backend.image.tag
+          value: v1.5.1
+        - name: frontend.image.tag
+          value: v1.5.1
+        - name: chat.enabled
+          value: "true"
+        - name: chat.autoServiceAccount
+          value: "false"
+        - name: chat.modelEndpoint
+          value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"
+        - name: chat.modelName
+          value: llama-scout-17b
+        - name: chat.apiKey
+          value: ""
+        - name: ovms.enabled
+          value: "true"
+        - name: ovms.externalUrl
+          value: "http://modelmesh-serving.redhat-ods-applications.svc.cluster.local:8008"
+        - name: ovms.modelName
+          value: face-detection-retail-0005
+        - name: litellm.enabled
+          value: "false"
+        - name: ppe.enabled
+          value: "true"
+        - name: ppe.useFederatedGateway
+          value: "false"
+        - name: ppe.endpoint
+          value: "http://yolo-ppe-serving.neuroface-cv.svc:8080"
+        - name: ppe.classes
+          value: "hardhat,safety-vest,goggles"
+        - name: ppe.confidence
+          value: "0.15"
+        - name: ppe.kafka.enabled
+          value: "true"
+        - name: ppe.kafka.bootstrap
+          value: "kafka-east-tst.service-interconnect.svc:9092"
+        - name: ppe.kafka.topic
+          value: "cv.ppe.detections"
+        - name: ppe.dataPersistence.enabled
+          value: "true"
+        - name: ppe.dataPersistence.s3Endpoint
+          value: "http://minio-hub.service-interconnect.svc:9000"
+        - name: ppe.dataPersistence.s3Bucket
+          value: "models"
+        - name: ppe.dataPersistence.s3Prefix
+          value: "ppe-detection/training-data"
+        - name: ppe.dataPersistence.s3AccessKey
+          value: "minio"
+        - name: ppe.dataPersistence.s3SecretKey
+          value: "minio123"
+        - name: ppe.dataPersistence.s3Secure
+          value: "false"
+        - name: ppe.dataPersistence.samplingRate
+          value: "1.0"
+        - name: route.enabled
+          value: "false"
+
+    # Spoke platform wrappers only (Gateway API, Skupper, ModelMesh helpers).
     spoke-neuroface:
       name: spoke-neuroface
       namespace: neuroface
@@ -249,10 +321,6 @@ clusterGroup:
           value: east
         - name: spokeGateway.replicas
           value: "2"
-        - name: neuroface.clusterName
-          value: east
-        - name: neuroface.chat.modelEndpoint
-          value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"
 
     spoke-neuroface-cv:
       name: spoke-neuroface-cv

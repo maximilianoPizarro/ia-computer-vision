@@ -1,10 +1,12 @@
 apiVersion: v2
 name: spoke-neuroface
-description: Full NeuroFace stack on spoke clusters exposed to hub via Skupper
+description: >-
+  Spoke NeuroFace platform wrappers (Gateway API, Skupper connector, ModelMesh
+  helpers, monitoring). The upstream neuroface application chart is deployed
+  separately via repoURL (VP multiSource) — see values-east/west.yaml.
 type: application
 version: 0.1.0
 appVersion: "1.5.1"
-dependencies:
-  - name: neuroface
-    version: 1.4.2
-    repository: https://maximilianopizarro.github.io/neuroface/
+maintainers:
+  - name: Maximiliano Pizarro
+    email: mapizarr@redhat.com
