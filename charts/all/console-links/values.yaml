@@ -1,5 +1,9 @@
 clusterDomain: ""
 hubClusterDomain: ""
 clusterRole: ""
+# Skupper network observer Route (charts/all/skupper-network-observer). Disable
+# when Skupper is not deployed (e.g. values-hub-only.yaml disables the observer).
+skupperConsole:
+  enabled: true
 quay:
   enabled: false

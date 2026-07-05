@@ -43,6 +43,7 @@ spec:
   href: "https://kiali-istio-system.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Kiali Service Mesh"
+{{- if (.Values.skupperConsole.enabled | default true) }}
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
@@ -57,6 +58,7 @@ spec:
   href: "https://skupper-network-observer-service-interconnect.{{ $domain }}"
   location: ApplicationMenu
   text: "Skupper Console (Network)"
+{{- end }}
 {{- if eq $role "hub" }}
 ---
 apiVersion: console.openshift.io/v1

@@ -157,3 +157,6 @@ clusterGroup:
       overrides:
         - name: clusterRole
           value: hub
+        # Skupper stack is disabled above — hide the console link (Route 503 otherwise).
+        - name: skupperConsole.enabled
+          value: "false"
