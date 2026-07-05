@@ -7,6 +7,9 @@ vault:
   tokensPath: secret/hub/argocd-mcp-tokens
   tokensDataPath: secret/data/hub/argocd-mcp-tokens
 
+spokeSync:
+  enabled: true
+
 spokeExport:
   configMapName: argocd-mcp-hub-export
   exportNamespace: vp-gitops

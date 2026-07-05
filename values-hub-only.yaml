@@ -31,6 +31,8 @@ clusterGroup:
       disabled: true
     acm-hub-spoke:
       disabled: true
+    neuroface-gateway:
+      disabled: true
 
     neuroface-hub:
       name: neuroface-hub
@@ -76,11 +78,29 @@ clusterGroup:
 
     developer-hub:
       overrides:
+        - name: userCount
+          value: "5"
         - name: kubernetesSpokes.enabled
           value: "false"
         - name: spokeTokenSync.enabled
           value: "false"
         - name: applicationSet.enabled
+          value: "false"
+
+    argocd-mcp:
+      overrides:
+        - name: spokeSync.enabled
+          value: "false"
+
+    openshift-lightspeed:
+      overrides:
+        - name: llm.providerName
+          value: gpu-vllm-local
+        - name: llm.url
+          value: "http://qwen2-5-coder-7b-instruct-predictor.gpu-models.svc.cluster.local:8080/v1"
+        - name: llm.model
+          value: qwen2-5-coder-7b-instruct
+        - name: llm.credentialsEnabled
           value: "false"
 
     observability:

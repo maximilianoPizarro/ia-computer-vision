@@ -30,6 +30,12 @@
 #     - /values-hub-rhpds.yaml
 #     - /values-hub-only.yaml
 
+global:
+  options:
+    # RHPDS pre-provisions Subscriptions with Manual InstallPlan approval.
+    # Enables the clustergroup built-in CronJob that auto-approves RequiresApproval plans.
+    autoApproveManualInstallPlans: true
+
 clusterGroup:
   subscriptions:
     servicemesh:

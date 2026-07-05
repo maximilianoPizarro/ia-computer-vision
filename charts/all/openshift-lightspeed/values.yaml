@@ -10,6 +10,8 @@ llm:
   url: "" # default https://ai-gateway.<clusterDomain>/v1
   model: llama-scout-17b
   vaultPlatformApiKeyPath: secret/data/hub/ai-gateway-platform-keys
+  credentialsEnabled: true
+  credentialsSecretName: workshop-ai-gateway-credentials
 
 # Argo CD MCP (charts/all/argocd-mcp) preconfigured out of the box. Add more
 # entries here for other in-cluster MCP servers.

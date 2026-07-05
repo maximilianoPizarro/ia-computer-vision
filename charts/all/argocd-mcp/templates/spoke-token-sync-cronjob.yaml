@@ -1,4 +1,4 @@
-{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- if and (eq (.Values.clusterRole | default "hub") "hub") (ne (.Values.spokeSync.enabled | toString | default "true") "false") }}
 {{- $ns := .Values.namespace | default "argocd-mcp" -}}
 {{- $spoke := .Values.spokeExport | default dict -}}
 {{- $exportNs := $spoke.exportNamespace | default "vp-gitops" -}}
