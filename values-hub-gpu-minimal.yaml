@@ -25,9 +25,13 @@ clusterGroup:
   subscriptions:
     rhdh:
       disabled: true
+    rhbk:
+      disabled: true
     rhcl:
       disabled: true
     devspaces:
+      disabled: true
+    lightspeed-operator:
       disabled: true
 
   applications:
