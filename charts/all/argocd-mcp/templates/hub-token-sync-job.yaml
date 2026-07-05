@@ -146,13 +146,11 @@ spec:
                     vault kv patch ${VAULT_KV} hub-token=\"${TOKEN}\" hub-url=\"${URL}\"
                     echo 'Patched Vault ${VAULT_KV} hub-token/hub-url.'
                   else
-                    echo 'WARN: Vault root token not found — patch hub-token manually.'
-                    exit 1
+                    echo 'WARN: Vault root token not found — skipping Vault patch (MCP hub token still in Argo CD secret).'
                   fi
                 "
               else
                 echo "WARN: vault-0 not ready — skipping Vault patch"
-                exit 1
               fi
               echo "argocd-mcp-hub-token-sync complete."
 {{- end }}
