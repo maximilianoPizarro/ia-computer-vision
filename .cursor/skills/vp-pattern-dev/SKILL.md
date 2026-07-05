@@ -131,7 +131,8 @@ Use `argocd.argoproj.io/sync-wave` annotations for ordering. Use `argocd.argopro
 ### Hub charts (values-hub.yaml)
 | Chart | Type | Wave | ArgoProject |
 |-------|------|------|-------------|
-| `openshift-gitops` | local | 0 | platform (also sole owner of `ArgoCD/vp-gitops` `spec.rbac`/`spec.localUsers` on hub via `argocdLocalUser.enabled=true`) |
+| `openshift-gitops` | local | 0 | platform (only sets `ArgoCD/vp-gitops` `spec.localUsers` via `argocdLocalUser.enabled=true` — deliberately does NOT set `spec.rbac`/`controller`/`server`/etc.; see the `patterns-operator` root-cause entry below for why) |
+| `openshift-lightspeed` | local | — | platform (OpenShift Lightspeed operator + `OLSConfig`; LLM provider = legacy `ai-gateway`/Kuadrant, MCP server = `argocd-mcp`; see the Lightspeed/Kuadrant WASM entry below for a known, unresolved LLM-connectivity issue) |
 | `platform-users` | local | 0 | platform |
 | `observability` | local | 1 | observability |
 | `acm` | VP chart | 1 | hub |
@@ -454,6 +455,12 @@ global:
     vaultPath: secret/hub/argocd-mcp-tokens
 ```
 Then reference `{{ .Values.global.workshop.userCount }}` in chart defaults instead of repeating overrides in seven applications.
+
+### Opt-in GPU hub overlay (`values-hub-gpu.yaml`) — never loaded by default
+`values-hub-gpu.yaml` at the repo root is an **overlay**, not a replacement for `values-hub.yaml` — the default CPU-only install (used for the tagged/released version of this pattern) is completely unaffected unless someone explicitly passes it as an extra `-f`/`EXTRA_HELM_OPTS` file. It layers in: `openshift-nfd` + `nvidia-gpu-operator` namespaces/subscriptions, and a `gpu.enabled: true` override for `openshift-ai-hub` (rendered by `charts/all/openshift-ai-hub/templates/gpu-vllm-models.yaml`, gated behind `{{- if $gpu.enabled }}`) that deploys real GPU-backed vLLM `ServingRuntime`/`InferenceService` pairs (Red Hat AI FP8-quantized models from `huggingface.co/RedHatAI`) into a separate `gpu-models` namespace. **Helm merge caveat that matters here**: Helm deep-merges maps across `-f` files but replaces **lists** wholesale — `values-hub-gpu.yaml`'s `openshift-ai-hub` application `overrides:` list must repeat every entry from `values-hub.yaml`'s own `overrides:` for that same application (plus the new `gpu.enabled` one), or the overlay silently drops fields the base file sets. Needs a GPU worker node (e.g. AWS `g6.12xlarge`, 4x L4) — see `docs/content/patterns/ia-computer-vision/cluster-sizing.adoc`.
+
+### `acm-argocd-openapi-fix` hook only restarts the controller when it actually fixed something
+`charts/all/openshift-gitops/templates/acm-argocd-openapi-fix.yaml`'s PostSync `Job`/`CronJob` mitigates a known ACM `ocm-proxyserver` OpenAPI bug that makes hub Applications show `Sync=Unknown`. Both the one-shot Job and the `*/15 * * * *` CronJob now check whether `ocm-proxyserver` actually needed scaling down or an `APIService` actually needed deleting **before** restarting the `<argoNs>-application-controller` StatefulSet — restarting unconditionally on every run used to add its own churn on top of the `patterns-operator` reconcile-loop bug documented below (each restart interrupts every Application sync that happened to be mid-flight at that moment, not just this hook's own target). If you ever touch this file again, preserve the `changed=true`-gated restart — do not go back to an unconditional `oc rollout restart`.
 
 ## Key constraints
 

@@ -106,7 +106,7 @@ Use `syncWave` in applications or `argocd.argoproj.io/sync-wave` annotation in t
 ### Hub sync waves
 | Wave | Purpose | Applications |
 |------|---------|-------------|
-| 0 | Platform base | openshift-gitops (sole owner of ArgoCD CR rbac/localUsers on hub), platform-users |
+| 0 | Platform base | openshift-gitops (sets only `ArgoCD/vp-gitops` `spec.localUsers` — see "ArgoCD tuning (hub)" below), platform-users |
 | 1 | Operators + ACM | observability, acm |
 | 2 | Secrets infrastructure | vault, openshift-external-secrets, rhbk |
 | 3 | Developer tools + MCP | gitlab-operator, **argocd-mcp** |
@@ -173,30 +173,9 @@ spec:
   namespace: {{ .Values.global.pattern }}-{{ .Values.clusterName | default "hub" }}
 ```
 
-## ArgoCD tuning (hub)
+## ArgoCD tuning (hub) — NOT done via this chart anymore
 
-The `openshift-gitops` chart patches the ArgoCD CR:
-
-```yaml
-spec:
-  controller:
-    resources:
-      limits: { cpu: "4", memory: 12Gi }
-      requests: { cpu: "1", memory: 6Gi }
-    processors:
-      operation: 25
-      status: 50
-    env:
-      - name: ARGOCD_APPLICATION_CONTROLLER_KUBECTL_PARALLELISM_LIMIT
-        value: "20"
-  resourceExclusions: |
-    - apiGroups: [tekton.dev]
-      kinds: [TaskRun, PipelineRun]
-    - apiGroups: [clusterview.open-cluster-management.io]
-      kinds: ['*']
-    - apiGroups: [internal.open-cluster-management.io]
-      kinds: ['*']
-```
+`charts/all/openshift-gitops`'s `ArgoCD` CR template used to also patch `controller.resources`, `resourceExclusions`, `applicationSet`/`redis`/`repo`/`sso`/`server` resources, and `resourceHealthChecks` on `ArgoCD/vp-gitops`. **All of that was removed** — the chart's `templates/argocd.yaml` now sets **only** `spec.localUsers`. Reason: on the hub (`global.singleArgoCD: true`), `patterns-operator` itself unconditionally rebuilds and `Update()`s the *entire* `ArgoCD` spec on every reconcile (a confirmed upstream bug, [validatedpatterns/patterns-operator#749](https://github.com/validatedpatterns/patterns-operator/issues/749) — see the `vp-pattern-dev` skill for the full root-cause writeup with exact source lines). Any field this chart also set got fought over field-by-field with the operator's own hardcoded baseline, causing continuous Deployment/StatefulSet churn and `vp-gitops-application-controller` pod restarts every ~15-30s. **Do not re-add `controller`/`server`/`redis`/`repo`/`sso`/`resourceExclusions`/`resourceHealthChecks`/`rbac` to this chart's ArgoCD CR template** — those fields are effectively owned by `patterns-operator`'s hardcoded default now (it wins every time regardless), and duplicating them here only reintroduces the churn without changing the live outcome. `spec.localUsers` is the one field `patterns-operator`'s `newArgoCD()` doesn't set, which is why it's safe (and necessary, for the `argocd-mcp` `ai-agent` local user) to keep setting it from this chart.
 
 ## ArgoCD tuning (spokes)
 
@@ -363,7 +342,7 @@ RHDH's kubernetes-plugin queries every configured `customResources` GVK for ever
 Same risk as documented in `vp-pattern-dev`: patching `ArgoCD` `vp-gitops` with `spec.localUsers` + extended `spec.rbac` (for `argocd-local-users` / MCP) may not stick on east/west because ACM's gitops `ConfigurationPolicy` enforces an exact `spec.rbac` block. Always verify post-sync on all three clusters before wiring downstream consumers (MCP Deployment, token sync Jobs).
 
 ### Never let two charts server-side-apply the same field on one singleton CR (ArgoCD included)
-On the hub, `charts/all/openshift-gitops` is now the **sole owner** of `ArgoCD/vp-gitops` `spec.rbac`/`spec.localUsers` (toggle: `argocdLocalUser.enabled`). `charts/all/argocd-local-users` must only be deployed where `openshift-gitops` chart is *not* also deployed (currently: east/west only). This mirrors the Kuadrant/Kiali "one owner only" rule — Argo CD's SSA for CRs appears to share field-manager identity across Applications, so two charts patching the same field on the same object race silently (no error, just vanishing/truncated fields) even with `ServerSideApply=true` on both.
+On the hub, `charts/all/openshift-gitops` is the **sole chart-side owner** of `ArgoCD/vp-gitops` `spec.localUsers` (toggle: `argocdLocalUser.enabled`) — it deliberately does NOT set `spec.rbac` (see "ArgoCD tuning (hub)" above for why: `patterns-operator` owns that field unconditionally regardless of what any chart sets). `charts/all/argocd-local-users` must only be deployed where `openshift-gitops` chart is *not* also deployed (currently: east/west only). This mirrors the Kuadrant/Kiali "one owner only" rule — Argo CD's SSA for CRs appears to share field-manager identity across Applications, so two charts patching the same field on the same object race silently (no error, just vanishing/truncated fields) even with `ServerSideApply=true` on both.
 
 ### Pattern CR `extraParameters` vs Vault paths (MaaS + MCP)
 
