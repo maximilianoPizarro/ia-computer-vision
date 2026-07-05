@@ -1,0 +1,43 @@
+# OPT-IN overlay for hub-only installs without east/west spokes.
+#
+# Disables Skupper, hub-interconnect, skupper-network-observer, and
+# acm-hub-spoke to avoid Missing/Degraded apps and reduce pod count.
+#
+# Pattern CR example:
+#   extraValueFiles:
+#     - /values-hub-gpu.yaml
+#     - /values-hub-single-node.yaml
+#     - /values-hub-rhpds.yaml
+#     - /values-hub-only.yaml
+
+clusterGroup:
+  subscriptions:
+    skupper:
+      disabled: true
+
+  applications:
+    hub-interconnect:
+      disabled: true
+    skupper-network-observer:
+      disabled: true
+    acm-hub-spoke:
+      disabled: true
+
+    developer-hub:
+      overrides:
+        - name: kubernetesSpokes.enabled
+          value: "false"
+        - name: spokeTokenSync.enabled
+          value: "false"
+        - name: applicationSet.enabled
+          value: "false"
+
+    observability:
+      overrides:
+        - name: multiCluster.enabled
+          value: "false"
+
+    console-links:
+      overrides:
+        - name: clusterRole
+          value: hub
