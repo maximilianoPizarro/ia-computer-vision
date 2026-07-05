@@ -245,6 +245,13 @@ clusterGroup:
       chartVersion: 0.0.*
       syncWave: "2"
 
+    vault-secrets-bootstrap:
+      name: vault-secrets-bootstrap
+      namespace: vault
+      argoProject: external-secrets
+      path: charts/all/vault-secrets-bootstrap
+      syncWave: "3"
+
     argocd-mcp:
       name: argocd-mcp
       namespace: argocd-mcp
