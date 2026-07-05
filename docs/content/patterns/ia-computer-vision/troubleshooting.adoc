@@ -684,11 +684,12 @@ $ oc exec vault-0 -n vault -- sh -c '
   vault kv put secret/hub/minio-credentials \
     accesskey="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 16)" \
     secretkey="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
-  vault kv put secret/hub/keycloak-realm-clients \
-    neuroface.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
-    neuroface.user2.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
-    maas.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)" \
-    cv.user1.clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
+  for realm in neuroface maas cv; do
+    for i in $(seq 1 30); do
+      vault kv put "secret/hub/keycloak/realms/${realm}/user${i}" \
+        clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
+    done
+  done
   vault kv put secret/hub/keycloak/realms/cv/backstage-provisioner \
     clientSecret="$(cat /dev/urandom | tr -dc a-zA-Z0-9 | head -c 24)"
 '
