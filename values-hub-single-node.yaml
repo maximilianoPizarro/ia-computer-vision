@@ -16,6 +16,11 @@ clusterGroup:
         - name: userCount
           value: "5"
 
+    vault-secrets-bootstrap:
+      overrides:
+        - name: bootstrap.userCount
+          value: "5"
+
     rhbk-iam:
       overrides:
         - name: userCount
