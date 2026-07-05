@@ -1,3 +1,10 @@
+{{- /*
+No ConsoleLink is created here for the OpenShift AI dashboard: the RHOAI
+operator auto-creates its own cluster-scoped ConsoleLink ("rhodslink",
+owned by components.platform.opendatahub.io) pointing at the dashboard's
+pretty route (rh-ai.apps.<domain>). Adding another one here just duplicated
+the "OpenShift AI Dashboard" entry in the application launcher menu.
+*/ -}}
 {{- $g := .Values.global | default dict -}}
 {{- $domain := include "console-links.clusterDomain" . -}}
 {{- $hubDomain := .Values.hubClusterDomain | default $g.hubClusterDomain | default $domain -}}
@@ -144,20 +151,6 @@ spec:
   href: "https://mailpit.{{ $domain }}"
   location: ApplicationMenu
   text: "Mailpit (PPE Alerts)"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
-  name: platform-openshift-ai
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://rhods-dashboard-redhat-ods-applications.{{ $domain }}"
-  location: ApplicationMenu
-  text: "OpenShift AI Dashboard"
 {{- if .Values.quay.enabled | default false }}
 ---
 apiVersion: console.openshift.io/v1
@@ -273,20 +266,6 @@ spec:
   href: "https://devspaces.{{ $domain }}"
   location: ApplicationMenu
   text: "DevSpaces"
----
-apiVersion: console.openshift.io/v1
-kind: ConsoleLink
-metadata:
-  name: platform-openshift-ai
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
-    section: "Platform AI Computer Vision"
-  href: "https://rhods-dashboard-redhat-ods-applications.{{ $domain }}"
-  location: ApplicationMenu
-  text: "OpenShift AI Dashboard"
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
