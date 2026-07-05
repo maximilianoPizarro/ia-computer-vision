@@ -345,15 +345,17 @@ spec:
       value: "<WEST_SA_TOKEN>"          # <3>
     - name: spokeCredentials.clusters.west.apiUrl
       value: "https://api.<WEST_DOMAIN>:6443"   # <4>
-    # Developer Hub: same spoke apiUrl keys for AI CV software-template spoke domain defaults
-    - name: clusterGroup.applications.developer-hub.overrides[8].name
-      value: spokeCredentials.clusters.east.apiUrl
-    - name: clusterGroup.applications.developer-hub.overrides[8].value
-      value: "https://api.<EAST_DOMAIN>:6443"
-    - name: clusterGroup.applications.developer-hub.overrides[9].name
-      value: spokeCredentials.clusters.west.apiUrl
-    - name: clusterGroup.applications.developer-hub.overrides[9].value
-      value: "https://api.<WEST_DOMAIN>:6443"
+----
+[NOTE]
+====
+Also set the same east/west `apiUrl` values in `values-hub.yaml` under
+`clusterGroup.applications.developer-hub.overrides` (`spokeCredentials.clusters.*.apiUrl`).
+Use your spoke API server URLs from `oc whoami --show-server` on each spoke — do not commit
+lab-specific domains to Git. Pattern CR `extraParameters` supplies the same URLs for
+`acm-hub-spoke` only; do **not** pass hub-only `developer-hub` overrides through
+`extraParameters` — that breaks `ia-computer-vision-east` / `ia-computer-vision-west` helm
+rendering on the spokes.
+====
 ----
 <1> Long-lived cluster-admin token from east (SA created automatically by the pattern): `oc create token -n kube-system acm-import --duration=87600h`
 <2> East API server URL from `oc whoami --show-server`
@@ -542,7 +544,11 @@ $ HUB=https://$(oc get route backstage -n developer-hub -o jsonpath='{.spec.host
 # Open Developer Hub → Catalog → entity neuroface-<user> → tabs Kubernetes, Topology, Kiali, Tekton, GitLab, Argo CD, Docs
 ----
 
-Set `spokeCredentials.clusters.east.apiUrl` and `spokeCredentials.clusters.west.apiUrl` via Pattern CR `extraParameters` (same keys as `acm-hub-spoke`); Developer Hub derives spoke domains for the AI CV software template from those URLs (`https://api.<domain>:6443` → `<domain>`).
+Set `spokeCredentials.clusters.east.apiUrl` and `spokeCredentials.clusters.west.apiUrl` in
+`values-hub.yaml` under `clusterGroup.applications.developer-hub.overrides` (per-environment
+spoke API URLs). Pattern CR `extraParameters` carries the same keys for `acm-hub-spoke` only.
+Developer Hub derives spoke domains for the AI CV software template from those URLs
+(`https://api.<domain>:6443` → `<domain>`).
 
 === Step 6: Verify workshop users (if workshop mode is enabled)
 

@@ -8,6 +8,17 @@ main:
 clusterGroup:
   name: west
   argoCD:
+    rbac:
+      defaultPolicy: role:readonly
+      policy: |
+        g, system:cluster-admins, role:admin
+        g, cluster-admins, role:admin
+        g, admin, role:admin
+        p, role:ai-agent, applications, get, */*, allow
+        p, role:ai-agent, applications, sync, */*, allow
+        p, role:ai-agent, logs, get, */*, allow
+        g, ai-agent, role:ai-agent
+      scopes: '[groups,email]'
     env:
       - name: GOMEMLIMIT
         value: "3600MiB"

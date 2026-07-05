@@ -196,7 +196,7 @@ spec:
       value: "https://api.<WEST_DOMAIN>:6443"
 ```
 
-Replace `<EAST_SA_TOKEN>`, `<WEST_SA_TOKEN>`, `<EAST_DOMAIN>`, and `<WEST_DOMAIN>` with the values collected in step 3.
+Replace `<EAST_SA_TOKEN>`, `<WEST_SA_TOKEN>`, `<EAST_DOMAIN>`, and `<WEST_DOMAIN>` with the values collected in step 3. Also set the same east/west API URLs in `values-hub.yaml` under `clusterGroup.applications.developer-hub.overrides` (`spokeCredentials.clusters.*.apiUrl`) before hub install.
 
 For spokes, create the same CR replacing `clusterGroupName: hub` with `east` or `west` and omitting `extraParameters`.
 

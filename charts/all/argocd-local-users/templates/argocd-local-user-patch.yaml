@@ -3,8 +3,7 @@
 {{- $userName := $user.name | default "ai-agent" -}}
 ---
 # Patches the singleton ArgoCD CR (vp-gitops) with a scoped ai-agent local user.
-# WARNING: spec.rbac may be governed by ACM ConfigurationPolicy (mustonlyhave) on
-# spokes — verify localUsers/rbac stick after sync (see chart README / vp-pattern-dev skill).
+# spec.rbac is owned by ACM ConfigurationPolicy on spokes — do NOT set it here (race + churn).
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
@@ -20,14 +19,3 @@ spec:
       login: {{ $user.login | default false }}
       tokenLifetime: {{ $user.tokenLifetime | default "720h" | quote }}
       autoRenewToken: {{ $user.autoRenewToken | default true }}
-  rbac:
-    defaultPolicy: role:readonly
-    policy: |-
-      g, system:cluster-admins, role:admin
-      g, cluster-admins, role:admin
-      g, admin, role:admin
-      p, role:ai-agent, applications, get, */*, allow
-      p, role:ai-agent, applications, sync, */*, allow
-      p, role:ai-agent, logs, get, */*, allow
-      g, {{ $userName }}, role:ai-agent
-    scopes: '[groups,email]'

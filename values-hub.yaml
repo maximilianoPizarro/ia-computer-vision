@@ -7,23 +7,9 @@ main:
 
 clusterGroup:
   name: hub
-  # NOTE: clusterGroup.argoCD.rbac below is INERT for this pattern. It's the
-  # sanctioned override key for the per-clustergroup, non-singleArgoCD path
-  # in clustergroup-chart (charts.validatedpatterns.io, v0.9.50+) -- but this
-  # pattern uses global.singleArgoCD=true, and confirmed by reading the
-  # actual chart sources, that path is a no-op there (its argocd.yaml
-  # template's singleArgoCD=true branch renders nothing at all). For
-  # singleArgoCD, the singleton ArgoCD CR's spec.rbac is instead hardcoded
-  # and continuously re-enforced by the `acm` chart's ACM governance Policy
-  # (ocp-gitops-policy.yaml, complianceType: mustonlyhave), which has no
-  # values override hook as of the latest published version (0.2.8). Any
-  # write to spec.rbac from anywhere -- including this key -- gets reverted
-  # within about a second. See charts/all/openshift-gitops/templates/
-  # argocd.yaml for the full writeup and current impact (ai-agent MCP user
-  # can list/get Applications but not sync). Left set here (harmless) as
-  # forward-compatible documentation of the desired end-state, in case a
-  # future clustergroup-chart/acm-chart version routes singleArgoCD's rbac
-  # through this same key.
+  # NOTE: clusterGroup.argoCD.rbac below is INERT for singleArgoCD hub. Hub RBAC is
+  # set via main.gitops.argoRBAC in values-global.yaml (patterns-operator configmap).
+  # Kept here as documentation of the desired policy shape.
   argoCD:
     rbac:
       defaultPolicy: role:admin
@@ -207,9 +193,9 @@ clusterGroup:
       overrides:
         - name: clusterRole
           value: hub
-        # Sole owner of ArgoCD/vp-gitops spec.rbac + spec.localUsers on the
-        # hub — do NOT also deploy charts/all/argocd-local-users here (SSA
-        # field-ownership race, see charts/all/openshift-gitops/templates/argocd.yaml).
+        # Sole owner of ArgoCD/vp-gitops spec.localUsers on the hub — do NOT also deploy
+        # charts/all/argocd-local-users here. RBAC is set via main.gitops.argoRBAC in
+        # values-global.yaml (patterns-operator), not via chart SSA.
         - name: argocdLocalUser.enabled
           value: "true"
 
@@ -349,8 +335,14 @@ clusterGroup:
           value: "true"
         - name: iamCatalog.enabled
           value: "true"
-        # Spoke domains for AI CV template: derived from Pattern CR extraParameters
-        # spokeCredentials.clusters.east.apiUrl / west.apiUrl (same as acm-hub-spoke)
+        # Spoke API URLs for AI CV software-template domain defaults. Set per environment
+        # (same URLs as acm-hub-spoke Pattern CR extraParameters). MUST live here — NOT in
+        # Pattern CR extraParameters: hub-only app overrides via --set create a sparse
+        # overrides array on east/west and break ia-computer-vision-{east,west} helm render.
+        - name: spokeCredentials.clusters.east.apiUrl
+          value: ""
+        - name: spokeCredentials.clusters.west.apiUrl
+          value: ""
 
     openshift-ai-hub:
       name: openshift-ai-hub
