@@ -1,4 +1,4 @@
-{{- if eq .Values.clusterRole "hub" }}
+{{- if and (eq .Values.clusterRole "hub") (.Values.acs.enabled | default false) }}
 apiVersion: platform.stackrox.io/v1alpha1
 kind: Central
 metadata:

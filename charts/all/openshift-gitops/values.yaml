@@ -19,3 +19,16 @@ acmArgocdOpenapiFix:
   enabled: true
   schedule: "*/15 * * * *"
   image: registry.redhat.io/openshift4/ose-cli:latest
+
+# RHACS Central CR (hub). Disabled by default -- matches the rest of the
+# pattern, where acs-init-bundle-sync/acs-secured-cluster Applications are
+# commented out in values-*.yaml to save resources. Previously this
+# template rendered unconditionally for clusterRole=hub with no flag at
+# all, so Argo CD always expected to create it -- since the stackrox
+# namespace/RHACS CRDs were never actually installed, the CR could never
+# be created, and the openshift-gitops Application stayed permanently
+# OutOfSync/Degraded ("Missing" health) with no way to converge. Flip this
+# (and the acs-init-bundle-sync/acs-secured-cluster Applications) together
+# if you actually want ACS in this pattern.
+acs:
+  enabled: false
