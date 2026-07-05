@@ -77,6 +77,15 @@ spec:
       env:
         - name: HF_HOME
           value: /models-cache
+        # registry.redhat.io/rhaii/vllm-cuda-rhel9 defaults to offline mode
+        # (huggingface_hub raises LocalEntryNotFoundError with "outgoing
+        # traffic has been disabled" on first load / after any restart that
+        # loses the PVC-cached snapshot) -- unlike the older community
+        # quay.io/modh/vllm image this replaced, which allowed runtime
+        # downloads. Explicitly re-enable them so the model can (re)download
+        # into the PVC cache on pod start.
+        - name: HF_HUB_OFFLINE
+          value: "0"
         {{- if $m.hfTokenSecretName }}
         - name: HF_TOKEN
           valueFrom:
