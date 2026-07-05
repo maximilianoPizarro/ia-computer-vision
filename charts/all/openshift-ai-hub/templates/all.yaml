@@ -160,27 +160,23 @@ data:
 {{- end }}
 ---
 {{- if .Values.mcp.enabled }}
+# RHOAI Gen AI Studio Playground reads this exact name/namespace to populate
+# its MCP tab (Testing with MCP servers, RHOAI 3.4 docs) -- one ConfigMap key
+# per server, each value a JSON string with "url" and "description".
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: openshift-ai-mcp-server
-  namespace: maas-workshop
+  name: gen-ai-aa-mcp-servers
+  namespace: redhat-ods-applications
+  labels:
+    opendatahub.io/dashboard: "true"
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 data:
-  mcp-playground.json: |
-    {
-      "name": "maas-playground",
-      "description": "Test MaaS models from OpenShift AI playground",
-      "endpoint": "{{ printf "%s/v1" (trimSuffix "/" $endpoint) }}",
-      "models": ["llama-scout-17b", "codellama-7b-instruct", "deepseek-r1-distill-qwen-14b"]
-    }
-  mcp-cluster-reconciler.json: |
-    {
-      "name": "platform-gitops-reconciler",
-      "description": "Cluster-admin MCP — sync field-content apps (use hub Developer Hub MCP + oc SA)",
-      "note": "Use Developer Hub /api/mcp with platformadmin; reconcile via Argo CD Applications in openshift-gitops"
-    }
+  {{- range $s := (.Values.mcp.servers | default list) }}
+  {{ $s.name }}: |
+    {"url": {{ $s.url | quote }}, "description": {{ $s.description | quote }}}
+  {{- end }}
 {{- end }}
 ---
 {{- range $i, $m := ($maas.models | default list) }}

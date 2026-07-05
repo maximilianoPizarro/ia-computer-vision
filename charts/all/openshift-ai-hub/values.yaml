@@ -57,11 +57,32 @@ maas:
     - id: codellama-7b-instruct
       displayName: CodeLlama 7B Instruct
       secretKey: api-key
+# RHOAI 3.4 Gen AI Studio Playground is a native dashboard feature, enabled
+# cluster-wide by OdhDashboardConfig spec.dashboardConfig.genAiStudio=true
+# (see charts/all/models-as-a-service/templates/odh-dashboard-config-patch.yaml).
+# There is no separate Helm-deployable "playground" component -- users create
+# playgrounds interactively from Gen AI studio > Playground > Create playground,
+# picking any deployed model that has an AI asset endpoint (any InferenceService
+# with opendatahub.io/dashboard: "true", e.g. the GPU models below or the
+# native MaaS ExternalModels). This flag is kept only to gate the informational
+# ConfigMap below.
 playground:
   enabled: true
+# Model Context Protocol (MCP) tool servers for the Gen AI Studio Playground's
+# "MCP" tab (Testing with MCP servers, RHOAI 3.4 docs). RHOAI reads a
+# ConfigMap named EXACTLY `gen-ai-aa-mcp-servers` in `redhat-ods-applications`
+# -- one key per server, value is a JSON string {"url", "description"}. This
+# is unrelated to (and was previously confused with) the CPU MaaS proxy-stub
+# InferenceServices above; MCP servers provide callable TOOLS, not models.
 mcp:
   enabled: true
-  deployServer: true
+  servers:
+    - name: ArgoCD-GitOps-MCP
+      url: http://argocd-mcp.argocd-mcp.svc.cluster.local:3000/mcp
+      description: >-
+        Query and sync Argo CD Applications across the hub (and east/west
+        spokes, if configured) -- GitOps sync status, health, logs. See
+        charts/all/argocd-mcp.
 
 # Real local GPU-backed model serving (vLLM downloads weights from Hugging
 # Face into a PVC-backed cache) -- OFF by default. This is an ALTERNATIVE

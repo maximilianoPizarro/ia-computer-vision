@@ -24,6 +24,12 @@ The legacy Kuadrant `AuthPolicy`/`RateLimitPolicy` path (`apis.maas.enabled`) st
 enabled in parallel until you validate native MaaS, then set
 `workshop-kuadrant-apis.apis.maas.enabled=false`.
 
+## Gen AI Studio: Playground and MCP servers
+
+`genAiStudio: true` (set by this chart's `OdhDashboardConfig` patch) enables the **Playground** and **API keys** tabs in the dashboard's Gen AI studio nav. Playground itself needs no extra deployment -- from the dashboard, click **Gen AI studio > Playground > Create playground** and pick any deployed model with an AI asset endpoint (native MaaS `ExternalModel`s from this chart, or the GPU-served `InferenceService`s from `charts/all/openshift-ai-hub` when `gpu.enabled=true`).
+
+**MCP (Model Context Protocol) tool servers** for the Playground's MCP tab are registered separately, by `charts/all/openshift-ai-hub` (`mcp.servers`, ConfigMap `gen-ai-aa-mcp-servers` in `redhat-ods-applications`) -- by default this registers the pattern's own `argocd-mcp` server so Playground chats can query/sync Argo CD Applications as a tool. Add more entries to `mcp.servers` for other in-cluster or external MCP servers.
+
 ## Manual steps after first sync
 
 1. Ensure Vault path `secret/hub/models-as-a-service-db` exists (`make load-secrets` on CLI installs).
