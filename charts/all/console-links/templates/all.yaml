@@ -50,7 +50,13 @@ spec:
   href: "https://kiali-istio-system.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Kiali Service Mesh"
-{{- if (.Values.skupperConsole.enabled | default true) }}
+{{- /*
+Values.yaml already defaults skupperConsole.enabled to true -- do NOT wrap
+this in `| default true`: Helm/Sprig's `default` treats the boolean `false`
+as an empty value and silently replaces it back with `true`, which is
+exactly the class of bug that made overriding this to `false` a no-op.
+*/ -}}
+{{- if .Values.skupperConsole.enabled }}
 ---
 apiVersion: console.openshift.io/v1
 kind: ConsoleLink
