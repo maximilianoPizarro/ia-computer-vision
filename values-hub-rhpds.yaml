@@ -3,6 +3,14 @@
 # Use when Service Mesh is already installed on channel `stable` (v3.1.x)
 # and the pattern's default `stable-3.2` causes OLM ResolutionFailed.
 #
+# Also skips OperatorGroup creation for namespaces that the RHPDS catalog
+# ("Red Hat OpenShift AI 3") already provisions with their own OperatorGroup
+# (openshift-nfd, nvidia-gpu-operator, redhat-ods-operator) -- otherwise the
+# pattern's clustergroup chart creates a SECOND OperatorGroup in each of
+# these namespaces, and OLM immediately marks every CSV there (nfd,
+# gpu-operator-certified, rhods-operator) Failed/TooManyOperatorGroups,
+# since it can't automatically pick a namespace scope with two present.
+#
 # Pattern CR example:
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml
@@ -14,3 +22,11 @@ clusterGroup:
   subscriptions:
     servicemesh:
       channel: stable
+
+  namespaces:
+    openshift-nfd:
+      operatorGroup: false
+    nvidia-gpu-operator:
+      operatorGroup: false
+    redhat-ods-operator:
+      operatorGroup: false
