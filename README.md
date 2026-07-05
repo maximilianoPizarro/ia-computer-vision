@@ -206,7 +206,12 @@ For spokes, create the same CR replacing `clusterGroupName: hub` with `east` or 
   extraValueFiles:
     - /values-hub-gpu.yaml
     - /values-hub-single-node.yaml
+    - /values-hub-rhpds.yaml
+    - /values-hub-only.yaml
+    - /values-hub-gpu-minimal.yaml
 ```
+
+`values-hub-rhpds.yaml` aligns the Service Mesh subscription channel with RHPDS's preinstalled operator. `values-hub-only.yaml` disables Skupper/ACM spoke import for a hub without east/west spokes. `values-hub-gpu-minimal.yaml` additionally disables GitLab, Developer Hub, DevSpaces, and the rest of the workshop platform — a single OpenShift node (as on most RHPDS sandboxes) runs the full control plane plus RHACM/Pipelines/RHOAI/GPU Operator alongside the pattern, which leaves too little of the ~250 max-pods budget for the full workshop stack on top of GPU model serving.
 
 The `acm-hub-spoke` chart (wave 6) auto-imports both spokes into RHACM using the inline tokens.
 
