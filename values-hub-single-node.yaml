@@ -1,0 +1,82 @@
+# OPT-IN overlay for single-node hub sandboxes (e.g. RHPDS g6.12xlarge).
+#
+# Composable with values-hub-gpu.yaml via Pattern CR extraValueFiles:
+#
+#   extraValueFiles:
+#     - /values-hub-gpu.yaml
+#     - /values-hub-single-node.yaml
+#
+# Reduces workshop userCount, GitLab replicas, and GPU model count so the
+# hub fits within a single worker node's pod limit (~250 allocatable).
+
+clusterGroup:
+  applications:
+    platform-users:
+      overrides:
+        - name: userCount
+          value: "5"
+
+    rhbk-iam:
+      overrides:
+        - name: userCount
+          value: "5"
+
+    gitlab-operator:
+      overrides:
+        - name: userCount
+          value: "5"
+        - name: gitlab.webservice.minReplicas
+          value: "1"
+        - name: gitlab.webservice.maxReplicas
+          value: "2"
+        - name: gitlab.sidekiq.minReplicas
+          value: "1"
+        - name: gitlab.sidekiq.maxReplicas
+          value: "2"
+        - name: gitlab.gitlabShell.minReplicas
+          value: "1"
+        - name: gitlab.gitlabShell.maxReplicas
+          value: "2"
+
+    developer-hub:
+      overrides:
+        - name: userCount
+          value: "5"
+
+    openshift-ai-hub:
+      overrides:
+        - name: userCount
+          value: "5"
+        - name: maas.endpoint
+          value: "https://maas-rhdp.apps.maas.redhatworkshops.io"
+        - name: maas.native.enabled
+          value: "true"
+        - name: gpu.enabled
+          value: "true"
+        - name: gpu.singleNodeProfile
+          value: "true"
+
+    models-as-a-service:
+      overrides:
+        - name: userCount
+          value: "5"
+
+    workshop-registration:
+      overrides:
+        - name: registration.maxUsers
+          value: "5"
+
+    showroom:
+      overrides:
+        - name: showroom.terminal.userCount
+          value: "5"
+
+    devspaces:
+      overrides:
+        - name: userCount
+          value: "5"
+
+    neuroface-gateway:
+      overrides:
+        - name: gateway.replicas
+          value: "1"

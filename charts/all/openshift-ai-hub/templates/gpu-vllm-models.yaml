@@ -2,6 +2,10 @@
 {{- if $gpu.enabled }}
 {{- $ns := $gpu.namespace | default "gpu-models" -}}
 {{- $image := $gpu.runtimeImage | default "registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0" -}}
+{{- $models := $gpu.models | default list -}}
+{{- if $gpu.singleNodeProfile }}
+{{- $models = list (index ($gpu.models | default list) 0) -}}
+{{- end -}}
 ---
 # Real, GPU-backed vLLM model serving -- downloads weights from Hugging Face
 # into a PVC-backed cache on first start. This is an opt-in alternative to
@@ -19,7 +23,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     openshift.io/description: "Real GPU-backed vLLM model serving (opt-in, hub-only GPU install)"
-{{- range $m := $gpu.models }}
+{{- range $m := $models }}
 {{- $gpuCount := $m.gpuCount | default 1 }}
 {{- $runtimeName := printf "vllm-gpu-runtime-%s" $m.name }}
 ---

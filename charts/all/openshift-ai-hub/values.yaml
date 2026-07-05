@@ -79,6 +79,8 @@ mcp:
 # maas.models list above, swapped for their RedHatAI FP8-dynamic variants.
 gpu:
   enabled: false
+  # When true, deploy only the first entry in gpu.models (single-node sandboxes).
+  singleNodeProfile: false
   namespace: gpu-models
   runtimeImage: "registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0"
   # Sized for AWS g6.12xlarge (4x NVIDIA L4, 24 GiB VRAM each). FP8 halves
