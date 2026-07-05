@@ -105,8 +105,14 @@ clusterGroup:
           value: "false"
         - name: litellm.enabled
           value: "false"
+        # PPE detection uses the local spoke-neuroface-cv YOLO InferenceService
+        # deployed above (namespace neuroface-cv) instead of the chart's own
+        # bundled ppe.serving sidecar (unused/not referenced by this chart
+        # version -- ppe.enabled only toggles ConfigMap env vars, no extra pod).
         - name: ppe.enabled
-          value: "false"
+          value: "true"
+        - name: ppe.endpoint
+          value: "http://yolo-ppe-serving-predictor.neuroface-cv.svc.cluster.local:8080"
         - name: route.enabled
           value: "false"
         - name: persistence.enabled

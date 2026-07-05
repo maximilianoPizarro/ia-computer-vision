@@ -58,6 +58,36 @@ spec:
               s3.upload_file("/tmp/model.pt", bucket, obj_key)
               resp = s3.head_object(Bucket=bucket, Key=obj_key)
               print("Uploaded s3://%s/%s (%.1f MB)" % (bucket, obj_key, resp["ContentLength"] / 1024 / 1024))
+
+              # Sync MinIO creds to Vault so the yolo-ppe-serving InferenceService's
+              # ExternalSecret (aws-connection-ppe-models, key secret/data/hub/
+              # minio-credentials) can actually download this model -- without this,
+              # ESO keeps serving the random placeholder written by vault-secrets-
+              # bootstrap and KServe's storage-initializer fails with S3 403 Forbidden.
+              # Mirrors the working K8s-auth pattern in hub-interconnect's own
+              # job-model-seed.yaml (disabled in hub-only via values-hub-only.yaml).
+              import subprocess, json as j
+              vault_addr = "http://vault.vault.svc:8200"
+              token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+              try:
+                  sa_token = open(token_path).read().strip()
+                  login = subprocess.run(["curl", "-sk", "-X", "POST",
+                      vault_addr + "/v1/auth/kubernetes/login",
+                      "-d", j.dumps({"role": "secret-manager", "jwt": sa_token})],
+                      capture_output=True, text=True, timeout=10)
+                  vault_token = j.loads(login.stdout).get("auth", {}).get("client_token")
+                  if vault_token:
+                      data = {"data": {"accesskey": key, "secretkey": secret}}
+                      r = subprocess.run(["curl", "-sk", "-X", "POST",
+                          vault_addr + "/v1/secret/data/hub/minio-credentials",
+                          "-H", "X-Vault-Token: " + vault_token,
+                          "-d", j.dumps(data)],
+                          capture_output=True, text=True, timeout=10)
+                      print("Vault minio-credentials: synced" if "version" in r.stdout else "Vault sync: %s" % r.stdout[:100])
+                  else:
+                      print("Vault login failed (non-critical, manual vault kv put needed)")
+              except Exception as e:
+                  print("Vault sync skipped: %s" % e)
               PYEOF
           env:
             - name: S3_ENDPOINT
