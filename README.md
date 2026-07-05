@@ -200,6 +200,14 @@ Replace `<EAST_SA_TOKEN>`, `<WEST_SA_TOKEN>`, `<EAST_DOMAIN>`, and `<WEST_DOMAIN
 
 For spokes, create the same CR replacing `clusterGroupName: hub` with `east` or `west` and omitting `extraParameters`.
 
+**Hub-only GPU on a single-node sandbox** (e.g. RHPDS `g6.12xlarge`): add overlays to stay within the ~250 pod limit:
+
+```yaml
+  extraValueFiles:
+    - /values-hub-gpu.yaml
+    - /values-hub-single-node.yaml
+```
+
 The `acm-hub-spoke` chart (wave 6) auto-imports both spokes into RHACM using the inline tokens.
 
 For step-by-step verification commands, see the [Getting started guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/getting-started/).
