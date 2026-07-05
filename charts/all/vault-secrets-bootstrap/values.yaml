@@ -8,3 +8,9 @@ bootstrap:
   enabled: true
   image: registry.redhat.io/ubi9/ubi-minimal:latest
   checkPath: secret/data/hub/rhbk-credentials
+  # Must match the userCount override used for rhbk-iam/platform-users/etc
+  # (e.g. values-hub-single-node.yaml sets 5) -- keycloak-realm-clients needs
+  # one clientSecret per user per realm (cv, maas, neuroface), or rhbk-iam's
+  # ExternalSecrets for any user beyond what's seeded here fail with
+  # "could not get secret data from provider".
+  userCount: 30
