@@ -88,6 +88,37 @@ spec:
     kind: HTTPRoute
     name: workshop-mcp
 {{- end }}
+{{- if .Values.apis.llama.enabled }}
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: workshop-llama
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    backstage.io/owner: group:default/platform-engineering
+spec:
+  displayName: {{ .Values.apis.llama.displayName | default "Llama 3.2 3B Instruct (RHOAI catalog pre-installed)" }}
+  description: >
+    RHOAI catalog pre-installed vLLM/KServe demo model, exposed directly via
+    workshop-apis Gateway API (bypasses the RHOAI-native inference gateway's
+    own MaaS auth chain). Kuadrant API keys + PlanPolicy tiers, same UX as
+    the other workshop demo APIs.
+  publishStatus: Published
+  approvalMode: {{ .Values.approvalMode | default "manual" }}
+  version: v1
+  tags: [workshop, llm, llama, rhoai, kserve, external-api]
+  documentation:
+    docsURL: {{ printf "https://%s/catalog/default/api/workshop-llama-openapi" $dhHost | quote }}
+  contact:
+    email: platform@example.com
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-llama
+{{- end }}
 {{- if .Values.apis.maas.enabled }}
 ---
 apiVersion: devportal.kuadrant.io/v1alpha1
@@ -132,7 +163,7 @@ data:
 
     | Gateway | Host | APIs |
     |---------|------|------|
-    | **workshop-apis** | {{ $workshopBase }} | httpbin, REST Countries, MCP |
+    | **workshop-apis** | {{ $workshopBase }} | httpbin, REST Countries, MCP, Llama 3.2 3B (RHOAI) |
     | **ai-gateway** | {{ $aiBase }} | MaaS LLM `/v1/chat/completions` |
 
     External backends: Kubernetes **ExternalName** Services + Istio ServiceEntry (TLS origination).
@@ -149,4 +180,7 @@ data:
     curl -H "Authorization: APIKEY $KEY" -H "Content-Type: application/json" \
       -X POST {{ $aiBase }}/v1/chat/completions \
       -d '{"model":"granite-3-2-8b-instruct","messages":[{"role":"user","content":"Hello"}],"max_tokens":50}'
+    curl -H "Authorization: APIKEY $KEY" -H "Content-Type: application/json" \
+      -X POST {{ $workshopBase }}/llama \
+      -d '{"model":"llama-32-3b-instruct","prompt":"Write a short greeting message:","max_tokens":100,"temperature":0.7}'
     ```

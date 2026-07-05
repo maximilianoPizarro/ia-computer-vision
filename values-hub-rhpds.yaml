@@ -11,6 +11,13 @@
 # gpu-operator-certified, rhods-operator) Failed/TooManyOperatorGroups,
 # since it can't automatically pick a namespace scope with two present.
 #
+# Also exposes the RHOAI catalog's pre-installed "llama-32-3b-instruct" demo
+# model (KServe/vLLM in the my-first-model namespace) through the workshop
+# Kuadrant API gateway, alongside httpbin/REST Countries/MCP -- same
+# API-key + PlanPolicy UX, bypassing the RHOAI-native inference gateway's
+# own (separate, MaaS-specific) auth chain. Only enable on clusters where
+# this InferenceService actually exists.
+#
 # Pattern CR example:
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml
@@ -30,3 +37,15 @@ clusterGroup:
       operatorGroup: false
     redhat-ods-operator:
       operatorGroup: false
+
+  applications:
+    workshop-kuadrant-apis:
+      overrides:
+        - name: apis.mcp.enabled
+          value: "false"
+        - name: apis.maas.host
+          value: "maas-rhdp.apps.maas.redhatworkshops.io"
+        - name: maas.authorinoTls
+          value: "true"
+        - name: apis.llama.enabled
+          value: "true"

@@ -200,7 +200,7 @@ Replace `<EAST_SA_TOKEN>`, `<WEST_SA_TOKEN>`, `<EAST_DOMAIN>`, and `<WEST_DOMAIN
 
 For spokes, create the same CR replacing `clusterGroupName: hub` with `east` or `west` and omitting `extraParameters`.
 
-**Hub-only GPU on a single-node sandbox** (e.g. RHPDS `g6.12xlarge`): add overlays to stay within the ~250 pod limit:
+**Hub-only GPU on a single-node sandbox** (e.g. RHPDS `g6.12xlarge`): the single node is both control plane and worker, and its default 250 max-pods kubelet limit is easily exhausted by the control plane + RHACM + Pipelines + RHOAI + GPU Operator baseline alone (hardware is not the constraint — a `g6.12xlarge` has 48 vCPU / 192 GiB free). **Before installing**, raise `maxPods` via `KubeletConfig` (see [Cluster sizing](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/cluster-sizing/#single-node-rhpds-sandboxes-eg-g612xlarge-gpu-demo) — this reboots the node, 5-15 min), then add these overlays:
 
 ```yaml
   extraValueFiles:
@@ -208,10 +208,11 @@ For spokes, create the same CR replacing `clusterGroupName: hub` with `east` or 
     - /values-hub-single-node.yaml
     - /values-hub-rhpds.yaml
     - /values-hub-only.yaml
-    - /values-hub-gpu-minimal.yaml
 ```
 
-`values-hub-rhpds.yaml` aligns the Service Mesh subscription channel with RHPDS's preinstalled operator. `values-hub-only.yaml` disables Skupper/ACM spoke import for a hub without east/west spokes. `values-hub-gpu-minimal.yaml` additionally disables GitLab, Developer Hub, DevSpaces, and the rest of the workshop platform — a single OpenShift node (as on most RHPDS sandboxes) runs the full control plane plus RHACM/Pipelines/RHOAI/GPU Operator alongside the pattern, which leaves too little of the ~250 max-pods budget for the full workshop stack on top of GPU model serving.
+`values-hub-rhpds.yaml` aligns the Service Mesh subscription channel and skips duplicate OperatorGroups for namespaces RHPDS pre-provisions (`openshift-nfd`, `nvidia-gpu-operator`, `redhat-ods-operator`), and exposes the RHOAI catalog's pre-installed `llama-32-3b-instruct` demo model through the workshop Kuadrant API gateway (`/llama`, same API-key UX as the other demo APIs). `values-hub-only.yaml` disables Skupper/ACM spoke import for a hub without east/west spokes.
+
+With `maxPods` raised, GitLab, Developer Hub, DevSpaces, and RHBK all fit alongside GPU model serving. If `maxPods` cannot be changed (immutable sandbox), add `/values-hub-gpu-minimal.yaml` as a fifth overlay to disable those and keep only Vault/ESO + OpenShift AI + GPU serving.
 
 The `acm-hub-spoke` chart (wave 6) auto-imports both spokes into RHACM using the inline tokens.
 

@@ -157,6 +157,59 @@ spec:
       limits:
         {{- toYaml (index .Values.plans.limits "gold") | nindent 8 }}
 {{- end }}
+{{- if .Values.apis.llama.enabled }}
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: workshop-llama-auth
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-llama
+  when:
+    - predicate: request.method != "OPTIONS"
+  rules:
+    authentication:
+      api-key-users:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: APIKEY
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: PlanPolicy
+metadata:
+  name: workshop-llama-plans
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: workshop-llama
+  plans:
+    - tier: bronze
+      predicate: |
+        {{ printf $planPredicate "bronze" }}
+      limits:
+        {{- toYaml (index .Values.plans.limits "bronze") | nindent 8 }}
+    - tier: gold
+      predicate: |
+        {{ printf $planPredicate "gold" }}
+      limits:
+        {{- toYaml (index .Values.plans.limits "gold") | nindent 8 }}
+{{- end }}
 {{- if .Values.apis.maas.enabled }}
 {{- $maasOidc := .Values.apis.maas.oidc | default dict }}
 {{- $maasOidcEnabled := $maasOidc.enabled | default true }}

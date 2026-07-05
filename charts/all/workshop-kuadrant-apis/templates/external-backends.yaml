@@ -94,3 +94,22 @@ spec:
       kind: Service
       name: {{ .Values.apis.mcp.serviceName }}
 {{- end }}
+{{- if and .Values.apis.llama.enabled .Values.apis.llama.serviceName }}
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: workshop-to-llama-model
+  namespace: {{ .Values.apis.llama.serviceNamespace | default "my-first-model" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ $gwNs }}
+  to:
+    - group: ""
+      kind: Service
+      name: {{ .Values.apis.llama.serviceName }}
+{{- end }}
