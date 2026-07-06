@@ -202,6 +202,9 @@ metadata:
   tags: [kuadrant, external-api, workshop, swagger]
   annotations:
     kuadrant.io/api-product: workshop-httpbin
+    workshop/apikey-self-service-target: "true"
+    workshop/apikey-product-namespace: workshop-kuadrant-apis
+    workshop/apikey-example-url: https://workshop-apis.__HUB_APPS_DOMAIN__/httpbin/get
   links:
     - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-httpbin
       title: Request API key
@@ -228,6 +231,9 @@ metadata:
   tags: [kuadrant, external-api, workshop, swagger]
   annotations:
     kuadrant.io/api-product: workshop-restcountries
+    workshop/apikey-self-service-target: "true"
+    workshop/apikey-product-namespace: workshop-kuadrant-apis
+    workshop/apikey-example-url: https://workshop-apis.__HUB_APPS_DOMAIN__/countries/info?returns=capital
   links:
     - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-restcountries
       title: Request API key
@@ -256,6 +262,9 @@ metadata:
   tags: [kuadrant, llm, maas, ai-gateway, swagger]
   annotations:
     kuadrant.io/api-product: workshop-llm-tokens
+    workshop/apikey-self-service-target: "true"
+    workshop/apikey-product-namespace: ai-gateway-system
+    workshop/apikey-example-url: https://ai-gateway.__HUB_APPS_DOMAIN__/v1/models
   links:
     - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/ai-gateway-system/workshop-llm-tokens
       title: Request API key
@@ -277,6 +286,9 @@ metadata:
   tags: [kuadrant, mcp, workshop]
   annotations:
     kuadrant.io/api-product: workshop-mcp-gateway
+    workshop/apikey-self-service-target: "true"
+    workshop/apikey-product-namespace: workshop-kuadrant-apis
+    workshop/apikey-example-url: https://workshop-apis.__HUB_APPS_DOMAIN__/mcp
   links:
     - url: https://developer-hub.__HUB_APPS_DOMAIN__/kuadrant/api-products/workshop-kuadrant-apis/workshop-mcp-gateway
       title: Request API key

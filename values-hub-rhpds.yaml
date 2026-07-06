@@ -32,16 +32,13 @@
 # this override has NO effect on it. On RHCL (Kuadrant) 1.4.1, that
 # revision's hardcoded v1.26.2 Envoy proxy rejects the WASM plugin config
 # field `allow_on_headers_stop_iteration` that RHCL 1.4.1's WASM shim
-# generates ("Unknown field ... invalid JSON"), so the Kuadrant filter
-# fails to load and every authenticated request through that Gateway class
-# (native MaaS `/maas-api/*`, the "Models as a Service could not be
-# loaded" dashboard error) gets a generic Envoy 500 instead of being
-# proxied. Not fixable from this repo -- `oc patch istio openshift-gateway
-# --type merge -p '{"spec":{"version":"v1.28.8"}}'` is silently reverted by
-# the GatewayClass controller within seconds. Track as a RHOAI/RHCL
-# platform compatibility bug on RHPDS; workaround is disabling the
-# Kuadrant AuthPolicy on this Gateway (loses auth enforcement) or waiting
-# for the RHPDS catalog to align both operators' Istio versions.
+# generates ("Unknown field ... invalid JSON"), crashing gateway pods until
+# the Kuadrant WASM filter is removed. The `models-as-a-service` chart
+# ships `envoyfilter-wasm-fix.yaml` (gateway.wasmFix.enabled, default true)
+# to remove WASM on data-science-gateway-class gateways and inject the
+# X-MaaS-* headers maas-api needs on maas-default-gateway. API keys for
+# workshop APIs use the Developer Hub `apikey-self-service` scaffolder
+# template when developer-portal-controller is absent (RHCL 1.4.1).
 #
 # Also exposes the RHOAI catalog's pre-installed "llama-32-3b-instruct" demo
 # model (KServe/vLLM in the my-first-model namespace) through the workshop

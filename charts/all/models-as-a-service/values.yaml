@@ -9,6 +9,10 @@ gateway:
   gatewayClassName: data-science-gateway-class
   hostnamePrefix: maas
   tlsSecretName: cert-manager-ingress-cert
+  # RHCL 1.4.1 WASM shim vs data-science-gateway-class Envoy version skew (RHPDS).
+  wasmFix:
+    enabled: true
+    injectMaasHeaders: true
 
 authorino:
   # RHCL operator deploys Authorino into its install namespace on this pattern (not kuadrant-system).

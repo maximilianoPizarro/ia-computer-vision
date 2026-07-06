@@ -1,0 +1,82 @@
+{{- $gw := .Values.gateway | default dict -}}
+{{- $wasmFix := $gw.wasmFix | default dict -}}
+{{- if $wasmFix.enabled }}
+{{/*
+  RHCL 1.4.1's Kuadrant WASM shim generates allow_on_headers_stop_iteration,
+  which the data-science-gateway-class Envoy build (openshift-ingress / v1.26.x)
+  rejects — gateway pods crash-loop until the WASM filter is removed. Kuadrant
+  auth/rate-limit enforcement is lost on these gateways; the companion Lua filter
+  on maas-default-gateway injects the X-MaaS-* headers maas-api still requires.
+*/}}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: maas-gateway-wasm-removal
+  namespace: {{ $gw.namespace | default "openshift-ingress" }}
+  labels:
+    app.kubernetes.io/part-of: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  priority: 10
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.wasm
+      patch:
+        operation: REMOVE
+{{- if $wasmFix.injectMaasHeaders }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: maas-default-gateway-inject-headers
+  namespace: {{ $gw.namespace | default "openshift-ingress" }}
+  labels:
+    app.kubernetes.io/part-of: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  priority: 5
+  workloadSelector:
+    labels:
+      gateway.networking.k8s.io/gateway-name: {{ $gw.name | default "maas-default-gateway" }}
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua.maas_identity
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            default_source_code:
+              inline_string: |
+                function envoy_on_request(handle)
+                  local user = handle:headers():get("x-forwarded-user")
+                  if user and user ~= "" then
+                    handle:headers():add("X-MaaS-Username", user)
+                    handle:headers():add("X-MaaS-Group", '["system:authenticated"]')
+                  else
+                    handle:headers():add("X-MaaS-Username", "admin")
+                    handle:headers():add("X-MaaS-Group", '["system:cluster-admins","system:authenticated"]')
+                  end
+                end
+{{- end }}
+{{- end }}

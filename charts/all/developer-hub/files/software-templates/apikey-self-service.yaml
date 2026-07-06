@@ -1,0 +1,176 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: apikey-self-service
+  title: Kuadrant API key self-service
+  description: >
+    Request and instantly receive a Kuadrant API key for workshop API Products.
+    Fills the gap when RHCL 1.4.1's developer-portal-controller is absent and
+    APIKey CRs stay Pending. Creates the APIKey, Secret (with correct labels),
+    and approves the request in one run — key shown once on the task result page.
+  tags:
+    - kuadrant
+    - apikey
+    - workshop
+    - self-service
+spec:
+  owner: platform-engineering
+  type: service
+  parameters:
+    - title: API key request
+      required:
+        - apiName
+        - requester
+        - planTier
+      properties:
+        apiName:
+          title: Target API (APIProduct)
+          type: string
+          description: >
+            OpenAPI catalog entity for a Kuadrant-protected workshop API.
+            The linked APIProduct name and namespace are read from catalog annotations.
+          ui:field: EntityPicker
+          ui:options:
+            allowedKinds:
+              - API
+            defaultKind: API
+            catalogFilter:
+              - kind: API
+                metadata.annotations.workshop/apikey-self-service-target: "true"
+        requester:
+          title: Requester
+          type: string
+          description: Catalog user who will own this API key.
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - User
+        planTier:
+          title: Plan tier
+          type: string
+          description: Rate-limit tier stored on the Secret (secret.kuadrant.io/plan-id).
+          default: bronze
+      dependencies:
+        apiName:
+          oneOf:
+            - properties:
+                apiName:
+                  const: api:default/workshop-maas-openapi
+                planTier:
+                  enum: [free, gold]
+                  enumNames:
+                    - Free (50 tokens/min on chat completions)
+                    - Gold (200 tokens/min)
+                  default: free
+            - properties:
+                apiName:
+                  const: api:default/workshop-httpbin-openapi
+                planTier:
+                  enum: [bronze, silver, gold]
+                  default: bronze
+            - properties:
+                apiName:
+                  const: api:default/workshop-restcountries-openapi
+                planTier:
+                  enum: [bronze, silver, gold]
+                  default: bronze
+            - properties:
+                apiName:
+                  const: api:default/workshop-mcp-openapi
+                planTier:
+                  enum: [bronze, silver, gold]
+                  default: bronze
+  steps:
+    - id: fetch-api
+      name: Resolve APIProduct from catalog
+      action: http:backstage:request
+      input:
+        method: GET
+        path: /api/catalog/entities/by-name/api/default/${{ parameters.apiName | parseEntityRef | pick('name') }}
+    - id: create-apikey
+      name: Create APIKey CR
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/proxy/k8s-api/apis/devportal.kuadrant.io/v1alpha1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/apikeys
+        headers:
+          Content-Type: application/json
+        body:
+          apiVersion: devportal.kuadrant.io/v1alpha1
+          kind: APIKey
+          metadata:
+            name: ${{ parameters.requester | parseEntityRef | pick('name') }}-${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}-${{ '' | now | replace('.', '') | replace('-', '') | replace(':', '') | replace('T', '') | replace('Z', '') }}
+          spec:
+            apiProductRef:
+              name: ${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}
+              namespace: ${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}
+            planTier: ${{ parameters.planTier }}
+            requestedBy: ${{ parameters.requester | parseEntityRef | pick('name') }}@developer-hub.local
+    - id: create-secret
+      name: Create consumer Secret
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/proxy/k8s-api/api/v1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/secrets
+        headers:
+          Content-Type: application/json
+        body:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: ${{ steps['create-apikey'].output.body.metadata.name }}
+            labels:
+              kuadrant.io/apikey: "true"
+              devportal.kuadrant.io/apikey-namespace: ${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}
+              app: ${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}
+            annotations:
+              secret.kuadrant.io/plan-id: ${{ parameters.planTier }}
+              kuadrant.io/apikey-owner: ${{ parameters.requester | parseEntityRef | pick('name') }}
+          type: Opaque
+          stringData:
+            api_key: ${{ steps['create-apikey'].output.body.metadata.name }}
+    - id: approve-apikey
+      name: Approve APIKey
+      action: http:backstage:request
+      input:
+        method: PATCH
+        path: /api/proxy/k8s-api/apis/devportal.kuadrant.io/v1alpha1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/apikeys/${{ steps['create-apikey'].output.body.metadata.name }}/status
+        headers:
+          Content-Type: application/merge-patch+json
+        body:
+          status:
+            phase: Approved
+            reviewedBy: ${{ parameters.requester | parseEntityRef | pick('name') }}
+            reviewedAt: ${{ '' | now }}
+            conditions:
+              - type: Approved
+                status: "True"
+                reason: SelfServiceTemplate
+                message: Approved by apikey-self-service scaffolder template
+                lastTransitionTime: ${{ '' | now }}
+  output:
+    text:
+      - title: Kuadrant API key (shown once — copy it now)
+        content: |
+          API Product: `${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}`
+          Namespace: `${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}`
+          Plan tier: `${{ parameters.planTier }}`
+
+          API Key: `${{ steps['create-apikey'].output.body.metadata.name }}`
+
+          Use header `Authorization: APIKEY <key>` (Bearer also works on ai-gateway MaaS).
+
+          Example curl:
+          ```
+          export KEY="${{ steps['create-apikey'].output.body.metadata.name }}"
+          curl -sk -H "Authorization: APIKEY $KEY" \
+            "${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-example-url'] }}"
+          ```
+
+          PoC ONLY — this page is the only place the key is shown in plain text.
+          If Authorino was running before this Secret existed, restart the Authorino
+          deployment once so it re-indexes API key Secrets.
+    links:
+      - title: API in catalog
+        icon: catalog
+        entityRef: ${{ parameters.apiName }}

@@ -1,4 +1,4 @@
-{{- $templates := list "ai-computer-vision" "oidc-credentials-self-service" "oidc-credentials-revoke" -}}
+{{- $templates := list "ai-computer-vision" "oidc-credentials-self-service" "oidc-credentials-revoke" "apikey-self-service" -}}
 {{- $hubBase := include "developer-hub.clusterDomainBase" . -}}
 {{- $hubApps := include "developer-hub.clusterDomain" . -}}
 {{- $ssoBase := include "developer-hub.ssoBaseUrl" . -}}
