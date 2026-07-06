@@ -151,6 +151,8 @@ Install these operators on spoke clusters before enabling GPU workloads:
 
 See link:../ideas-for-customization/#_enabling_gpu_workers_on_spokes[Enabling GPU workers on spokes] for step-by-step instructions.
 
+For GPU-backed model serving on the **hub**, including on a cluster where NFD, the GPU Operator, Service Mesh, or OpenShift AI are already pre-installed for you, see link:../ideas-for-customization/#_enabling_gpu_workers_on_the_hub_real_local_model_download_and_serving[Enabling GPU workers on the hub] and link:../ideas-for-customization/#_configuring_gpu_inference_on_a_cluster_with_pre_installed_operators[Configuring GPU inference on a cluster with pre-installed operators].
+
 == Tested product version matrix
 
 The following versions are tested with this pattern. The `Channel` column maps to the subscription channel defined in `values-hub.yaml` and `values-east.yaml`.

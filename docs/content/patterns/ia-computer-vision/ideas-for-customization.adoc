@@ -393,6 +393,166 @@ $ oc get servingruntime,inferenceservice -n gpu-models
 $ oc get pvc -n gpu-models
 ----
 
+== Configuring GPU inference on a cluster with pre-installed operators
+
+=== Context
+
+Some managed or hosted OpenShift environments provision a base set of operators for you before you ever get cluster-administrator access to install anything yourself — Node Feature Discovery, the NVIDIA GPU Operator, OpenShift Service Mesh, and OpenShift AI are common examples. Environments like this sometimes also run a single all-in-one node that acts as both control plane and worker, and often already run an unrelated single sign-on (SSO) instance that claims the cluster's default `sso.<cluster_domain>` hostname before this pattern is installed.
+
+If you let this pattern install its own copies of those operators on top of an environment like this, you end up with duplicate `OperatorGroup` objects in the same namespace, Istio/Envoy version mismatches between the pattern's assumptions and what is actually running, and hostname collisions on the ingress domain. This section documents a small, composable overlay file that adapts the preceding xref:_enabling_gpu_workers_on_the_hub_real_local_model_download_and_serving[Enabling GPU workers on the hub] scenario to reuse operators and platform services that were already installed for you, instead of having the pattern install its own competing copies.
+
+=== Operators to verify before you install the pattern
+
+Confirm each of the following is already present, or install it yourself through *OperatorHub* first, before you create the Pattern custom resource:
+
+[cols="2,3,3",options="header"]
+|===
+| Operator | Purpose | Verification command
+
+| Node Feature Discovery (NFD)
+| Labels nodes with detected GPU hardware so the GPU Operator and scheduler can target them
+| `oc get csv -A \| grep nfd`
+
+| NVIDIA GPU Operator
+| Installs the NVIDIA driver DaemonSet, container toolkit, and device plugin so pods can request `nvidia.com/gpu`
+| `oc get csv -A \| grep gpu-operator`
+
+| OpenShift Service Mesh (Sail operator, `servicemeshoperator3`)
+| Provides the ambient mesh (Istio/ZTunnel) that this pattern's traffic policies and Kuadrant `AuthPolicy` objects depend on
+| `oc get csv -A \| grep servicemeshoperator3`
+
+| Red Hat OpenShift AI operator
+| Provides the `DataScienceCluster`, KServe, and the Gen AI Studio / Models-as-a-Service dashboard that this pattern configures
+| `oc get csv -A \| grep rhods-operator`
+
+| Red Hat Connectivity Link (Kuadrant)
+| Provides `AuthPolicy` and `RateLimitPolicy` for the workshop API gateway and native Models-as-a-Service. Often pre-installed into a shared `kuadrant-system` namespace rather than the dedicated namespace this pattern would otherwise create for it
+| `oc get csv -A \| grep -i connectivity`
+|===
+
+[NOTE]
+====
+Install any missing operator from this list yourself through *OperatorHub* before you continue. Do not rely on this pattern's own subscriptions for an operator that is already there — the whole purpose of the overlay in this section is to skip creating a second, conflicting installation of an operator you already have.
+====
+
+If a pre-existing SSO/Keycloak instance unrelated to this pattern already claims the default `sso.<cluster_domain>` hostname, see <<_avoiding_a_hostname_collision_with_a_pre_existing_sso_instance>> below.
+
+=== What to change
+
+Layer the following opt-in overlay files on top of the default `values-hub.yaml`, in this order, using the Pattern custom resource's `extraValueFiles`:
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml          # <1>
+    - /values-hub-single-node.yaml  # <2>
+    - /values-hub-rhpds.yaml        # <3>
+    - /values-hub-only.yaml         # <4>
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+<1> Enables GPU-backed vLLM model serving on the hub (see the preceding section).
+<2> Scales workshop user counts and replica counts down so the full stack fits a single node's pod-count ceiling. See link:../cluster-sizing/[Cluster sizing].
+<3> Adapts the pattern to a cluster where NFD, the GPU Operator, Service Mesh, OpenShift AI, and Connectivity Link are already installed by someone else — this section's focus.
+<4> Optional. Only needed for a hub-only install with no east or west spoke clusters. Omit it if you plan to add spokes.
+
+Each overlay is additive and independent: `values-hub-gpu.yaml` alone (with no other overlay) still works for a from-scratch, multi-node hub where the pattern installs its own NFD and GPU Operator. Add `values-hub-rhpds.yaml` only after you confirm the operator table above is already satisfied.
+
+==== What the pre-installed-operators overlay changes
+
+* Skips creating a second `OperatorGroup` in the NFD, GPU Operator, and OpenShift AI operator namespaces, because a pre-installed operator's own catalog typically already created one there. A second `OperatorGroup` in the same namespace makes OLM mark every CSV in that namespace `Failed` with `TooManyOperatorGroups`.
+* Pins the ZTunnel custom resource's `spec.version` to match whatever Istio version the pre-installed Service Mesh operator actually ships, instead of the pattern's own default version. Check the installed version first:
++
+[source,bash]
+----
+$ oc get csv -n openshift-operators -l operators.coreos.com/servicemeshoperator3.openshift-operators
+$ oc get crd istios.sailoperator.io -o jsonpath='{.spec.versions[-1].schema.openAPIV3Schema.properties.spec.properties.version.default}{"\n"}'
+----
++
+Update the `istio-ztunnel` override in `values-hub-rhpds.yaml` to match the reported default version if it differs from what is already there.
+* Points the `models-as-a-service` application at the pre-installed Connectivity Link operator's shared `kuadrant-system` namespace (`authorino.serviceNamespace`, `authorino.deploymentNamespace`) instead of a dedicated namespace this pattern would otherwise create and patch.
+* Enables the clustergroup chart's built-in `autoApproveManualInstallPlans` option, because a pre-provisioned catalog commonly leaves its own subscriptions on `Manual` install-plan approval.
+
+[[_avoiding_a_hostname_collision_with_a_pre_existing_sso_instance]]
+==== Avoiding a hostname collision with a pre-existing SSO instance
+
+If the cluster already runs its own Keycloak (or similar) identity provider that claims the default `sso.<cluster_domain>` hostname before you install this pattern, Developer Hub's own SSO `Route` fails to be admitted (`HostAlreadyClaimed`), which blocks its Argo CD sync indefinitely. Six charts share a single `ssoHostPrefix` value (default `sso`) that you must override to the same alternate prefix, together, across all six:
+
+[cols="2,3",options="header"]
+|===
+| Chart | Purpose of the override
+
+| `developer-hub`
+| Owns the actual `Route` — this is the chart that fails to sync without the override
+
+| `rhbk-iam`
+| Computes the canonical `issuerUrl` used by every realm's OIDC clients
+
+| `neuroface-gateway`
+| Kuadrant `AuthPolicy` and OIDC realms for the inference gateway
+
+| `workshop-registration`
+| Calls the Keycloak admin API to provision workshop users
+
+| `devspaces`
+| OpenShift Dev Spaces OIDC identity provider
+
+| `console-links`
+| Cosmetic "Keycloak (SSO)" console link only
+|===
+
+`values-hub-rhpds.yaml` already sets all six to `ssoHostPrefix: rhdh-sso`. Choose any hostname prefix that is not already claimed on your cluster; it does not need to be `rhdh-sso` specifically, as long as you change it consistently everywhere it appears.
+
+[IMPORTANT]
+====
+Helm replaces an application's `overrides` list wholesale whenever the same application is overridden in more than one values file — it does not merge the lists item by item. If you change `ssoHostPrefix` to a different value, update every overlay file that overrides that same application, or a later-loaded file's override list silently drops the earlier file's overrides for that application.
+
+This is not a hypothetical risk: it caused a real, observed failure in this pattern. `rhbk-iam`'s `userCount` override from `values-hub-single-node.yaml` was silently dropped once `values-hub-rhpds.yaml` added an `ssoHostPrefix`-only override block for the same application, reverting `userCount` to its chart default of 30 and leaving `ExternalSecret` resources for users 6 through 30 permanently `Degraded`. Whenever you add or edit an override in one overlay file for an application that is *also* overridden by an earlier-loaded overlay, copy every existing override name from the earlier file into the new override block as well.
+====
+
+=== Files affected
+
+* `values-hub-gpu.yaml` — GPU-backed vLLM model serving (see the preceding section)
+* `values-hub-single-node.yaml` — user-count and replica scale-down for a single-node pod-count ceiling
+* `values-hub-rhpds.yaml` — `OperatorGroup` skip list, ZTunnel version pin, Connectivity Link namespace, manual install-plan auto-approval, and `ssoHostPrefix` overrides
+* `values-hub-only.yaml` — optional, only for a hub-only install with no spoke clusters
+
+=== Validation
+
+[source,bash]
+----
+$ oc get operatorgroups -n openshift-nfd
+$ oc get operatorgroups -n nvidia-gpu-operator
+$ oc get operatorgroups -n redhat-ods-operator
+$ oc get csv -A | grep -v Succeeded
+$ oc get istio -n istio-system -o jsonpath='{.status.state}{"\n"}'
+$ oc get ztunnel -A
+$ oc get application developer-hub -n vp-gitops -o jsonpath='{.status.health.status}{"\n"}'
+$ oc get route -n developer-hub | grep sso
+----
+
+.Expected output
+[source,text]
+----
+Healthy
+----
+
+Each namespace lists exactly one `OperatorGroup`, no CSV is stuck outside `Succeeded`, the ZTunnel custom resource reports `Healthy`, and the `developer-hub` Argo CD application reports `Healthy` (not `Degraded` with `HostAlreadyClaimed`).
+
+For sizing details on single-node environments, including when to raise `maxPods` versus using the `values-hub-gpu-minimal.yaml` fallback overlay, see link:../cluster-sizing/[Cluster sizing]. For a deeper investigation of a Connectivity Link and Istio version mismatch symptom, see link:../troubleshooting/[Troubleshooting].
+
 == Single spoke deployment (proof of concept)
 
 === Context

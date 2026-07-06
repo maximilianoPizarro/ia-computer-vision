@@ -23,6 +23,11 @@ Complete each cluster installation and verification before moving to the next. T
 * See link:../cluster-sizing/[Cluster sizing] for GPU options and network requirements
 * CPU-only inference is the default; GPU workers are optional
 
+[NOTE]
+====
+Deploying onto a cluster that already has operators such as Node Feature Discovery, the NVIDIA GPU Operator, OpenShift Service Mesh, or OpenShift AI pre-installed for you? See link:../ideas-for-customization/#_configuring_gpu_inference_on_a_cluster_with_pre_installed_operators[Configuring GPU inference on a cluster with pre-installed operators] before you run `./pattern.sh make install` — installing this pattern's own copies of those operators on top of existing ones causes `OperatorGroup` conflicts and Istio version mismatches.
+====
+
 === Network requirements
 
 * Each cluster requires outbound internet access to pull container images from `registry.redhat.io`, `quay.io`, and operator catalogs from `registry.connect.redhat.com`
