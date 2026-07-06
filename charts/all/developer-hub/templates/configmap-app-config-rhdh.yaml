@@ -317,6 +317,13 @@ data:
           headers:
             Authorization: Bearer ${K8S_SA_TOKEN}
           changeOrigin: true
+          # The apiserver's serving cert is signed by the cluster's internal
+          # CA, which Node's default trust store doesn't include. The global
+          # NODE_TLS_REJECT_UNAUTHORIZED=0 (backstage-developer-hub.yaml) does
+          # NOT cover http-proxy-middleware's own TLS agent -- every request
+          # through this endpoint failed with a generic 500
+          # ([HPM] ... [SELF_SIGNED_CERT_IN_CHAIN]) until this was added.
+          secure: false
         '/keycloak':
           target: {{ include "developer-hub.ssoBaseUrl" . | quote }}
           allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
