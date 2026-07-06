@@ -140,28 +140,49 @@ clusterGroup:
     #   - workshop-registration (Keycloak admin API calls)
     #   - devspaces       (OpenShift Dev Spaces OIDC identity provider)
     #   - console-links   (cosmetic "Keycloak (SSO)" link only)
+    # NOTE: Helm replaces an application's overrides list wholesale, not
+    # merged by item, and this file loads AFTER values-hub-single-node.yaml
+    # (see Pattern CR example above) -- every override below that ALSO has
+    # an entry in values-hub-single-node.yaml repeats it here, or it would
+    # silently be dropped for the documented RHPDS stack (gpu+single-node+
+    # rhpds[+hub-only]). This is the exact same bug class already called
+    # out for models-as-a-service's userCount below; confirmed live once
+    # (rhbk-iam's userCount silently reverted to its chart default of 30,
+    # leaving ExternalSecrets for user6..user30 permanently Degraded with
+    # "could not get secret data from provider" since vault-secrets-
+    # bootstrap only ever seeded users 1..5).
     developer-hub:
       overrides:
+        - name: userCount
+          value: "5"
         - name: ssoHostPrefix
           value: rhdh-sso
 
     rhbk-iam:
       overrides:
+        - name: userCount
+          value: "5"
         - name: keycloak.ssoHostPrefix
           value: rhdh-sso
 
     neuroface-gateway:
       overrides:
+        - name: gateway.replicas
+          value: "1"
         - name: kuadrant.ssoHostPrefix
           value: rhdh-sso
 
     workshop-registration:
       overrides:
+        - name: registration.maxUsers
+          value: "5"
         - name: keycloak.ssoHostPrefix
           value: rhdh-sso
 
     devspaces:
       overrides:
+        - name: userCount
+          value: "5"
         - name: keycloakOidc.ssoHostPrefix
           value: rhdh-sso
 
