@@ -96,7 +96,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.png") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://developer-hub.{{ $domain }}"
   location: ApplicationMenu
@@ -110,7 +110,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "devspaces.png") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://devspaces.{{ $domain }}"
   location: ApplicationMenu
@@ -124,7 +124,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "gitlab.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "gitlab.png") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://gitlab.apps.{{ $hubDomainBase }}"
   location: ApplicationMenu
@@ -138,7 +138,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "keycloak.png") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://{{ .Values.ssoHostPrefix | default "sso" }}.{{ $domain }}"
   location: ApplicationMenu
@@ -210,7 +210,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "openshift-ai.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "showroom.png") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://showroom-showroom.{{ $hubDomain }}"
   location: ApplicationMenu
@@ -224,7 +224,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "workshop-registration.png") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://workshop-registration.{{ $hubDomain }}"
   location: ApplicationMenu
@@ -283,7 +283,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
 spec:
   applicationMenu:
-    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "developer-hub.svg") | quote }}
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "devspaces.png") | quote }}
     section: "Platform AI Computer Vision"
   href: "https://devspaces.{{ $domain }}"
   location: ApplicationMenu
