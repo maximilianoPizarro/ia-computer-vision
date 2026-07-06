@@ -166,12 +166,29 @@ clusterGroup:
       overrides:
         - name: userCount
           value: "5"
+        # Spoke-only plumbing (east/west clusters, token sync, GitLab
+        # ApplicationSet auto-registration) -- keep disabled, hub-only has
+        # no spokes. Do NOT re-enable these here; they assume
+        # spokeCredentials/kubernetesSpokes.*.apiUrl are set, which hub-only
+        # never configures.
         - name: kubernetesSpokes.enabled
           value: "false"
         - name: spokeTokenSync.enabled
           value: "false"
         - name: applicationSet.enabled
           value: "false"
+        # kafka.enabled is a GLOBAL (not per-topology) flag: it gates whether
+        # RHDH's Kubernetes plugin queries kafka.strimzi.io CRDs against
+        # EVERY registered cluster (just "hub" here, since kubernetesSpokes
+        # is off). Base values.yaml defaults this to false because in the
+        # standard hub+spokes topology Kafka runs on the SPOKES, not the
+        # hub -- enabling it there would 404 querying a CRD that doesn't
+        # exist on the hub cluster. Safe to enable ONLY here: hub-only runs
+        # Kafka (Strimzi) locally on the hub itself (see spoke-neuroface-cv
+        # kafka.enabled above). Do not move this to values-hub.yaml or the
+        # chart default -- that would break Topology on hub+spokes installs.
+        - name: kafka.enabled
+          value: "true"
 
     argocd-mcp:
       overrides:
