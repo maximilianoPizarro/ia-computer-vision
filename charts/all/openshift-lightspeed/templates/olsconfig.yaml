@@ -28,13 +28,19 @@ spec:
             contextWindowSize: {{ $ctxWin }}
             {{- end }}
             {{- $maxResp := int (.Values.llm.maxTokensForResponse | default 0) }}
-            {{- $toolRatio := .Values.llm.toolBudgetRatio | default 0 }}
-            {{- if or (gt $maxResp 0) (gt ($toolRatio | float) 0.0) }}
+            {{- /* Sprig has no "float" function (only "float64") -- this
+                   typo made the whole chart fail to render since it was
+                   introduced, silently freezing OLSConfig at whatever was
+                   last successfully synced (no contextWindowSize/
+                   toolBudgetRatio at all), which is the actual root cause
+                   of Lightspeed exceeding the model's real context window. */ -}}
+            {{- $toolRatio := float64 (.Values.llm.toolBudgetRatio | default 0) }}
+            {{- if or (gt $maxResp 0) (gt $toolRatio 0.0) }}
             parameters:
               {{- if gt $maxResp 0 }}
               maxTokensForResponse: {{ $maxResp }}
               {{- end }}
-              {{- if gt ($toolRatio | float) 0.0 }}
+              {{- if gt $toolRatio 0.0 }}
               toolBudgetRatio: {{ $toolRatio }}
               {{- end }}
             {{- end }}
