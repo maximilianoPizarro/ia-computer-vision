@@ -2,7 +2,10 @@ vault:
   namespace: vault
   serviceName: vault
   port: 8200
-  authRole: secret-manager
+  # No authRole here: this cluster's Vault has no "kubernetes/" auth mount
+  # configured, so the bootstrap job authenticates with the root token
+  # from imperative/vaultkeys instead of a Kubernetes-auth login. See
+  # templates/job-vault-secrets-bootstrap.yaml.
 
 bootstrap:
   enabled: true
