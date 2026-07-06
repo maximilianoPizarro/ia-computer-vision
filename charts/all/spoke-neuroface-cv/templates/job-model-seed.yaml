@@ -1,12 +1,50 @@
 {{- if eq (.Values.modelSeed.enabled | toString | default "false") "true" }}
 {{- $ms := .Values.modelSeed -}}
+---
+# Grants the gitlab-system default ServiceAccount read access to the Vault
+# root token secret that this pattern's own vault-operator/imperative bootstrap
+# always writes to imperative/vaultkeys (standard Validated Patterns
+# convention -- see docs/content/patterns/ia-computer-vision/
+# scaffolding-and-secrets.adoc). Needed because this cluster's Vault has no
+# "kubernetes/" auth mount + "secret-manager" role (only a read-only "hub/"
+# mount used by External Secrets Operator) -- writing to Vault therefore
+# requires the root token, not a Kubernetes-auth login.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ppe-model-seed-vaultkeys-reader
+  namespace: imperative
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["vaultkeys"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ppe-model-seed-vaultkeys-reader
+  namespace: imperative
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ppe-model-seed-vaultkeys-reader
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: gitlab-system
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: ppe-model-seed
   namespace: gitlab-system
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
@@ -15,6 +53,7 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      serviceAccountName: default
       containers:
         - name: seed
           image: {{ $ms.image | default "registry.redhat.io/ubi9/python-311:latest" | quote }}
@@ -64,28 +103,38 @@ spec:
               # minio-credentials) can actually download this model -- without this,
               # ESO keeps serving the random placeholder written by vault-secrets-
               # bootstrap and KServe's storage-initializer fails with S3 403 Forbidden.
-              # Mirrors the working K8s-auth pattern in hub-interconnect's own
-              # job-model-seed.yaml (disabled in hub-only via values-hub-only.yaml).
-              import subprocess, json as j
-              vault_addr = "http://vault.vault.svc:8200"
-              token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+              #
+              # This cluster's Vault has no "kubernetes/" auth mount (only the
+              # read-only "hub/" mount used by ESO), so Kubernetes-auth login
+              # (as used elsewhere in this repo, e.g. hub-interconnect's own
+              # job-model-seed.yaml) always fails with "permission denied" here.
+              # Use the root token from imperative/vaultkeys instead -- the
+              # standard Validated Patterns location for Vault's root token,
+              # written by the pattern's own vault bootstrap on every install.
+              import subprocess, json as j, base64
+              vault_addr = "https://vault.vault.svc:8200"
               try:
-                  sa_token = open(token_path).read().strip()
-                  login = subprocess.run(["curl", "-sk", "-X", "POST",
-                      vault_addr + "/v1/auth/kubernetes/login",
-                      "-d", j.dumps({"role": "secret-manager", "jwt": sa_token})],
-                      capture_output=True, text=True, timeout=10)
-                  vault_token = j.loads(login.stdout).get("auth", {}).get("client_token")
-                  if vault_token:
+                  k8s_token = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().strip()
+                  k8s_ca = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                  api = ("https://kubernetes.default.svc/api/v1/namespaces/"
+                         "imperative/secrets/vaultkeys")
+                  r = subprocess.run(["curl", "-sS", "--cacert", k8s_ca,
+                      "-H", "Authorization: Bearer " + k8s_token, api],
+                      capture_output=True, text=True, timeout=15, check=True)
+                  vault_keys_secret = j.loads(r.stdout)
+                  raw = vault_keys_secret["data"]["vault_data_json"]
+                  vault_data = j.loads(base64.b64decode(raw))
+                  root_token = vault_data.get("root_token")
+                  if root_token:
                       data = {"data": {"accesskey": key, "secretkey": secret}}
                       r = subprocess.run(["curl", "-sk", "-X", "POST",
                           vault_addr + "/v1/secret/data/hub/minio-credentials",
-                          "-H", "X-Vault-Token: " + vault_token,
+                          "-H", "X-Vault-Token: " + root_token,
                           "-d", j.dumps(data)],
                           capture_output=True, text=True, timeout=10)
-                      print("Vault minio-credentials: synced" if "version" in r.stdout else "Vault sync: %s" % r.stdout[:100])
+                      print("Vault minio-credentials: synced" if "version" in r.stdout else "Vault sync: %s" % r.stdout[:200])
                   else:
-                      print("Vault login failed (non-critical, manual vault kv put needed)")
+                      print("Vault root token not found in imperative/vaultkeys -- skipping sync")
               except Exception as e:
                   print("Vault sync skipped: %s" % e)
               PYEOF
