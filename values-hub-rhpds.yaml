@@ -11,10 +11,37 @@
 # gpu-operator-certified, rhods-operator) Failed/TooManyOperatorGroups,
 # since it can't automatically pick a namespace scope with two present.
 #
-# Also pins the ZTunnel CR version to match the Istio version that
-# servicemeshoperator3 v3.1.0 (RHPDS's preinstalled channel `stable`)
-# actually supports -- the pattern's default v1.28.8 is rejected by that
-# older operator's CRD validation ("Unsupported value" on spec.version).
+# Also pins the ZTunnel CR version to match the Istio version actually
+# supported by whatever servicemeshoperator3 build is currently installed
+# from RHPDS's preinstalled channel `stable` (a floating channel -- the
+# exact CSV varies by RHPDS catalog snapshot). Originally pinned to v1.26.2
+# for v3.1.0 (its CRD rejected the pattern's default v1.28.8 with
+# "Unsupported value" on spec.version); bumped to v1.28.8 once RHPDS's
+# `stable` channel had auto-upgraded to v3.3.5 (whose default/native Istio
+# version IS v1.28.8 -- verify with `oc get csv -n openshift-operators
+# -l operators.coreos.com/servicemeshoperator3.openshift-operators` and
+# `oc get crd istios.sailoperator.io -o jsonpath='{.spec.versions[-1]
+# .schema.openAPIV3Schema.properties.spec.properties.version.default}'`
+# before assuming this value is still correct on a different snapshot).
+#
+# NOTE: the Gateway API data plane (data-science-gateway-class, used by
+# native MaaS and KServe raw-deployment inference) runs on a SEPARATE Istio
+# revision named "openshift-gateway" (namespace openshift-ingress), owned
+# by its GatewayClass (not by this chart or any Application) and reset by
+# the Sail operator's own GatewayClass controller on every reconcile --
+# this override has NO effect on it. On RHCL (Kuadrant) 1.4.1, that
+# revision's hardcoded v1.26.2 Envoy proxy rejects the WASM plugin config
+# field `allow_on_headers_stop_iteration` that RHCL 1.4.1's WASM shim
+# generates ("Unknown field ... invalid JSON"), so the Kuadrant filter
+# fails to load and every authenticated request through that Gateway class
+# (native MaaS `/maas-api/*`, the "Models as a Service could not be
+# loaded" dashboard error) gets a generic Envoy 500 instead of being
+# proxied. Not fixable from this repo -- `oc patch istio openshift-gateway
+# --type merge -p '{"spec":{"version":"v1.28.8"}}'` is silently reverted by
+# the GatewayClass controller within seconds. Track as a RHOAI/RHCL
+# platform compatibility bug on RHPDS; workaround is disabling the
+# Kuadrant AuthPolicy on this Gateway (loses auth enforcement) or waiting
+# for the RHPDS catalog to align both operators' Istio versions.
 #
 # Also exposes the RHOAI catalog's pre-installed "llama-32-3b-instruct" demo
 # model (KServe/vLLM in the my-first-model namespace) through the workshop
@@ -53,7 +80,7 @@ clusterGroup:
     istio-ztunnel:
       overrides:
         - name: version
-          value: v1.26.2
+          value: v1.28.8
 
     # RHPDS's preinstalled Kuadrant/Connectivity Link deploys Authorino into
     # the standard kuadrant-system namespace, not redhat-connectivity-link-

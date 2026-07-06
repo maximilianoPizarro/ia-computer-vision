@@ -366,6 +366,69 @@ $ oc get csv -n redhat-connectivity-link-operator | grep rhcl
 
 . Inspect HTTPRoute weights in `charts/all/neuroface-gateway/templates/httproute.yaml` — default is 50/50 when both spoke domains are set.
 
+== Native MaaS / Gen AI studio "Models as a Service could not be loaded" (Envoy 500 on data-science-gateway-class)
+
+=== Symptom
+
+The OpenShift AI dashboard's **Gen AI studio → AI asset endpoints** page shows *"Some models may be unavailable — Models as a Service could not be loaded. Only models from available sources are shown."* The `maas-ui` dashboard sidecar container logs repeated errors:
+
+[source]
+----
+level=ERROR msg="unknown error when invoking maas-api (unmarshall): invalid character 'I' looking for beginning of value" uri=/api/v1/api-keys/search
+----
+
+A direct `curl` against the native MaaS gateway returns a generic Envoy error, not JSON:
+
+[source,bash]
+----
+$ curl -sk -X POST https://maas.apps.<hub_domain>/maas-api/v1/api-keys/search -d '{}'
+Internal Server Error.
+----
+
+=== Probable cause
+
+Version skew between the Istio/Envoy proxy backing `data-science-gateway-class` (native MaaS, RHOAI raw-deployment KServe inference) and the installed Red Hat Connectivity Link (Kuadrant) operator. RHCL's WASM shim generates a plugin config field (`allow_on_headers_stop_iteration`) that older Envoy builds don't recognize:
+
+[source]
+----
+warning envoy config ... Unknown field: type envoy.extensions.filters.http.wasm.v3.Wasm
+  reason INVALID_ARGUMENT: invalid JSON ... no such field: 'allow_on_headers_stop_iteration'
+----
+
+When the WASM plugin config is rejected, Kuadrant's auth/rate-limit filter never loads, and Envoy fails closed with a generic 500 on every request instead of enforcing (or bypassing) auth. This has been observed on RHPDS "Red Hat OpenShift AI 3" sandboxes where the `stable` channel installed RHCL 1.4.1 (WASM shim built against newer Envoy) while `data-science-gateway-class`'s dedicated Istio revision stayed pinned to an older Envoy build (e.g. v1.26.2).
+
+=== Diagnosis
+
+[source,bash]
+----
+# Confirm the gateway itself returns raw-text 500s (not JSON) on any authenticated path
+$ curl -sk -X POST https://maas.apps.<hub_domain>/maas-api/v1/api-keys/search -d '{}'
+
+# Look for the WASM schema rejection in the Gateway's own Envoy logs
+$ oc logs -n openshift-ingress deploy/maas-default-gateway-data-science-gateway-class --tail=200 \
+    | grep allow_on_headers_stop_iteration
+
+# Compare the Gateway API's dedicated Istio revision version against the
+# Service Mesh operator's actual native/default version
+$ oc get istiorevision -A
+$ oc get csv -n openshift-operators -l operators.coreos.com/servicemeshoperator3.openshift-operators
+$ oc get crd istios.sailoperator.io -o jsonpath='{.spec.versions[-1].schema.openAPIV3Schema.properties.spec.properties.version.default}'
+
+# Check the installed Connectivity Link (Kuadrant) operator version
+$ oc get csv -n redhat-connectivity-link-operator | grep -i connectivity
+----
+
+=== Solution
+
+This is a platform/operator compatibility issue, not something this pattern's Helm charts control:
+
+* The Gateway API data plane's Istio revision (named `openshift-gateway` in `openshift-ingress`, or similarly named for whichever GatewayClass is affected) is **owned by its GatewayClass**, not by any Argo CD Application — `oc patch istio <name> --type merge -p '{"spec":{"version":"..."}}'` is silently reverted by the Sail operator's own GatewayClass controller within seconds. It cannot be pinned via `values-hub-rhpds.yaml` or any other values file in this repo (unlike `charts/all/istio-ztunnel`, which pins the *ambient mesh's* ZTunnel version and is unaffected by this bug).
+* Workarounds, roughly in order of preference:
+. Check whether a newer/older Connectivity Link channel is available whose WASM shim matches the Gateway's actual Envoy build, and switch channels.
+. File a support case / product bug against Red Hat OpenShift AI (the `data-science-gateway-class` Gateway API implementation) and RHCL for the sandbox catalog's version combination.
+. As a last-resort, time-boxed workaround for a demo: delete the Kuadrant `AuthPolicy` bound to the affected Gateway to stop Envoy from loading the WASM filter at all (native MaaS auth enforcement is lost — do not do this outside a disposable sandbox).
+* This bug affects **every** request through the affected GatewayClass's Gateways once the AuthPolicy is enforced, not just MaaS — also test `https://maas.apps.<hub_domain>/maas-api/v1/health` and any other `data-science-gateway-class`-routed endpoint before assuming a fix (or a regression) is scoped to MaaS alone.
+
 == GitLab operator fails with TooManyOperatorGroups
 
 === Symptom
