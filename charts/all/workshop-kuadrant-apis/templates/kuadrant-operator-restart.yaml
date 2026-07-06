@@ -25,6 +25,16 @@ rules:
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["gatewayclasses"]
     verbs: ["get", "list"]
+  # Without this, `oc get kuadrant kuadrant -n kuadrant-system` inside the
+  # script's readiness-wait loop always returns Forbidden (silently
+  # swallowed by `|| true`), so $ready never becomes "True" even once the
+  # Kuadrant CR genuinely is Ready -- the loop then burns all 36 x 10s
+  # iterations (6 minutes) before giving up with a WARN on every single
+  # sync, needlessly leaving this Application's operation "Running" the
+  # whole time.
+  - apiGroups: ["kuadrant.io"]
+    resources: ["kuadrants"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
