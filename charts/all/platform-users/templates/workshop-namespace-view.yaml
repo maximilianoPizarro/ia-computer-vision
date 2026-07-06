@@ -3,6 +3,9 @@
 {{- if eq .Values.clusterRole "spoke" }}
 {{- $namespaces = .Values.viewNamespacesSpoke | default list }}
 {{- end }}
+{{- if .Values.acsEnabled }}
+{{- $namespaces = append $namespaces "stackrox" }}
+{{- end }}
 {{- range $ns := $namespaces }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

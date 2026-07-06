@@ -9,12 +9,19 @@ identityProviderName: workshop-users
 htpasswdImage: registry.access.redhat.com/ubi9/httpd-24:latest
 # hub | spoke — selects namespace view RoleBinding list
 clusterRole: ""
+# ACS/StackRox is disabled by default across every values-*.yaml in this repo
+# ("ACS disabled by default to save resources") -- the stackrox namespace only
+# exists when a values file explicitly re-enables the rhacs-operator
+# subscription. Without this flag, the workshop-users-view RoleBinding for
+# "stackrox" targets a namespace that doesn't exist, and the API server
+# rejects it (RoleBindings can't be created in a missing namespace), leaving
+# this Application permanently OutOfSync/Missing for every default install.
+acsEnabled: false
 viewNamespacesHub:
   - developer-hub
   - showroom
   - redhat-ods-applications
   - openshift-gitops
-  - stackrox
   - gitlab-system
   - mailpit
   - vault
@@ -27,7 +34,6 @@ viewNamespacesSpoke:
   - service-interconnect
   - redhat-ods-applications
   - openshift-gitops
-  - stackrox
   - devspaces
   - openshift-cluster-observability-operator
   - redhat-connectivity-link-operator
