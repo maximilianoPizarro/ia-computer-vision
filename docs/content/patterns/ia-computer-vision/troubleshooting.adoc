@@ -429,6 +429,39 @@ This is a platform/operator compatibility issue, not something this pattern's He
 . As a last-resort, time-boxed workaround for a demo: delete the Kuadrant `AuthPolicy` bound to the affected Gateway to stop Envoy from loading the WASM filter at all (native MaaS auth enforcement is lost — do not do this outside a disposable sandbox).
 * This bug affects **every** request through the affected GatewayClass's Gateways once the AuthPolicy is enforced, not just MaaS — also test `https://maas.apps.<hub_domain>/maas-api/v1/health` and any other `data-science-gateway-class`-routed endpoint before assuming a fix (or a regression) is scoped to MaaS alone.
 
+==== Downgrading Connectivity Link (RHCL) was attempted and is blocked by OLM
+
+A same-namespace, in-place downgrade of the `rhcl-operator` Subscription to the previous CSV (`rhcl-operator.v1.3.5`, the version installed before RHPDS's `stable` channel auto-upgraded to 1.4.1) was tested live and is **not achievable** without also downgrading `authorino-operator`:
+
+[source,bash]
+----
+$ oc patch subscription.operators.coreos.com rhcl-operator -n redhat-connectivity-link-operator \
+    --type merge -p '{"spec":{"installPlanApproval":"Manual","startingCSV":"rhcl-operator.v1.3.5"}}'
+# ...
+$ oc get subscription.operators.coreos.com rhcl-operator -n redhat-connectivity-link-operator \
+    -o jsonpath='{.status.conditions}'
+# constraints not satisfiable: bundle rhcl-operator.v1.3.5 requires an operator with
+# package: authorino-operator and with version in range: 1.3.2, ... subscription
+# authorino-operator-stable-redhat-operators-openshift-marketplace requires
+# .../authorino-operator.v1.4.1 ...
+----
+
+`rhcl-operator` (a thin meta-operator managing only its own `kuadrant-operator-controller-manager` Deployment) hard-pins a matching `authorino-operator` version as an OLM dependency. Authorino is installed via its own, independent Subscription already pinned to v1.4.1 (required by other AuthConfigs across the cluster, e.g. the legacy workshop Kuadrant AI gateway) — OLM's resolver correctly refuses to install two different Authorino versions and blocks the whole downgrade. Forcing it through would require also downgrading Authorino, a much larger blast radius (every `AuthPolicy`/`AuthConfig` cluster-wide, not just native MaaS) that was judged not worth the risk on this cluster. Confirmed this does NOT cascade-delete Authorino/Limitador/DNS-operator if you delete just the `rhcl-operator.v1.4.1` CSV to retry — they are separate CSVs — but the resolver still blocks the new InstallPlan from ever being generated.
+
+==== Related: kuadrant-operator-controller-manager OOMKilled
+
+Independently of the WASM version-skew bug, `kuadrant-operator-controller-manager` was observed in `CrashLoopBackOff` (`OOMKilled`, exit 137) against its default `300Mi` memory limit — undersized for a cluster with this pattern's number of `AuthPolicy`/`Gateway`/`HTTPRoute` objects. This does not by itself explain the 500s (confirmed: fixing the OOM loop did not clear the WASM schema error), but is worth fixing regardless for overall Kuadrant stability:
+
+[source,bash]
+----
+$ oc get pods -n redhat-connectivity-link-operator -l control-plane=controller-manager
+$ oc patch csv rhcl-operator.v1.4.1 -n redhat-connectivity-link-operator --type json -p \
+  '[{"op":"replace","path":"/spec/install/spec/deployments/0/spec/template/spec/containers/0/resources",
+     "value":{"limits":{"cpu":"500m","memory":"768Mi"},"requests":{"cpu":"200m","memory":"256Mi"}}}]'
+----
+
+This patch is **not persisted in Git** (it targets a live CSV managed by an OLM Subscription, not a chart in this repo) and will be reverted if the Subscription reinstalls/upgrades the CSV. Re-apply after any RHCL upgrade if `kuadrant-operator-controller-manager` starts `CrashLoopBackOff`/`OOMKilled` again.
+
 == GitLab operator fails with TooManyOperatorGroups
 
 === Symptom
