@@ -218,6 +218,29 @@ Running each documented verification command for real turned up several that wou
 
 **Practical audit technique**: extract every `[source,bash]` block with an `oc get`/`curl` command from a doc, run it against a real (or representative) cluster, and diff the real output against the doc's `.Expected output` block. Do this any time the underlying chart's application list, route names, or AuthPolicy coverage changes — documentation staleness on exactly these three axes is where this pattern's docs kept drifting.
 
+## Documenting vendor/sandbox-specific overlays generically (Jul 2026)
+
+`values-hub-rhpds.yaml` and its sizing/troubleshooting entries name the sandbox vendor explicitly (established prior art in `cluster-sizing.adoc` and `troubleshooting.adoc` — do not rewrite those, they document real, already-verified debugging against that specific environment). When adding **new** documentation about the underlying *scenario* that overlay solves (a cluster with a base set of operators pre-installed before you get cluster-admin access, a single all-in-one node, a pre-existing SSO instance claiming the default hostname), write the prose generically — describe the situation and its symptoms, not the vendor name — even though the concrete file you point readers at is still literally named `values-hub-rhpds.yaml` (do not invent a fictitious filename; renaming it is a much larger, riskier refactor than a documentation task and out of scope for "add documentation" requests). See `ideas-for-customization.adoc`, "Configuring GPU inference on a cluster with pre-installed operators", for the pattern to follow.
+
+## Verify every cross-reference anchor before committing, not just the target file's syntax
+
+`xref:_id[...]` (same-page) and `link:../other-page/#_id[...]` (cross-page) both depend on Asciidoctor's auto-generated heading IDs, which are **not** simply "lowercase with underscores" — verify them by actually rendering, don't guess:
+
+```bash
+$ python3 -c "
+content = open('the-file.adoc').read()
+parts = content.split('---', 2)   # strip Hugo front matter -- raw asciidoctor CLI errors on it otherwise ('level 0 sections can only be used when doctype is book')
+body = parts[2] if len(parts) == 3 else content
+open('_test.adoc', 'w').write(body)
+"
+$ asciidoctor -o _test.html _test.adoc
+$ grep -o 'id="_your_guessed_id"' _test.html   # confirms the heading actually generates that id
+$ grep -o 'href="#_your_guessed_id"' _test.html  # confirms your xref/link resolved to it
+$ rm -f _test.adoc _test.html   # never commit these
+```
+
+Do this for every file you add a `[[custom_anchor]]` or heading-derived cross-reference to, and for every file whose headings you edited (a reworded heading changes its auto-generated ID and silently breaks any existing xref pointing at the old one).
+
 ## Showroom lab guide (external repo)
 
 Antora content lives in https://github.com/maximilianoPizarro/showroom-ia-computer-vision (not this repo). Module numbering:
