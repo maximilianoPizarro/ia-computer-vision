@@ -12,7 +12,9 @@ data:
   # Apache Camel YAML DSL route: consumes PPE violation events from Kafka and
   # sends an HTML email alert via SMTP to Mailpit. Run with Camel JBang (see
   # deployment below) -- no custom image build required, consistent with
-  # this pattern's GitOps-only (no CI) philosophy.
+  # this pattern's GitOps-only (no CI) philosophy. Values are baked in
+  # directly by Helm (not resolved from env vars at runtime by Camel) to
+  # avoid depending on Camel property-placeholder/env-lookup behavior.
   #
   # Kafka message body (JSON, produced by NeuroFace's YOLO PPE detector):
   #   {"ppe_status": "violation"|"no_persons"|"compliant", "missing_ppe": [...],
@@ -21,12 +23,8 @@ data:
     - route:
         id: ppe-kafka-alert-route
         from:
-          uri: "kafka:{{ "{{" }}env:KAFKA_TOPIC{{ "}}" }}"
-          parameters:
-            brokers: "{{ "{{" }}env:KAFKA_BOOTSTRAP{{ "}}" }}"
-            groupId: "{{ "{{" }}env:KAFKA_GROUP{{ "}}" }}"
-            autoOffsetReset: latest
-        steps:
+          uri: "kafka:{{ $cfg.kafkaTopic }}?brokers={{ $cfg.kafkaBootstrap }}&groupId={{ $cfg.kafkaGroup }}&autoOffsetReset=latest"
+          steps:
           - unmarshal:
               json:
                 library: Jackson
@@ -61,7 +59,7 @@ data:
                           <li>Missing PPE: ${exchangeProperty.missingPpe}</li>
                           <li>Timestamp: ${exchangeProperty.eventTs}</li>
                           </ul>
-                          <p><a href="{{ "{{" }}env:NEUROFACE_URL{{ "}}" }}">Open NeuroFace</a></p>
+                          <p><a href="{{ include "mailpit.neurofaceUrl" . }}">Open NeuroFace</a></p>
                           </body></html>
                     - setHeader:
                         name: Subject
@@ -70,11 +68,7 @@ data:
                         name: Content-Type
                         constant: "text/html; charset=UTF-8"
                     - to:
-                        uri: "smtp://{{ "{{" }}env:SMTP_HOST{{ "}}" }}:{{ "{{" }}env:SMTP_PORT{{ "}}" }}"
-                        parameters:
-                          to: "{{ "{{" }}env:MAIL_TO{{ "}}" }}"
-                          from: "{{ "{{" }}env:MAIL_FROM{{ "}}" }}"
-                          contentType: "text/html"
+                        uri: "smtp://{{ $cfg.smtpHost }}:{{ $cfg.smtpPort }}?to={{ $cfg.mailTo }}&from={{ $cfg.mailFrom }}&contentType=text/html"
               otherwise:
                 steps:
                   - log:
@@ -101,6 +95,12 @@ spec:
         app: ppe-kafka-mailpit
     spec:
       containers:
+        # First start (or any pod restart, since $HOME is ephemeral) takes
+        # ~1-2 minutes: installs JBang, then Camel JBang resolves and
+        # downloads camel-kafka/camel-mail/camel-jackson (+ transitive deps)
+        # from Maven Central. Expected/one-time cost per pod lifetime,
+        # consistent with this pattern's "no custom image build" philosophy
+        # (same trade-off the old Python/pip-based consumer made).
         - name: camel-route
           image: {{ $cfg.camelImage | default "registry.access.redhat.com/ubi9/openjdk-21:latest" | quote }}
           command: ["/bin/bash", "-c"]
@@ -115,23 +115,6 @@ spec:
               jbang trust add https://github.com/apache/ --quiet || true
               exec jbang -Dcamel.jbang.version={{ $cfg.camelVersion | default "4.8.0" }} \
                 camel@apache/camel run /etc/camel/ppe-alert-route.camel.yaml
-          env:
-            - name: KAFKA_BOOTSTRAP
-              value: {{ $cfg.kafkaBootstrap | quote }}
-            - name: KAFKA_TOPIC
-              value: {{ $cfg.kafkaTopic | quote }}
-            - name: KAFKA_GROUP
-              value: {{ $cfg.kafkaGroup | quote }}
-            - name: SMTP_HOST
-              value: {{ $cfg.smtpHost | quote }}
-            - name: SMTP_PORT
-              value: {{ $cfg.smtpPort | quote }}
-            - name: MAIL_FROM
-              value: {{ $cfg.mailFrom | quote }}
-            - name: MAIL_TO
-              value: {{ $cfg.mailTo | quote }}
-            - name: NEUROFACE_URL
-              value: {{ include "mailpit.neurofaceUrl" . | quote }}
           volumeMounts:
             - name: route
               mountPath: /etc/camel

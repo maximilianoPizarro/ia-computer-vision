@@ -24,6 +24,21 @@ clusterGroup:
   subscriptions:
     skupper:
       disabled: true
+    # Strimzi/AMQ Streams operator + console operator (provides the Kafka/
+    # KafkaNodePool/KafkaTopic CRDs used by spoke-neuroface-cv's local Kafka
+    # cluster below). Normally only installed on east/west spokes
+    # (values-east.yaml / values-west.yaml) -- hub-only needs it too since
+    # Kafka now runs locally on the hub for PPE violation alerts.
+    amq-streams:
+      name: amq-streams
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
+    amq-streams-console:
+      name: amq-streams-console
+      namespace: openshift-operators
+      channel: stable
+      source: redhat-operators
 
   namespaces:
     neuroface-hub: {}
