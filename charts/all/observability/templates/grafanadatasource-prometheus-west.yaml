@@ -1,4 +1,8 @@
-{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- /*
+Gated on multiCluster.enabled -- see grafanadatasource-prometheus-east.yaml
+for the full explanation (same reasoning, west spoke).
+*/ -}}
+{{- if and (eq (.Values.clusterRole | default "hub") "hub") .Values.multiCluster.enabled }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:

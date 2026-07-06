@@ -97,15 +97,23 @@ clusterGroup:
       namespace: openshift-cluster-observability-operator
       channel: stable
       source: redhat-operators
+    # Cluster Observability Operator 1.5.x no longer bundles the grafana.
+    # integreatly.org CRDs (Grafana/GrafanaDashboard/GrafanaDatasource) --
+    # it ships Perses instead (perses.perses.dev). This chart's own CRs
+    # (charts/all/observability/templates/grafana-*.yaml) still target the
+    # grafana-operator API, so this standalone subscription is REQUIRED --
+    # without it, every Grafana* resource fails "CRD is not installed on
+    # the destination cluster" and the whole observability Application
+    # never syncs past its first wave (verified live: community-operators
+    # resolves and installs cleanly on this RHPDS sandbox as of
+    # grafana-operator.v5.24.0 -- if a future sandbox snapshot reintroduces
+    # ResolutionFailed here, that is the actual bug to fix, not disabling
+    # this subscription again).
     grafana:
       name: grafana-operator
       namespace: openshift-operators
       channel: v5
       source: community-operators
-      # Grafana Operator CRDs are provided by Cluster Observability Operator
-      # (already subscribed above). Disable the community-operators subscription
-      # to avoid ResolutionFailed on restricted sandboxes (e.g. RHPDS).
-      disabled: true
     kiali:
       name: kiali-ossm
       namespace: openshift-operators

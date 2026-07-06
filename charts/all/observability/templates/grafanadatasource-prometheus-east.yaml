@@ -1,4 +1,11 @@
-{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- /*
+Gated on multiCluster.enabled (not just clusterRole=="hub"): this
+datasource's URL is only reachable via the Skupper VAN forwarding a
+spoke's Thanos/Prometheus to the hub -- on a hub-only install (no
+east/west, no Skupper -- see values-hub-only.yaml) it would otherwise
+render as a permanently "Missing"/unreachable GrafanaDatasource.
+*/ -}}
+{{- if and (eq (.Values.clusterRole | default "hub") "hub") .Values.multiCluster.enabled }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:

@@ -1,4 +1,11 @@
-{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- /*
+Gated on multiCluster.enabled: most panels here compare east vs west spoke
+NeuroFace deployments via ${ds_east}/${ds_west} (Skupper-forwarded), which
+don't exist on a hub-only install. See platform-overview-hub-only.yaml for
+the equivalent single-cluster dashboard (NeuroFace hub+CV run locally
+there, no 50/50 split to show).
+*/ -}}
+{{- if and (eq (.Values.clusterRole | default "hub") "hub") .Values.multiCluster.enabled }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
 metadata:

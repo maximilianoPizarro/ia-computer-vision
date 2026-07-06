@@ -1,0 +1,159 @@
+{{- /*
+Single-cluster equivalent of platform-overview.yaml + neuroface-hub.yaml,
+for hub-only installs (values-hub-only.yaml, multiCluster.enabled=false):
+NeuroFace app/chat, CV/PPE detection, and Kafka all run locally on the hub
+(no east/west spokes, no Skupper VAN), so there is no cross-cluster
+traffic split or Skupper-forwarded spoke metrics to show. Uses only the
+local "Prometheus" (Thanos querier) datasource.
+
+Kafka panels intentionally use basic pod-health metrics (kube_pod_status_
+ready/restarts), not broker-level throughput (kafka_server_* JMX metrics)
+-- this pattern does not configure a JMX exporter/ServiceMonitor for
+cv-kafka on ANY topology today (see charts/all/spoke-neuroface-cv), so
+those metrics were never actually populated even on the original hub+
+spokes platform-overview.yaml. Wiring up real Kafka broker metrics is
+a separate, not-yet-done improvement.
+*/ -}}
+{{- if and (eq (.Values.clusterRole | default "hub") "hub") (not .Values.multiCluster.enabled) }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: platform-overview-hub-only
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: |
+    {
+      "title": "Platform Overview — Hub-Only",
+      "tags": ["hub-only", "neuroface", "ai-cv", "ppe", "kafka", "gateway-api"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-1h", "to": "now"},
+      "uid": "platform-overview-hub-only",
+      "panels": [
+        {"type": "row", "title": "Hub Gateway (NeuroFace app + CV)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 100},
+        {
+          "type": "timeseries",
+          "title": "Gateway total req/s",
+          "gridPos": {"h": 7, "w": 8, "x": 0, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",reporter=\"source\"}[5m])) or vector(0)", "legendFormat": "total req/s", "refId": "A"},
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",response_code=~\"5..\",reporter=\"source\"}[5m])) or vector(0)", "legendFormat": "5xx/s", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "Gateway split — app vs CV backend",
+          "gridPos": {"h": 7, "w": 8, "x": 8, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",destination_service_namespace=\"neuroface-hub\"}[5m])) or vector(0)", "legendFormat": "app (neuroface-hub)", "refId": "A"},
+            {"expr": "sum(rate(istio_requests_total{source_workload=\"neuroface-gateway-istio\",destination_service_namespace=\"neuroface-cv\"}[5m])) or vector(0)", "legendFormat": "CV/PPE (neuroface-cv)", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "Request latency (p50 / p95)",
+          "gridPos": {"h": 7, "w": 8, "x": 16, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\", source_workload=\"neuroface-gateway-istio\"}[5m])) by (le)) or histogram_quantile(0.50, sum(rate(istio_request_duration_seconds_bucket{reporter=\"source\", source_workload=\"neuroface-gateway-istio\"}[5m])) by (le)) * 1000", "legendFormat": "p50", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\", source_workload=\"neuroface-gateway-istio\"}[5m])) by (le)) or histogram_quantile(0.95, sum(rate(istio_request_duration_seconds_bucket{reporter=\"source\", source_workload=\"neuroface-gateway-istio\"}[5m])) by (le)) * 1000", "legendFormat": "p95", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "ms", "color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 0, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {"type": "row", "title": "NeuroFace Hub (app + chat)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 8}, "id": 200},
+        {
+          "type": "stat",
+          "title": "Pods ready",
+          "gridPos": {"h": 6, "w": 4, "x": 0, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "count(kube_pod_status_ready{namespace=\"neuroface-hub\",condition=\"true\"}) or vector(0)", "legendFormat": "Ready", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 2}]}}},
+          "options": {"colorMode": "value", "graphMode": "none"}
+        },
+        {
+          "type": "timeseries",
+          "title": "CPU by container",
+          "gridPos": {"h": 6, "w": 10, "x": 4, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"neuroface-hub\",container!=\"\",container!=\"POD\"}[5m]))", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "Memory by container",
+          "gridPos": {"h": 6, "w": 10, "x": 14, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"neuroface-hub\",container!=\"\",container!=\"POD\"})", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {"type": "row", "title": "NeuroFace CV — PPE Detection", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15}, "id": 300},
+        {
+          "type": "stat",
+          "title": "Pods ready",
+          "gridPos": {"h": 6, "w": 4, "x": 0, "y": 16},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "count(kube_pod_status_ready{namespace=\"neuroface-cv\",condition=\"true\"}) or vector(0)", "legendFormat": "Ready", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 2}]}}},
+          "options": {"colorMode": "value", "graphMode": "none"}
+        },
+        {
+          "type": "timeseries",
+          "title": "CPU by container (YOLO serving, Kafka, model-seed)",
+          "gridPos": {"h": 6, "w": 10, "x": 4, "y": 16},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"neuroface-cv\",container!=\"\",container!=\"POD\"}[5m]))", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {
+          "type": "timeseries",
+          "title": "Memory by container",
+          "gridPos": {"h": 6, "w": 10, "x": 14, "y": 16},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"neuroface-cv\",container!=\"\",container!=\"POD\"})", "legendFormat": "{{ "{{" }}container{{ "}}" }}", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never"}}}
+        },
+        {"type": "row", "title": "Kafka (local, PPE alerts pipeline)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22}, "id": 400},
+        {
+          "type": "stat",
+          "title": "cv-kafka broker ready",
+          "gridPos": {"h": 6, "w": 6, "x": 0, "y": 23},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "count(kube_pod_status_ready{namespace=\"neuroface-cv\",pod=~\"cv-kafka.*broker.*\",condition=\"true\"}) or vector(0)", "legendFormat": "Ready", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+          "options": {"colorMode": "value", "graphMode": "none"}
+        },
+        {
+          "type": "stat",
+          "title": "ppe-kafka-mailpit consumer ready (mailpit ns)",
+          "gridPos": {"h": 6, "w": 6, "x": 6, "y": 23},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "count(kube_pod_status_ready{namespace=\"mailpit\",pod=~\"ppe-kafka-mailpit.*\",condition=\"true\"}) or vector(0)", "legendFormat": "Ready", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+          "options": {"colorMode": "value", "graphMode": "none"}
+        },
+        {
+          "type": "timeseries",
+          "title": "cv-kafka broker restarts (crash-loop indicator)",
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 23},
+          "datasource": {"type": "prometheus", "uid": "${ds_hub}"},
+          "targets": [{"expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"neuroface-cv\"})", "legendFormat": "{{ "{{" }}pod{{ "}}" }}", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 0, "lineWidth": 2, "showPoints": "always"}}}
+        }
+      ],
+      "templating": {
+        "list": [
+          {"current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0, "includeAll": false, "label": "Hub", "multi": false, "name": "ds_hub", "options": [], "query": "prometheus", "refresh": 1, "regex": "/^Prometheus$/", "skipUrlSync": false, "type": "datasource"}
+        ]
+      }
+    }
+{{- end }}

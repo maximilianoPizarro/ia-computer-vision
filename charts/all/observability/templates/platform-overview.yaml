@@ -1,4 +1,11 @@
-{{- if eq (.Values.clusterRole | default "hub") "hub" }}
+{{- /*
+Gated on multiCluster.enabled: every panel here reads the ${ds_east}/
+${ds_west} datasources (Skupper-forwarded spoke Kafka/mesh metrics), which
+don't exist on a hub-only install (see grafanadatasource-prometheus-east.yaml).
+See platform-overview-hub-only.yaml for the equivalent single-cluster
+dashboard.
+*/ -}}
+{{- if and (eq (.Values.clusterRole | default "hub") "hub") .Values.multiCluster.enabled }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
 metadata:
