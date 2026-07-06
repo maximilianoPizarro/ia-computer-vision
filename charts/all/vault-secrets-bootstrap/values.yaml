@@ -6,7 +6,13 @@ vault:
 
 bootstrap:
   enabled: true
-  image: registry.redhat.io/ubi9/ubi-minimal:latest
+  # ubi9/ubi-minimal has no curl/jq preinstalled and `microdnf install`
+  # cannot reliably provide them in this environment (no working repo
+  # config without an entitled subscription) -- python-311 already ships
+  # curl, and the job's own script uses Python's json module in place of
+  # jq. Matches the image already used by spoke-neuroface-cv/hub-interconnect
+  # job-model-seed.yaml for the identical Vault-over-HTTPS pattern.
+  image: registry.redhat.io/ubi9/python-311:latest
   checkPath: secret/data/hub/rhbk-credentials
   # Must match the userCount override used for rhbk-iam/platform-users/etc
   # (e.g. values-hub-single-node.yaml sets 5) -- keycloak-realm-clients needs
