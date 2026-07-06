@@ -12,6 +12,79 @@ summary: Annotated YAML examples for custom resources used in the AI Computer Vi
 
 Helm templates under `charts/all/` are the source of truth. This guide shows simplified examples with links to official product documentation.
 
+== Validated Patterns Operator
+
+Documentation: link:https://validatedpatterns.io/[Validated Patterns]
+
+=== Pattern
+
+`gitops.hybrid-cloud-patterns.io/v1alpha1` — the single custom resource that bootstraps the entire pattern. The Validated Patterns Operator watches this object, installs OpenShift GitOps, and points it at this repository's `clustergroup` chart with the values files listed in `extraValueFiles`.
+
+==== Hub-only with GPU, on a cluster where operators are already installed for you
+
+This is the exact, live-verified `Pattern` CR for a hub-only install with GPU-backed model serving on a cluster that already has Node Feature Discovery, the NVIDIA GPU Operator, OpenShift Service Mesh, OpenShift AI, and Connectivity Link pre-installed, and only a single node available:
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml          # <1>
+    - /values-hub-single-node.yaml  # <2>
+    - /values-hub-rhpds.yaml        # <3>
+    - /values-hub-only.yaml         # <4>
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+<1> GPU-backed vLLM model serving on the hub.
+<2> Scales workshop user counts down to fit a single node's pod-count ceiling.
+<3> Skips duplicate `OperatorGroup`s, pins the ZTunnel version to the pre-installed Service Mesh, and points `models-as-a-service` at the pre-installed Connectivity Link namespace. Omit this file entirely on a from-scratch, multi-node hub where the pattern should install its own copies of these operators.
+<4> Hub-only topology — no east/west spoke clusters.
+
+==== Hub-only with GPU, on a dedicated multi-node cluster
+
+If the hub has its own dedicated GPU worker node and no operator is pre-installed for you, drop the middle two files:
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+
+[NOTE]
+====
+Create this object with `oc apply -f pattern-cr.yaml`, or through the console: *Operators* -> *Installed Operators* -> *Validated Patterns Operator* -> *Pattern* tab -> *Create Pattern* -> *YAML view*. It replaces running `./pattern.sh make install` with `TARGET_CLUSTERGROUP=hub` plus manually editing `values-global.yaml`'s `extraValueFiles` — both paths converge on the same `Pattern` object.
+====
+
+See link:../ideas-for-customization/#_configuring_gpu_inference_on_a_cluster_with_pre_installed_operators[Configuring GPU inference on a cluster with pre-installed operators] for the full walkthrough, including which operators to verify before you create this object, and link:../cluster-sizing/[Cluster sizing] for single-node `maxPods` guidance.
+
+*Connection*: Pattern → `patterns-operator` → OpenShift GitOps (`vp-gitops` namespace) → `ia-computer-vision-hub` umbrella Application → every Application listed in `clusterGroup.applications` across `values-hub.yaml` and the layered `extraValueFiles`.
+
 == How a self-service OIDC client becomes a rate-limit tier
 
 When a workshop user runs the OIDC credentials self-service scaffolder template in Developer Hub, the chosen plan tier flows through the gateway stack in five steps:
@@ -394,6 +467,109 @@ spec:
         key: secret/data/hub/keycloak/realms/cv/user1
         property: clientSecret
 ----
+
+== Red Hat Advanced Cluster Management (ACM)
+
+Documentation: link:https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes[Red Hat Advanced Cluster Management]
+
+The `acm-hub-spoke` chart automates import by creating these same three objects from `spoke-credentials` stored in Vault (see link:../getting-started/#importing-spoke-clusters-into-rhACM[Importing spoke clusters into RHACM]). Use the YAML below to import a spoke manually — for example, from the RHACM console's *Import cluster* wizard, or when you do not want to store a spoke token in Vault.
+
+=== ManagedCluster
+
+`cluster.open-cluster-management.io/v1` — registers a spoke cluster with the hub. Apply this **first**; RHACM creates a namespace named after the cluster (`spec.hubAcceptsClient: true` accepts the join request; do not pre-create this namespace yourself, or OpenShift terminates it before RHACM claims it).
+
+[source,yaml]
+----
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  name: east                              # <1>
+  labels:
+    name: east
+    region: east
+    clusterGroup: east                    # <2>
+    cloud: auto-detect
+    vendor: OpenShift
+    cluster.open-cluster-management.io/clusterset: global
+spec:
+  hubAcceptsClient: true
+  leaseDurationSeconds: 60
+----
+<1> Replace with `west` for the west spoke.
+<2> `clusterGroup` must match `east`/`west` — this pattern's Applications and dashboards select on it.
+
+=== Secret (`auto-import-secret`)
+
+`v1/Secret` — a well-known name and shape that RHACM's import controller watches for in the newly created cluster namespace. Wait for `oc get namespace east` to succeed before applying this (RHACM creates the namespace asynchronously after the `ManagedCluster` above).
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auto-import-secret
+  namespace: east                          # <1>
+type: Opaque
+stringData:
+  autoImportRetry: "5"
+  server: https://api.<east_domain>:6443   # <2>
+  token: <east_cluster_admin_token>         # <3>
+----
+<1> Must match the `ManagedCluster` name/namespace from the previous step.
+<2> The spoke's own API server URL (`oc whoami --show-server` on the spoke).
+<3> A long-lived cluster-admin token from the spoke. This pattern auto-creates an `acm-import` ServiceAccount with `cluster-admin` (via the `platform-users` chart) on every cluster — generate one with `oc create token -n kube-system acm-import --duration=87600h`.
+
+[WARNING]
+====
+Never commit this token to Git. Apply it directly with `oc apply -f -` or `oc create secret generic auto-import-secret -n east --from-literal=...`, and delete the manifest file afterward if you wrote it to disk.
+====
+
+=== KlusterletAddonConfig
+
+`agent.open-cluster-management.io/v1` — enables the RHACM add-ons (policy controller, search, application manager) on the spoke once import succeeds. Apply this after the `ManagedCluster`; it can be applied in the same batch as the `Secret` above since RHACM processes it once the klusterlet agent is running.
+
+[source,yaml]
+----
+apiVersion: agent.open-cluster-management.io/v1
+kind: KlusterletAddonConfig
+metadata:
+  name: east
+  namespace: east
+spec:
+  clusterName: east
+  clusterNamespace: east
+  clusterLabels:
+    cloud: auto-detect
+    vendor: OpenShift
+  applicationManager:
+    enabled: true
+  certPolicyController:
+    enabled: true
+  iamPolicyController:
+    enabled: true
+  policyController:
+    enabled: true
+  searchCollector:
+    enabled: true
+----
+
+*Connection*: `ManagedCluster` → RHACM creates the `east` namespace → `Secret/auto-import-secret` (in that namespace) → RHACM's import controller installs the klusterlet agent on the spoke using the token → `KlusterletAddonConfig` → RHACM add-ons activate. Apply all three (`ManagedCluster` first, then the other two once the namespace exists) with `oc apply -f -` on the **hub**, not the spoke.
+
+Verify the import succeeded:
+
+[source,bash]
+----
+$ oc get managedcluster east -o jsonpath='{.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status}{"\n"}'
+$ oc get pods -n open-cluster-management-agent --context east   # run on the spoke
+----
+
+.Expected output
+[source,text]
+----
+True
+----
+
+Chart: `charts/all/acm-hub-spoke/templates/managed-clusters.yaml` (the automated equivalent, driven by Vault-stored `spoke-credentials`).
 
 == Red Hat Service Interconnect (Skupper)
 
