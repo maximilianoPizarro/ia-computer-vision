@@ -5,6 +5,12 @@ mailpit:
 
 ppeKafkaMailpit:
   enabled: true
+  # Apache Camel (JBang) route, see templates/ppe-kafka-mailpit.yaml. On east/west
+  # spokes, defaults reach Kafka on the hub via the Skupper VAN
+  # (skupper-connector-kafka.yaml). On hub-only installs, values-hub-only.yaml
+  # overrides this to the local cv-kafka-kafka-bootstrap service directly (no
+  # Skupper) -- see spoke-neuroface-cv's kafka.directAccessNamespaces for the
+  # matching NetworkPolicy allowance.
   kafkaBootstrap: kafka-east-tst.service-interconnect.svc:9092
   kafkaTopic: cv.ppe.detections
   kafkaGroup: ppe-mailpit-consumer
@@ -13,3 +19,5 @@ ppeKafkaMailpit:
   mailFrom: ppe-alerts@neuroface.local
   mailTo: safety-team@workshop.local
   neurofaceUrl: ""
+  camelImage: registry.access.redhat.com/ubi9/openjdk-21:latest
+  camelVersion: "4.8.0"

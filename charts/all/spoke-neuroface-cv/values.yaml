@@ -5,6 +5,10 @@ skupper:
 
 kafka:
   enabled: true
+  # Namespaces allowed direct NetworkPolicy ingress to the "plain" (9092)
+  # listener -- only needed when there's no Skupper VAN to carry the traffic
+  # instead (hub-only installs; see values-hub-only.yaml).
+  directAccessNamespaces: []
 
 modelSeed:
   enabled: false

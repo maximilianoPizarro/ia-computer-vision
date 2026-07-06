@@ -71,4 +71,33 @@ spec:
   replicas: 1
   config:
     retention.ms: "604800000"
+{{- range $ns := .Values.kafka.directAccessNamespaces | default list }}
+---
+# Allows a same-cluster consumer in another namespace (e.g. mailpit's PPE
+# alert route on a hub-only install, where there is no Skupper VAN to
+# forward Kafka traffic) to reach this broker's "plain" listener directly.
+# On east/west spokes this is unused (empty list) -- there, mailpit reaches
+# Kafka on the hub via the Skupper Connector (skupper-connector-kafka.yaml)
+# and never connects to this broker directly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cv-kafka-allow-{{ $ns }}
+  namespace: neuroface-cv
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  podSelector:
+    matchLabels:
+      strimzi.io/cluster: cv-kafka
+      strimzi.io/kind: Kafka
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $ns }}
+      ports:
+        - port: 9092
+          protocol: TCP
+{{- end }}
 {{- end }}

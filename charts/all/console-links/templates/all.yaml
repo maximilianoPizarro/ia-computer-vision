@@ -229,6 +229,22 @@ spec:
   href: "https://workshop-registration.{{ $hubDomain }}"
   location: ApplicationMenu
   text: "Workshop Registration"
+{{- if (.Values.kafkaConsole.enabled | default false) }}
+---
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: platform-kafka-console
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  applicationMenu:
+    imageURL: {{ include "console-links.iconURL" (dict "root" . "icon" "kafka-console.svg") | quote }}
+    section: "Platform AI Computer Vision"
+  href: "https://kafka-console-neuroface-cv.{{ $hubDomain }}"
+  location: ApplicationMenu
+  text: "Kafka Console"
+{{- end }}
 {{- else }}
 ---
 apiVersion: console.openshift.io/v1

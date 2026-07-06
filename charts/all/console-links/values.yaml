@@ -5,5 +5,10 @@ clusterRole: ""
 # when Skupper is not deployed (e.g. values-hub-only.yaml disables the observer).
 skupperConsole:
   enabled: true
+# Kafka Streams Console (charts/all/kafka-console). On the hub role this is
+# only relevant for hub-only installs that run Kafka locally (values-hub-only.yaml
+# sets this true); spokes always show it unconditionally (Kafka is always local there).
+kafkaConsole:
+  enabled: false
 quay:
   enabled: false

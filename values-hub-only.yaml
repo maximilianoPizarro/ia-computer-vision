@@ -7,6 +7,12 @@
 # workshop DNS names (neuroface.apps.* / neuroface-cv.apps.*) via
 # neuroface-gateway hubLocal mode — no east/west Skupper backends required.
 #
+# Also runs Kafka (Strimzi) and the Kafka Streams Console locally on the hub
+# (spoke-neuroface-cv's kafka.enabled + charts/all/kafka-console), with
+# mailpit's Camel (JBang) route reading the "plain" listener directly via a
+# scoped NetworkPolicy — no Skupper VAN needed to deliver PPE violation
+# events to the email alert consumer, unlike the hub+spokes topology.
+#
 # Pattern CR example:
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml
@@ -61,8 +67,14 @@ clusterGroup:
           value: hub
         - name: skupper.enabled
           value: "false"
+        # Kafka (Strimzi) runs locally on the hub -- no Skupper VAN needed to
+        # forward PPE detection events to a spoke's consumer, since the
+        # consumer (mailpit's Camel route) also runs on the hub. Console and
+        # NetworkPolicy for direct (non-Skupper) access are set below.
         - name: kafka.enabled
-          value: "false"
+          value: "true"
+        - name: kafka.directAccessNamespaces[0]
+          value: mailpit
         - name: modelSeed.enabled
           value: "true"
         - name: yoloPpeServing.modelStorage.endpoint
@@ -71,6 +83,13 @@ clusterGroup:
           value: "1"
         - name: yoloPpeServing.hpa.maxReplicas
           value: "1"
+
+    kafka-console:
+      name: kafka-console
+      namespace: neuroface-cv
+      argoProject: ai
+      path: charts/all/kafka-console
+      syncWave: "7"
 
     neuroface-hub:
       name: neuroface-hub
@@ -120,6 +139,14 @@ clusterGroup:
         - name: persistence.size
           value: 1Gi
 
+    mailpit:
+      overrides:
+        # No Skupper VAN on hub-only -- read the local Kafka broker's "plain"
+        # listener directly (see spoke-neuroface-cv's kafka.directAccessNamespaces
+        # NetworkPolicy allowance above, which permits this namespace).
+        - name: ppeKafkaMailpit.kafkaBootstrap
+          value: cv-kafka-kafka-bootstrap.neuroface-cv.svc.cluster.local:9092
+
     developer-hub:
       overrides:
         - name: userCount
@@ -166,3 +193,6 @@ clusterGroup:
         # Skupper stack is disabled above — hide the console link (Route 503 otherwise).
         - name: skupperConsole.enabled
           value: "false"
+        # Kafka runs locally on the hub in this overlay — show the Kafka Console link.
+        - name: kafkaConsole.enabled
+          value: "true"
