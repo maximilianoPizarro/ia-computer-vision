@@ -2,7 +2,6 @@
 {{- $hubBase := include "developer-hub.clusterDomainBase" . -}}
 {{- $hubApps := include "developer-hub.clusterDomain" . -}}
 {{- $ssoBase := include "developer-hub.ssoBaseUrl" . -}}
-{{- $kp := .Values.keycloakProvisioner | default dict -}}
 {{- $east := include "developer-hub.spokeDomainEast" . -}}
 {{- $west := include "developer-hub.spokeDomainWest" . -}}
 apiVersion: v1
@@ -21,8 +20,6 @@ data:
    | replace "__HUB_CLUSTER_DOMAIN__" $hubBase
    | replace "__HUB_APPS_DOMAIN__" $hubApps
    | replace "__SSO_BASE_URL__" $ssoBase
-   | replace "__KEYCLOAK_PROVISIONER_CLIENT_ID__" ($kp.clientId | default "backstage-provisioner")
-   | replace "__KEYCLOAK_PROVISIONER_CLIENT_SECRET__" ($kp.clientSecret | default "backstage-provisioner-poc-2026")
    | replace "__EAST_SPOKE_DOMAIN__" $east
    | replace "__WEST_SPOKE_DOMAIN__" $west
    | indent 4 }}

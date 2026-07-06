@@ -329,6 +329,21 @@ data:
           # all and returns a real (not Backstage's) 401.
           allowedHeaders: ['Authorization']
           changeOrigin: true
+        '/keycloak-provisioner-token':
+          target: {{ include "developer-hub.ssoBaseUrl" . | quote }}
+          allowedMethods: ['POST']
+          # Dedicated proxy for the OIDC self-service/revoke templates' token
+          # exchange step: injects HTTP Basic credentials for the
+          # backstage-provisioner client from this pod's own env var
+          # (KEYCLOAK_PROVISIONER_BASIC_AUTH, sourced from the
+          # keycloak-provisioner-credentials Secret/ExternalSecret) instead
+          # of the scaffolder template embedding a client_secret literal at
+          # Helm-render time -- that value only matched Keycloak's live
+          # secret by coincidence and drifted whenever Vault held a real,
+          # non-default secret. Read live at request time, always correct.
+          headers:
+            Authorization: Basic ${KEYCLOAK_PROVISIONER_BASIC_AUTH}
+          changeOrigin: true
     integrations:
       gitlab:
         - host: {{ include "developer-hub.gitlabHost" . }}
