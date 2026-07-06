@@ -568,13 +568,16 @@ spec:
               value: {{ .Values.keycloak.realm | quote }}
             - name: KEYCLOAK_ADMIN_USER
               value: {{ .Values.keycloak.adminUser | quote }}
-{{- if not (.Values.registration.useVault | default true) }}
+{{- /* No `| default true` on useVault: Sprig's default() treats boolean
+       false as empty and silently replaces it with the fallback. This
+       chart's own values.yaml already defaults useVault to true. */ -}}
+{{- if not .Values.registration.useVault }}
             - name: ADMIN_TOKEN
               value: {{ .Values.registration.adminToken | quote }}
             - name: KEYCLOAK_ADMIN_PASSWORD
               value: {{ .Values.keycloak.adminPassword | quote }}
 {{- end }}
-{{- if .Values.registration.useVault | default true }}
+{{- if .Values.registration.useVault }}
           envFrom:
             - secretRef:
                 name: workshop-registration-secrets

@@ -212,7 +212,11 @@ spec:
 {{- end }}
 {{- if .Values.apis.maas.enabled }}
 {{- $maasOidc := .Values.apis.maas.oidc | default dict }}
-{{- $maasOidcEnabled := $maasOidc.enabled | default true }}
+{{- /* No `| default true`: Sprig's default() treats boolean false as
+       empty and silently replaces it with the fallback, making an
+       explicit apis.maas.oidc.enabled=false override a no-op. This
+       chart's own values.yaml already defaults it to true. */ -}}
+{{- $maasOidcEnabled := $maasOidc.enabled }}
 {{- $maasRealm := $maasOidc.realm | default "maas" }}
 {{/*
   Keycloak's canonical issuer is keycloak.<domain>, not sso.<domain> (an alias

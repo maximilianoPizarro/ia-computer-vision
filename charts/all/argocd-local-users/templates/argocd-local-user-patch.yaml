@@ -13,9 +13,12 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/sync-options: ServerSideApply=true
 spec:
+  # No `| default true` on apiKey/autoRenewToken: Sprig's default() treats
+  # boolean false as empty and silently replaces it with the fallback.
+  # This chart's own values.yaml already defaults both to true.
   localUsers:
     - name: {{ $userName }}
-      apiKey: {{ $user.apiKey | default true }}
+      apiKey: {{ $user.apiKey }}
       login: {{ $user.login | default false }}
       tokenLifetime: {{ $user.tokenLifetime | default "720h" | quote }}
-      autoRenewToken: {{ $user.autoRenewToken | default true }}
+      autoRenewToken: {{ $user.autoRenewToken }}

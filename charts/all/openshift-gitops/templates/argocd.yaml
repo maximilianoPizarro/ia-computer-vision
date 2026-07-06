@@ -56,10 +56,13 @@ spec:
   # On east/west spokes, this chart is not deployed at all --
   # charts/all/argocd-local-users remains the sole owner of both fields
   # there (the ACM policy above only targets the hub's singleton instance).
+  # No `| default true` on apiKey/autoRenewToken: Sprig's default() treats
+  # boolean false as empty and silently replaces it with the fallback.
+  # This chart's own values.yaml already defaults both to true.
   localUsers:
     - name: {{ $localUser.name | default "ai-agent" }}
-      apiKey: {{ $localUser.apiKey | default true }}
+      apiKey: {{ $localUser.apiKey }}
       login: {{ $localUser.login | default false }}
       tokenLifetime: {{ $localUser.tokenLifetime | default "720h" | quote }}
-      autoRenewToken: {{ $localUser.autoRenewToken | default true }}
+      autoRenewToken: {{ $localUser.autoRenewToken }}
 {{- end }}

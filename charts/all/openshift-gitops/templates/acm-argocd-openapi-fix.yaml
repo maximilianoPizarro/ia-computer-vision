@@ -1,4 +1,8 @@
-{{- if .Values.acmArgocdOpenapiFix.enabled | default true }}
+{{- /* No `| default true`: Sprig's default() treats boolean false as
+       empty and silently replaces it with the fallback, making an
+       explicit acmArgocdOpenapiFix.enabled=false override a no-op. This
+       chart's own values.yaml already defaults it to true. */ -}}
+{{- if .Values.acmArgocdOpenapiFix.enabled }}
 {{- $argoNs := "vp-gitops" }}
 {{- if .Values.global }}
 {{- $argoNs = .Values.global.vpArgoNamespace | default $argoNs }}

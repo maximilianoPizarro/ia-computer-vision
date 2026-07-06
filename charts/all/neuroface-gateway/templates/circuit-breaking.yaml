@@ -1,5 +1,9 @@
 {{- $cb := .Values.gateway.circuitBreaking | default dict }}
-{{- if ne (toString (index $cb "enabled" | default true)) "false" }}
+{{- /* No `| default true`: Sprig's default() treats boolean false as
+       empty and silently replaces it with the fallback (toString happening
+       AFTER default doesn't help). This chart's own values.yaml already
+       defaults gateway.circuitBreaking.enabled to true. */ -}}
+{{- if $cb.enabled }}
 {{- $cp := $cb.connectionPool | default dict }}
 {{- $cpTcp := $cp.tcp | default dict }}
 {{- $cpHttp := $cp.http | default dict }}

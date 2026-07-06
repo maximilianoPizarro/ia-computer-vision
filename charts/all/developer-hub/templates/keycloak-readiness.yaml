@@ -1,4 +1,8 @@
-{{- if .Values.pluginReadiness.enabled | default true }}
+{{- /* No `| default true`: Sprig's default() treats boolean false as
+       empty and silently replaces it with the fallback, making an
+       explicit pluginReadiness.enabled=false override a no-op. This
+       chart's own values.yaml already defaults it to true. */ -}}
+{{- if .Values.pluginReadiness.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
