@@ -71,7 +71,7 @@ spec:
             - -ec
             - |
               python3 <<'PY'
-              import json, os, subprocess, tempfile, yaml
+              import json, os, subprocess, tempfile
               from datetime import datetime, timezone
 
               def oc(*args):
@@ -83,7 +83,7 @@ spec:
                       "-n", "developer-hub", "-o", "json",
                   )
               )["data"]
-              mapping = yaml.safe_load(cm["mapping.yaml"])
+              mapping = json.loads(cm["mapping.yaml"])
               now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
               synced = 0
               for ref, filename in mapping.items():

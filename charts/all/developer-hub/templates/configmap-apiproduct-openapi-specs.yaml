@@ -7,12 +7,17 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "4"
 data:
+  # JSON (a valid YAML subset) so the consuming job-sync-apiproduct-openapi.yaml
+  # script can use Python's builtin json module -- PyYAML fails to install/
+  # compile on the ose-cli image's old Python 3.6.
   mapping.yaml: |
-    neuroface-gateway-system/neuroface-cv-openapi: iam-cv-openapi.yaml
-    neuroface-gateway-system/neuroface-openapi: iam-neuroface-openapi.yaml
-    workshop-kuadrant-apis/workshop-httpbin: workshop-httpbin-openapi.yaml
-    workshop-kuadrant-apis/workshop-restcountries: workshop-restcountries-openapi.yaml
-    ai-gateway-system/workshop-llm-tokens: workshop-maas-openapi.yaml
+    {
+      "neuroface-gateway-system/neuroface-cv-openapi": "iam-cv-openapi.yaml",
+      "neuroface-gateway-system/neuroface-openapi": "iam-neuroface-openapi.yaml",
+      "workshop-kuadrant-apis/workshop-httpbin": "workshop-httpbin-openapi.yaml",
+      "workshop-kuadrant-apis/workshop-restcountries": "workshop-restcountries-openapi.yaml",
+      "ai-gateway-system/workshop-llm-tokens": "workshop-maas-openapi.yaml"
+    }
   iam-cv-openapi.yaml: |
 {{ include "developer-hub.workshopOpenAPISpec" (dict "root" . "file" "files/catalog/openapi/iam-cv-openapi.yaml" "hub" $hub) | indent 4 }}
   iam-neuroface-openapi.yaml: |
