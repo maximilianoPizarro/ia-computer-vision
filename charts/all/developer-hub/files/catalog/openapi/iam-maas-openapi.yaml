@@ -37,7 +37,7 @@ components:
         for a token directly against Keycloak.
       flows:
         clientCredentials:
-          tokenUrl: https://sso.__HUB_APPS_DOMAIN__/realms/maas/protocol/openid-connect/token
+          tokenUrl: https://__KEYCLOAK_HOSTNAME__/realms/maas/protocol/openid-connect/token
           scopes: {}
     BearerAuth:
       type: http

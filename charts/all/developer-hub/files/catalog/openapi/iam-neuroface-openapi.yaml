@@ -25,7 +25,7 @@ components:
         Swagger UI exchanges them for a token directly against Keycloak (realm `neuroface`).
       flows:
         clientCredentials:
-          tokenUrl: https://sso.__HUB_APPS_DOMAIN__/realms/neuroface/protocol/openid-connect/token
+          tokenUrl: https://__KEYCLOAK_HOSTNAME__/realms/neuroface/protocol/openid-connect/token
           scopes: {}
     BearerAuth:
       type: http

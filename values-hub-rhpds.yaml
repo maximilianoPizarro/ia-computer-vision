@@ -157,6 +157,8 @@ clusterGroup:
           value: "5"
         - name: ssoHostPrefix
           value: rhdh-sso
+        - name: partnersPoc.enabled
+          value: "false"
 
     rhbk-iam:
       overrides:

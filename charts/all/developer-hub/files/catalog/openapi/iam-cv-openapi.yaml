@@ -24,7 +24,7 @@ components:
         Swagger UI exchanges them for a token directly against Keycloak (realm `cv`).
       flows:
         clientCredentials:
-          tokenUrl: https://sso.__HUB_APPS_DOMAIN__/realms/cv/protocol/openid-connect/token
+          tokenUrl: https://__KEYCLOAK_HOSTNAME__/realms/cv/protocol/openid-connect/token
           scopes: {}
     BearerAuth:
       type: http

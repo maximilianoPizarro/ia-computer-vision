@@ -20,6 +20,7 @@ vault:
 backstageProvisioner:
   enabled: true
   clientId: backstage-provisioner
+  clientSecret: "backstage-provisioner-poc-2026"
   vaultKey: secret/data/hub/keycloak/realms/cv/backstage-provisioner
 
 realms:
