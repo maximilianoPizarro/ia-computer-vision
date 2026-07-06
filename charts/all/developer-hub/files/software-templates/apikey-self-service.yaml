@@ -86,20 +86,28 @@ spec:
       action: http:backstage:request
       input:
         method: GET
-        path: /api/catalog/entities/by-name/api/default/${{ parameters.apiName | parseEntityRef | pick('name') }}
+        path: /catalog/entities/by-name/api/default/${{ parameters.apiName | parseEntityRef | pick('name') }}
     - id: create-apikey
       name: Create APIKey CR
       action: http:backstage:request
       input:
         method: POST
-        path: /api/proxy/k8s-api/apis/devportal.kuadrant.io/v1alpha1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/apikeys
+        path: /proxy/k8s-api/apis/devportal.kuadrant.io/v1alpha1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/apikeys
         headers:
           Content-Type: application/json
         body:
           apiVersion: devportal.kuadrant.io/v1alpha1
           kind: APIKey
           metadata:
-            name: ${{ parameters.requester | parseEntityRef | pick('name') }}-${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}-${{ '' | now | replace('.', '') | replace('-', '') | replace(':', '') | replace('T', '') | replace('Z', '') }}
+            # generateName (server-side random suffix) instead of a nunjucks-computed
+            # name: Backstage's scaffolder has no built-in "now"/random filter in this
+            # RHDH instance (no additionalTemplateGlobals registered), so any attempt
+            # to hand-roll uniqueness in the template itself either silently degrades
+            # to an empty/static string (unknown filters render as "") or requires a
+            # dynamic plugin this cluster doesn't have. Kubernetes generates the
+            # unique suffix instead; the response body (read back in every later step)
+            # already contains the real, final metadata.name.
+            generateName: ${{ parameters.requester | parseEntityRef | pick('name') }}-${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}-
           spec:
             apiProductRef:
               name: ${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}
@@ -111,7 +119,7 @@ spec:
       action: http:backstage:request
       input:
         method: POST
-        path: /api/proxy/k8s-api/api/v1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/secrets
+        path: /proxy/k8s-api/api/v1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/secrets
         headers:
           Content-Type: application/json
         body:
@@ -128,26 +136,33 @@ spec:
               kuadrant.io/apikey-owner: ${{ parameters.requester | parseEntityRef | pick('name') }}
           type: Opaque
           stringData:
-            api_key: ${{ steps['create-apikey'].output.body.metadata.name }}
+            # metadata.uid: the APIKey object's own name is a predictable,
+            # human-chosen-prefix identifier (requester + api-product), not a
+            # secret -- it is also visible to anyone who can list/get APIKey
+            # objects. metadata.uid is a server-assigned v4 UUID (122 bits of
+            # real randomness, same as the apimachinery `k8s.io/apimachinery/
+            # pkg/util/uuid` generator every Kubernetes object gets on create)
+            # and is not otherwise exposed by the Kuadrant/Backstage plugin UI,
+            # making it a reasonable non-guessable value for this PoC without
+            # depending on a scaffolder action/filter this cluster doesn't have.
+            api_key: ${{ steps['create-apikey'].output.body.metadata.uid }}
     - id: approve-apikey
       name: Approve APIKey
       action: http:backstage:request
       input:
         method: PATCH
-        path: /api/proxy/k8s-api/apis/devportal.kuadrant.io/v1alpha1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/apikeys/${{ steps['create-apikey'].output.body.metadata.name }}/status
+        path: /proxy/k8s-api/apis/devportal.kuadrant.io/v1alpha1/namespaces/${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}/apikeys/${{ steps['create-apikey'].output.body.metadata.name }}/status
         headers:
           Content-Type: application/merge-patch+json
         body:
           status:
             phase: Approved
             reviewedBy: ${{ parameters.requester | parseEntityRef | pick('name') }}
-            reviewedAt: ${{ '' | now }}
             conditions:
               - type: Approved
                 status: "True"
                 reason: SelfServiceTemplate
                 message: Approved by apikey-self-service scaffolder template
-                lastTransitionTime: ${{ '' | now }}
   output:
     text:
       - title: Kuadrant API key (shown once — copy it now)
@@ -156,13 +171,13 @@ spec:
           Namespace: `${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}`
           Plan tier: `${{ parameters.planTier }}`
 
-          API Key: `${{ steps['create-apikey'].output.body.metadata.name }}`
+          API Key: `${{ steps['create-apikey'].output.body.metadata.uid }}`
 
           Use header `Authorization: APIKEY <key>` (Bearer also works on ai-gateway MaaS).
 
           Example curl:
           ```
-          export KEY="${{ steps['create-apikey'].output.body.metadata.name }}"
+          export KEY="${{ steps['create-apikey'].output.body.metadata.uid }}"
           curl -sk -H "Authorization: APIKEY $KEY" \
             "${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-example-url'] }}"
           ```
