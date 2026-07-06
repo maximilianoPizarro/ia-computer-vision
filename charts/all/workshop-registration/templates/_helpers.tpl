@@ -15,6 +15,12 @@
 {{- .Values.showroom.url | default (printf "https://showroom-showroom.%s" (include "workshop-registration.hubClusterDomain" .)) -}}
 {{- end -}}
 
+{{- /*
+keycloak.url (full URL) wins if set for back-compat; otherwise build from
+keycloak.ssoHostPrefix (portable, default "sso") -- must match
+developer-hub.ssoHostPrefix and every other chart referencing this
+pattern's shared SSO hostname (see rhbk-iam/values.yaml).
+*/ -}}
 {{- define "workshop-registration.keycloakUrl" -}}
-{{- .Values.keycloak.url | default (printf "https://sso.%s" (include "workshop-registration.clusterDomain" .)) -}}
+{{- .Values.keycloak.url | default (printf "https://%s.%s" (.Values.keycloak.ssoHostPrefix | default "sso") (include "workshop-registration.clusterDomain" .)) -}}
 {{- end -}}

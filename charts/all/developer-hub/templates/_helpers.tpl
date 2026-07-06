@@ -100,8 +100,19 @@
 {{- .Values.keycloak.serviceName | default "keycloak-service-serving" -}}
 {{- end -}}
 
+{{- /*
+Prefix only (not a full hostname) so overrides stay portable across
+clusters/domains -- e.g. values-hub-rhpds.yaml sets this to "rhdh-sso" on
+RHPDS sandboxes, where the "Red Hat OpenShift AI 3" catalog pre-provisions
+its own, completely unrelated Keycloak+RHBK-operator stack (namespace
+"keycloak", not managed by this pattern) that already claims the default
+"sso.<apps-domain>" Route hostname before this pattern is even installed,
+permanently blocking this chart's own route-sso.yaml from being Admitted
+(HostAlreadyClaimed) and, in turn, blocking developer-hub's sync from ever
+progressing past this resource's sync wave.
+*/ -}}
 {{- define "developer-hub.ssoHost" -}}
-{{- printf "sso.%s" (include "developer-hub.clusterDomain" .) -}}
+{{- printf "%s.%s" (.Values.ssoHostPrefix | default "sso") (include "developer-hub.clusterDomain" .) -}}
 {{- end -}}
 
 {{- define "developer-hub.ssoBaseUrl" -}}

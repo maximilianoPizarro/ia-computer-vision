@@ -17,6 +17,7 @@ showroom:
 
 keycloak:
   url: ""
+  ssoHostPrefix: "sso"
   realm: backstage
   adminUser: admin
   adminPassword: ""

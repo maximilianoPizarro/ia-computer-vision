@@ -116,3 +116,56 @@ clusterGroup:
           value: "true"
         - name: apis.llama.enabled
           value: "true"
+
+    # RHPDS's "Red Hat OpenShift AI 3" catalog pre-provisions its own,
+    # completely unrelated Keycloak+RHBK-operator stack (namespace
+    # "keycloak", not managed by this pattern -- verify with `oc get keycloak
+    # -A` and `oc get all -n keycloak`) that already claims the default
+    # "sso.<apps-domain>" Route hostname before this pattern is even
+    # installed. developer-hub's own route-sso.yaml (the ONLY chart that
+    # actually creates this Route) then fails to be Admitted
+    # (HostAlreadyClaimed), which blocks its Argo CD sync from ever
+    # progressing past that resource's sync wave -- Backstage's own
+    # Deployment (a later wave) never gets created, and developer-hub stays
+    # permanently Degraded.
+    #
+    # Every chart that references this pattern's shared SSO hostname reads
+    # a "ssoHostPrefix" value (default "sso", portable across clusters/
+    # domains -- see rhbk-iam/values.yaml for the full explanation). All six
+    # MUST be overridden to the SAME prefix together, or whichever chart(s)
+    # are missed will keep pointing at the old (now Route-less) hostname:
+    #   - developer-hub   (owns the actual Route)
+    #   - rhbk-iam        (computes the canonical issuerUrl for realm clients)
+    #   - neuroface-gateway (Kuadrant OIDC/AuthPolicy realms)
+    #   - workshop-registration (Keycloak admin API calls)
+    #   - devspaces       (OpenShift Dev Spaces OIDC identity provider)
+    #   - console-links   (cosmetic "Keycloak (SSO)" link only)
+    developer-hub:
+      overrides:
+        - name: ssoHostPrefix
+          value: rhdh-sso
+
+    rhbk-iam:
+      overrides:
+        - name: keycloak.ssoHostPrefix
+          value: rhdh-sso
+
+    neuroface-gateway:
+      overrides:
+        - name: kuadrant.ssoHostPrefix
+          value: rhdh-sso
+
+    workshop-registration:
+      overrides:
+        - name: keycloak.ssoHostPrefix
+          value: rhdh-sso
+
+    devspaces:
+      overrides:
+        - name: keycloakOidc.ssoHostPrefix
+          value: rhdh-sso
+
+    console-links:
+      overrides:
+        - name: ssoHostPrefix
+          value: rhdh-sso

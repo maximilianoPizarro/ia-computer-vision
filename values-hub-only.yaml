@@ -70,6 +70,13 @@ clusterGroup:
           value: neuroface-cv-lb
         - name: kuadrant.realms[0].redirectAuth
           value: "false"
+        # RHPDS pre-provisions its own, unrelated Keycloak that already
+        # claims the default "sso.<domain>" hostname -- see values-hub-rhpds.yaml
+        # for the full explanation. Must match developer-hub/console-links
+        # overrides below and rhbk-iam/workshop-registration/devspaces
+        # overrides in values-hub-rhpds.yaml.
+        - name: kuadrant.ssoHostPrefix
+          value: rhdh-sso
 
     spoke-neuroface-cv:
       name: spoke-neuroface-cv
@@ -189,6 +196,16 @@ clusterGroup:
         # chart default -- that would break Topology on hub+spokes installs.
         - name: kafka.enabled
           value: "true"
+        # RHPDS pre-provisions its own, unrelated Keycloak that already
+        # claims the default "sso.<domain>" hostname, permanently blocking
+        # this chart's own route-sso.yaml (HostAlreadyClaimed) and, in turn,
+        # Backstage's Deployment (a later sync wave) from ever being
+        # created. See values-hub-rhpds.yaml for the full explanation. Must
+        # match neuroface-gateway/console-links overrides in this file and
+        # rhbk-iam/workshop-registration/devspaces overrides in
+        # values-hub-rhpds.yaml.
+        - name: ssoHostPrefix
+          value: rhdh-sso
 
     argocd-mcp:
       overrides:
@@ -228,3 +245,8 @@ clusterGroup:
         # Kafka runs locally on the hub in this overlay — show the Kafka Console link.
         - name: kafkaConsole.enabled
           value: "true"
+        # Must match developer-hub/neuroface-gateway overrides above and
+        # rhbk-iam/workshop-registration/devspaces overrides in
+        # values-hub-rhpds.yaml -- see there for the full explanation.
+        - name: ssoHostPrefix
+          value: rhdh-sso

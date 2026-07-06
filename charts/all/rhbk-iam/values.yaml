@@ -4,6 +4,11 @@ keycloak:
   crName: keycloak
   # SSO alias route lives in developer-hub (sso.<apps-domain>); issuer uses this host.
   ssoHost: ""
+  # Portable alternative to ssoHost above -- prefix only (default "sso"), so
+  # overrides don't need to hardcode a full cluster domain. Must match
+  # developer-hub.ssoHostPrefix (the chart that actually owns the Route) and
+  # every other chart referencing this shared SSO hostname.
+  ssoHostPrefix: "sso"
 
 userCount: 30
 defaultPassword: Welcome123!

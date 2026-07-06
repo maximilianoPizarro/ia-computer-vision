@@ -2,6 +2,11 @@ clusterDomain: ""
 dynamicPluginsStorage: 10Gi
 userCount: 1
 defaultPassword: "Welcome123!"
+# Hostname prefix for the SSO alias Route (route-sso.yaml), e.g. "sso" ->
+# sso.<apps-domain>. Override (e.g. values-hub-rhpds.yaml) when the default
+# "sso" prefix collides with a pre-existing, unrelated Route already
+# claiming that hostname on the cluster.
+ssoHostPrefix: "sso"
 keycloak:
   namespace: keycloak-system
   crName: keycloak

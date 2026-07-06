@@ -10,5 +10,9 @@ skupperConsole:
 # sets this true); spokes always show it unconditionally (Kafka is always local there).
 kafkaConsole:
   enabled: false
+# Portable prefix (default "sso") for the "Keycloak (SSO)" link -- must match
+# developer-hub.ssoHostPrefix and every other chart referencing this
+# pattern's shared SSO hostname (see rhbk-iam/values.yaml).
+ssoHostPrefix: "sso"
 quay:
   enabled: false

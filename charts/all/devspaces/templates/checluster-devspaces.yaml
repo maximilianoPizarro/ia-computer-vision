@@ -40,7 +40,7 @@ spec:
   networking:
     {{- if .Values.keycloakOidc.enabled }}
     auth:
-      identityProviderURL: "https://sso.{{ include "devspaces.clusterDomain" . }}/realms/backstage"
+      identityProviderURL: "https://{{ .Values.keycloakOidc.ssoHostPrefix | default "sso" }}.{{ include "devspaces.clusterDomain" . }}/realms/backstage"
       oAuthClientName: devspaces
       oAuthSecret: devspaces-oidc-secret
     {{- end }}

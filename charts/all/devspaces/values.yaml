@@ -4,6 +4,10 @@ hubClusterDomain: ""
 keycloakOidc:
   enabled: true
   clientSecret: ""
+  # Portable prefix (default "sso") -- must match developer-hub.ssoHostPrefix
+  # and every other chart referencing this pattern's shared SSO hostname
+  # (see rhbk-iam/values.yaml).
+  ssoHostPrefix: "sso"
 keycloakOidcClientSecret: ""
 continueAi:
   enabled: false

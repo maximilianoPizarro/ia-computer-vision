@@ -1,6 +1,6 @@
 {{- if .Values.kuadrant.enabled | default false }}
 {{- $root := . -}}
-{{- $ssoHost := .Values.kuadrant.ssoHost | default (printf "sso.%s" (include "neuroface-gateway.clusterDomain" .)) -}}
+{{- $ssoHost := .Values.kuadrant.ssoHost | default (printf "%s.%s" (.Values.kuadrant.ssoHostPrefix | default "sso") (include "neuroface-gateway.clusterDomain" .)) -}}
 {{- range .Values.kuadrant.realms | default list }}
 {{- if and (ne .redirectAuth false) (ne (printf "%v" .redirectAuth) "false") }}
 {{- $realm := .name -}}

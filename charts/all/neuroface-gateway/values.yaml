@@ -42,6 +42,10 @@ kuadrant:
   oidc:
     enabled: false
   ssoHost: ""
+  # Portable alternative to ssoHost above -- prefix only (default "sso"),
+  # must match developer-hub.ssoHostPrefix and every other chart referencing
+  # this pattern's shared SSO hostname (see rhbk-iam/values.yaml).
+  ssoHostPrefix: "sso"
   realm: backstage
   clientId: neuroface
   realms:
