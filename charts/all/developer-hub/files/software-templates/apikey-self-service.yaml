@@ -113,7 +113,12 @@ spec:
               name: ${{ steps['fetch-api'].output.body.metadata.annotations['kuadrant.io/api-product'] }}
               namespace: ${{ steps['fetch-api'].output.body.metadata.annotations['workshop/apikey-product-namespace'] }}
             planTier: ${{ parameters.planTier }}
-            requestedBy: ${{ parameters.requester | parseEntityRef | pick('name') }}@developer-hub.local
+            # requestedBy is an object ({email, userId}, both required by the
+            # CRD) -- not a bare string. A string value here 422s with
+            # "spec.requestedBy in body must be of type object".
+            requestedBy:
+              userId: ${{ parameters.requester | parseEntityRef | pick('name') }}
+              email: ${{ parameters.requester | parseEntityRef | pick('name') }}@developer-hub.local
     - id: create-secret
       name: Create consumer Secret
       action: http:backstage:request
@@ -163,6 +168,12 @@ spec:
                 status: "True"
                 reason: SelfServiceTemplate
                 message: Approved by apikey-self-service scaffolder template
+                # lastTransitionTime is required by the CRD schema. No "now"
+                # filter exists in this Backstage instance (see SKILL.md) --
+                # reuse the APIKey object's own server-assigned
+                # creationTimestamp (a real RFC3339 timestamp from the
+                # create-apikey response, seconds earlier in this same task).
+                lastTransitionTime: ${{ steps['create-apikey'].output.body.metadata.creationTimestamp }}
   output:
     text:
       - title: Kuadrant API key (shown once — copy it now)
