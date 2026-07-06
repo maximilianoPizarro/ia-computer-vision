@@ -1,4 +1,12 @@
-{{- if .Values.spokeTokenSync.enabled | default true }}
+{{- /*
+Do NOT wrap this in `| default true`: Sprig's default() treats the boolean
+false as an empty value and silently replaces it with the fallback, which
+made spokeTokenSync.enabled=false overrides (e.g. values-hub-only.yaml) a
+no-op -- the CronJob kept running even when explicitly disabled. This
+chart's own values.yaml already defaults spokeTokenSync.enabled to true,
+so no fallback is needed here.
+*/ -}}
+{{- if .Values.spokeTokenSync.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:

@@ -14,7 +14,7 @@ data:
       - dynamic-plugins.default.yaml
     plugins:
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs
-        disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "techdocs" "defaultEnabled" true) }}
         pluginConfig:
           dynamicPlugins:
             frontend:
@@ -29,9 +29,9 @@ data:
                         allOf:
                           - isTechDocsAvailable
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-backend-dynamic
-        disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "techdocs" "defaultEnabled" true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-module-addons-contrib
-        disabled: {{ not (.Values.plugins.techdocs.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "techdocs" "defaultEnabled" true) }}
       - package: oci://{{ $pluginRegistry }}/backstage-community-plugin-ocm-backend:{{ .Values.plugins.ocm.backendTag | default "bs_1.45.3__5.12.2" }}
         disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "ocm" "defaultEnabled" true) }}
         pluginConfig:
@@ -295,7 +295,7 @@ data:
                       if:
                         allOf:
                           - isTektonCIAvailable
-{{- if .Values.plugins.techRadar.enabled | default true }}
+{{- if eq (include "developer-hub.pluginEnabled" (dict "Values" .Values "plugin" "techRadar" "default" false)) "true" }}
       - package: ./dynamic-plugins/dist/backstage-community-plugin-tech-radar-backend-dynamic
         disabled: true
       - package: ./dynamic-plugins/dist/backstage-community-plugin-tech-radar
@@ -393,7 +393,7 @@ data:
                   schedule:
                     frequency: { minutes: 30 }
                     timeout: { minutes: 3 }
-{{- if .Values.plugins.gitlab.enabled | default true }}
+{{- if eq (include "developer-hub.pluginEnabled" (dict "Values" .Values "plugin" "gitlab" "default" true)) "true" }}
       {{- $gitlabTag := .Values.plugins.gitlab.pluginTag | default "bs_1.45.3__6.13.0" }}
       - package: oci://{{ $pluginRegistry }}/immobiliarelabs-backstage-plugin-gitlab-backend:{{ $gitlabTag }}
         disabled: false
@@ -434,9 +434,9 @@ data:
                           - isGitlabAvailable
 {{- end }}
       - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-gitlab-dynamic
-        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "gitlab" "defaultEnabled" true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-catalog-backend-module-gitlab-dynamic
-        disabled: {{ not (.Values.plugins.gitlab.enabled | default true) }}
+        disabled: {{ include "developer-hub.pluginDisabled" (dict "Values" .Values "plugin" "gitlab" "defaultEnabled" true) }}
       - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-github-dynamic
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-plugin-notifications

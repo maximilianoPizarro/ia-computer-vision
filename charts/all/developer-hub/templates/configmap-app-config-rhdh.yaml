@@ -251,7 +251,7 @@ data:
       builder: local
       publisher:
         type: local
-{{- if .Values.plugins.techRadar.enabled | default true }}
+{{- if eq (include "developer-hub.pluginEnabled" (dict "Values" .Values "plugin" "techRadar" "default" false)) "true" }}
     techRadar:
       url: https://raw.githubusercontent.com/backstage/community/master/plugins/tech-radar-common/src/sampleTechRadarResponse.json
 {{- end }}

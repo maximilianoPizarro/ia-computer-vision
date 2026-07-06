@@ -5,7 +5,13 @@
 {{- $as := .Values.applicationSet | default dict -}}
 {{- $gitlabGroup := $as.gitlabGroup | default "ws-workshop" -}}
 {{- $gitlabHost := include "developer-hub.gitlabHost" . -}}
-{{- if $as.enabled | default true }}
+{{- /*
+Do NOT wrap in `| default true`: Sprig's default() treats boolean false as
+empty and silently replaces it with the fallback, making
+applicationSet.enabled=false overrides (e.g. values-hub-only.yaml) a no-op.
+This chart's values.yaml already defaults applicationSet.enabled to true.
+*/ -}}
+{{- if $as.enabled }}
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
