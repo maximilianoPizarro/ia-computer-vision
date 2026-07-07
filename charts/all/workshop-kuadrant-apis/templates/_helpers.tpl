@@ -28,6 +28,33 @@ matchLabels:
 */}}
 {{- define "workshop-kuadrant-apis.authorinoResyncScript" -}}
 set -euo pipefail
+
+# Idempotent: only patches if "watch" is missing, never appends a duplicate,
+# and locates the "secrets" rule by content (not a hardcoded array index --
+# authorino-operator could reorder its own generated rules on a CSV upgrade).
+# authorino-manager-role is OLM/authorino-operator-owned (olm.managed=true),
+# not reconciled continuously like an ArgoCD-owned resource -- a one-time
+# patch persists until the operator's next CSV upgrade re-applies its RBAC.
+if oc get clusterrole authorino-manager-role -o json >/dev/null 2>&1; then
+  oc get clusterrole authorino-manager-role -o json | python3 -c '
+import json, sys
+cr = json.load(sys.stdin)
+changed = False
+for i, rule in enumerate(cr.get("rules", [])):
+    if rule.get("apiGroups") == [""] and "secrets" in rule.get("resources", []):
+        if "watch" not in rule.get("verbs", []):
+            print(f"PATCH:{i}")
+            changed = True
+        break
+' > /tmp/authorino-rbac-check.txt || true
+  PATCH_IDX=$(grep -o 'PATCH:[0-9]*' /tmp/authorino-rbac-check.txt 2>/dev/null | cut -d: -f2 || true)
+  if [ -n "$PATCH_IDX" ]; then
+    echo "Adding missing 'watch' verb to authorino-manager-role (secrets rule, index $PATCH_IDX)"
+    oc patch clusterrole authorino-manager-role --type json \
+      -p "[{\"op\":\"add\",\"path\":\"/rules/$PATCH_IDX/verbs/-\",\"value\":\"watch\"}]" || true
+  fi
+fi
+
 NS="{{ .Values.authorinoApikeySecretResync.namespace | default "kuadrant-system" }}"
 DEP="{{ .Values.authorinoApikeySecretResync.deployment | default "authorino" }}"
 SELECTOR="{{ .Values.authorinoApikeySecretResync.podSelector | default "authorino-resource=authorino" }}"
