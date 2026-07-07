@@ -64,6 +64,106 @@ spec:
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
+  name: workshop-apis-gateway-restcountries-cities-rewrite
+  namespace: {{ $workshopNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  {{- /*
+    countriesnow.space's own POST /countries/cities endpoint ALWAYS
+    301-redirects to GET /countries/cities/q?country=<x> -- confirmed by
+    calling countriesnow.space directly with no gateway involved at all, so
+    this is the upstream's own behavior, not something our URLRewrite
+    causes. Envoy proxies that 301 back to the client as-is; a browser's
+    fetch() auto-follows it, but the (relative, no scheme/host) Location
+    resolves back through THIS gateway at the upstream's *internal* path
+    (/api/v0.1/countries/cities/q?...), which no HTTPRoute here matches ->
+    404 with no CORS headers at all (no route matched -> the route-level
+    ResponseHeaderModifier never runs) -- what a browser reports as a
+    generic "Failed to fetch"/CORS error, even though the original 301
+    itself had correct Access-Control-Allow-* headers.
+    First attempt (reverted): rewriting the response's Location header to
+    re-enter at our own /countries/... prefix. This looped -- countriesnow's
+    OWN redirect handling isn't idempotent for this path shape (observed the
+    Location value growing "/q?" segments on every hop: .../q?country=Spain,
+    then .../q?country=Spain/q?, etc. -- a quirk of their own routing, not
+    ours to fix from outside).
+    Actual fix: never let the redirect happen in the first place. Confirmed
+    (GET straight to .../cities/q?country=X, through this same gateway)
+    that the *target* of the redirect works perfectly standalone. So rewrite
+    the original POST-with-JSON-body request into that already-correct
+    GET-with-query-param request before it ever leaves toward the upstream.
+    Match/rewrite on the *external* /countries/cities path, not the
+    upstream's /api/v0.1/countries/cities one -- this Lua filter is inserted
+    at the Gateway listener level (INSERT_BEFORE router), which runs BEFORE
+    the HTTPRoute's own URLRewrite filter (a route-action-level rewrite
+    applied by the router itself) -- confirmed via a temporary
+    request_handle:logWarn() trace, the path this filter actually observes
+    is still /countries/cities, not /api/v0.1/countries/cities. Rewriting to
+    /countries/cities/q?country=X here and letting the *existing*
+    ReplacePrefixMatch URLRewrite run afterward (as normal) correctly
+    produces /api/v0.1/countries/cities/q?country=X -- no need to duplicate
+    the /api/v0.1 prefix knowledge in this filter at all.
+  */}}
+  workloadSelector:
+    labels:
+      gateway.networking.k8s.io/gateway-name: {{ $workshopGw }}
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua.restcountries_cities_rewrite
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inlineCode: |
+              local function urlencode(str)
+                str = string.gsub(str, "\n", "\r\n")
+                str = string.gsub(str, "([^%w %-%_%.%~])", function(c)
+                  return string.format("%%%02X", string.byte(c))
+                end)
+                str = string.gsub(str, " ", "+")
+                return str
+              end
+
+              function envoy_on_request(request_handle)
+                local headers = request_handle:headers()
+                local path = headers:get(":path") or ""
+                local path_only = string.match(path, "^([^?]*)") or path
+                -- Match the EXTERNAL path (pre-URLRewrite) -- a call already
+                -- shaped like ".../cities/q?..." passes through untouched,
+                -- also preventing double-rewrites.
+                if headers:get(":method") == "POST"
+                    and path_only == "/countries/cities" then
+                  local body_handle = request_handle:body()
+                  local body_str = body_handle and body_handle:getBytes(0, body_handle:length()) or ""
+                  local country = string.match(body_str or "", '"country"%s*:%s*"([^"]*)"')
+                  if country and country ~= "" then
+                    -- request_handle:body() buffers the whole body, which
+                    -- suspends/resumes this filter's coroutine internally --
+                    -- the `headers` handle obtained BEFORE that point is no
+                    -- longer valid afterward ("object used outside of proper
+                    -- scope" at runtime, confirmed live via logWarn tracing).
+                    -- Re-fetch a fresh handle before mutating anything.
+                    local fresh_headers = request_handle:headers()
+                    fresh_headers:replace(":path", "/countries/cities/q?country=" .. urlencode(country))
+                    fresh_headers:replace(":method", "GET")
+                    fresh_headers:remove("content-length")
+                  end
+                end
+              end
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
   name: ai-gateway-cors-preflight
   namespace: {{ $aiNs }}
   annotations:
