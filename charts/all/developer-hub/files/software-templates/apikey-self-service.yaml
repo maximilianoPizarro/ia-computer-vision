@@ -194,8 +194,10 @@ spec:
           ```
 
           PoC ONLY — this page is the only place the key is shown in plain text.
-          If Authorino was running before this Secret existed, restart the Authorino
-          deployment once so it re-indexes API key Secrets.
+          Authorino only loads API keys at its own startup, not live; a background
+          job restarts it automatically within ~2 minutes whenever a new key like
+          this one is detected, so this key may take a couple of minutes to start
+          authenticating successfully after being issued.
     links:
       - title: API in catalog
         icon: catalog

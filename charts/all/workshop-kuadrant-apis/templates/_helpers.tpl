@@ -20,6 +20,43 @@ matchLabels:
   devportal.kuadrant.io/apikey-namespace: {{ .Values.workshopGateway.namespace | quote }}
 {{- end -}}
 
+{{/*
+  Shared by authorino-apikey-secret-resync.yaml's one-shot PostSync Job and
+  its CronJob -- restart Authorino only if a kuadrant.io/apikey=true Secret
+  exists that's newer than Authorino's own pod start time (see that file's
+  header comment for why this is needed at all).
+*/}}
+{{- define "workshop-kuadrant-apis.authorinoResyncScript" -}}
+set -euo pipefail
+NS="{{ .Values.authorinoApikeySecretResync.namespace | default "kuadrant-system" }}"
+DEP="{{ .Values.authorinoApikeySecretResync.deployment | default "authorino" }}"
+SELECTOR="{{ .Values.authorinoApikeySecretResync.podSelector | default "authorino-resource=authorino" }}"
+
+POD_START=$(oc get pods -n "$NS" -l "$SELECTOR" --field-selector=status.phase=Running -o jsonpath='{.items[0].status.startTime}' 2>/dev/null || true)
+if [ -z "$POD_START" ]; then
+  echo "WARN: could not determine $DEP pod start time in $NS; skipping"
+  exit 0
+fi
+POD_START_EPOCH=$(date -d "$POD_START" +%s)
+
+NEWEST_SECRET=$(oc get secrets -A -l kuadrant.io/apikey=true \
+  -o jsonpath='{range .items[*]}{.metadata.creationTimestamp}{"\n"}{end}' 2>/dev/null \
+  | sort -r | head -1 || true)
+if [ -z "$NEWEST_SECRET" ]; then
+  echo "No kuadrant.io/apikey=true secrets found; nothing to sync"
+  exit 0
+fi
+NEWEST_SECRET_EPOCH=$(date -d "$NEWEST_SECRET" +%s)
+
+if [ "$NEWEST_SECRET_EPOCH" -gt "$POD_START_EPOCH" ]; then
+  echo "Newest API key secret ($NEWEST_SECRET) postdates $DEP's startup ($POD_START) -- restarting to re-index"
+  oc rollout restart "deployment/$DEP" -n "$NS"
+  oc rollout status "deployment/$DEP" -n "$NS" --timeout=120s
+else
+  echo "$DEP already indexes the newest API key secret ($NEWEST_SECRET <= $POD_START); nothing to do"
+fi
+{{- end -}}
+
 {{- define "workshop-kuadrant-apis.maasApiKey" -}}
 {{- $key := .Values.apis.maas.apiKey | default "" -}}
 {{- if not $key -}}

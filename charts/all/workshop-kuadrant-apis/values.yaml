@@ -111,3 +111,16 @@ kuadrantOperatorRestart:
   image: registry.redhat.io/openshift4/ose-cli:latest
   operatorNamespace: redhat-connectivity-link-operator
   deployment: kuadrant-operator-controller-manager
+
+# PostSync Job + CronJob: Authorino only loads apiKey identity Secrets at its
+# own pod startup (no live pickup of newly-created matching Secrets -- see
+# authorino-apikey-secret-resync.yaml). Restarts Authorino, but only when a
+# kuadrant.io/apikey=true Secret postdates its current pod's startup, so keys
+# minted via the Developer Hub apikey-self-service template become usable
+# within one CronJob tick instead of needing a manual restart every time.
+authorinoApikeySecretResync:
+  image: registry.redhat.io/openshift4/ose-cli:latest
+  namespace: kuadrant-system
+  deployment: authorino
+  podSelector: authorino-resource=authorino
+  schedule: "*/2 * * * *"
