@@ -2,6 +2,40 @@
 
 Ready-to-apply `Pattern` custom resources for each install scenario.
 
+## Default install (copy-paste)
+
+Most common path: **one hub**, CPU inference, no east/west spokes, no pre-installed operators.
+
+1. Install the **Validated Patterns Operator** from OperatorHub.
+2. Apply this Pattern CR:
+
+```yaml
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+```
+
+```bash
+oc apply -f https://raw.githubusercontent.com/maximilianoPizarro/ia-computer-vision/main/examples/pattern-cr/hub-only-cpu.yaml
+```
+
+File on disk: [`hub-only-cpu.yaml`](hub-only-cpu.yaml).
+
+## All scenarios
+
 Pick **one** file. Do not mix overlays from different scenarios.
 
 | File | Scenario | When to use | `extraValueFiles` |
@@ -20,12 +54,5 @@ Helm replaces each application's `overrides:` list wholesale across composed val
 2. Add RHPDS-specific settings (`ssoHostPrefix`, OperatorGroup skips, `cert-manager.disabled: true`)
 
 Putting `values-hub-only.yaml` after `rhpds` drops `ssoHostPrefix` and reintroduces duplicate OperatorGroups / cert-manager conflicts.
-
-## Quick start
-
-```bash
-# Most common install (Scenario A):
-oc apply -f examples/pattern-cr/hub-only-cpu.yaml
-```
 
 Full decision table and annotated examples: [Pattern CR guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/pattern-cr-guide/)

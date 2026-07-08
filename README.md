@@ -149,10 +149,30 @@ flowchart TB
 
 ### Hub-only CPU (default — one cluster)
 
-Most common install: one hub, CPU inference, no east/west spokes.
+Most common install: one hub, CPU inference, no east/west spokes. Install the Validated Patterns Operator from OperatorHub, then apply this Pattern CR:
+
+```yaml
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+```
 
 ```bash
-oc apply -f examples/pattern-cr/hub-only-cpu.yaml
+# Same content as examples/pattern-cr/hub-only-cpu.yaml
+oc apply -f https://raw.githubusercontent.com/maximilianoPizarro/ia-computer-vision/main/examples/pattern-cr/hub-only-cpu.yaml
 ```
 
 Or via CLI:
