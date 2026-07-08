@@ -8,17 +8,23 @@ gateway:
   name: maas-default-gateway
   gatewayClassName: data-science-gateway-class
   hostnamePrefix: maas
-  tlsSecretName: cert-manager-ingress-cert
+  # OpenShift default router cert (always present). Prefer this over a
+  # cert-manager-managed secret that this pattern does not create.
+  tlsSecretName: router-certs-default
   # RHCL 1.4.1 WASM shim vs data-science-gateway-class Envoy version skew (RHPDS).
   wasmFix:
     enabled: true
     injectMaasHeaders: true
 
 authorino:
-  # RHCL operator deploys Authorino into its install namespace on this pattern (not kuadrant-system).
-  serviceNamespace: redhat-connectivity-link-operator
+  # Preferred namespace for Authorino Service/Deployment. On fresh RHCL installs
+  # the managed Authorino instance usually lands in kuadrant-system; some
+  # layouts use redhat-connectivity-link-operator. PostSync jobs discover the
+  # live namespace at runtime (preferred first, then both candidates) so a
+  # wrong default never creates a ports-less Service via SSA.
+  serviceNamespace: kuadrant-system
   serviceName: authorino-authorino-authorization
-  deploymentNamespace: redhat-connectivity-link-operator
+  deploymentNamespace: kuadrant-system
   deploymentName: authorino
   tlsEnvJobImage: registry.redhat.io/openshift4/ose-cli:latest
 

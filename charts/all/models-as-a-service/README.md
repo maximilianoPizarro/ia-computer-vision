@@ -7,7 +7,9 @@ Hub-only chart that enables native **Red Hat OpenShift AI 3.4 Models-as-a-Servic
 ## What it deploys
 
 - `Gateway` `maas-default-gateway` in `openshift-ingress` (class `data-science-gateway-class`)
-- Authorino TLS serving cert annotation + PostSync/CronJob for `SSL_CERT_FILE` env vars
+- Authorino TLS: PostSync Jobs discover the live Authorino Service/Deployment
+  (`kuadrant-system` or `redhat-connectivity-link-operator`) and annotate /
+  set `SSL_CERT_FILE` — never create a ports-less Service via SSA
 - Dedicated PostgreSQL for MaaS API keys (`models-as-a-service` namespace)
 - `ExternalSecret` → `maas-db-config` in `redhat-ods-applications`
 - `OdhDashboardConfig` patch (MaaS / Gen AI Studio / Auth Policies)

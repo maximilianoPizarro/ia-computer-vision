@@ -96,18 +96,14 @@ clusterGroup:
           value: v1.28.8
 
     # RHPDS's preinstalled Kuadrant/Connectivity Link deploys Authorino into
-    # the standard kuadrant-system namespace, not redhat-connectivity-link-
-    # operator (the pattern chart's assumption for a from-scratch multi-node
-    # install where RHCL provisions its own namespace-scoped instance).
-    # Without this override, models-as-a-service tries to patch a Service
-    # that only exists in kuadrant-system, and OLM's SSA falls back to
-    # creating a new (incomplete, ports-less) Service in the wrong
-    # namespace, failing with "spec.ports: Required value".
+    # the standard kuadrant-system namespace. models-as-a-service PostSync jobs
+    # discover Authorino at runtime (preferred ns first); these overrides keep
+    # the preferred namespace explicit for RHPDS.
     # NOTE: userCount here must match values-hub-single-node.yaml's
     # models-as-a-service override ("5") when both overlays are composed
     # together (the documented RHPDS stack) -- Helm replaces an
     # application's overrides list wholesale, not merged by item, and this
-    # file loads after values-hub-single-node.yaml.
+    # file loads last.
     models-as-a-service:
       overrides:
         - name: userCount

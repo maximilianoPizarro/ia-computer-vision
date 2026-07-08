@@ -278,6 +278,39 @@ oc logs -n gitlab-system -l job-name=ppe-model-seed --tail=10   # should end wit
 oc delete pod -n neuroface-cv -l serving.kserve.io/inferenceservice=yolo-ppe-serving
 ```
 
+### 3.7 models-as-a-service Degraded: Authorino Service `spec.ports: Required value`
+
+**Symptom:** `models-as-a-service` Argo CD app stuck Degraded / sync retrying with:
+```
+Service "authorino-authorino-authorization" is invalid: spec.ports: Required value
+```
+
+**Cause (fixed in pattern):** an older chart revision created a ports-less
+Service via ServerSideApply in the wrong namespace. Authorino's Service is
+owned by RHCL; this pattern must only annotate it.
+
+**Automated fix:** `authorino-service-cert.yaml` is now a PostSync Job that
+waits for the operator-managed Service (tries `kuadrant-system` then
+`redhat-connectivity-link-operator`) and annotates it for serving certs.
+
+### 3.8 istio-ztunnel Invalid: Unsupported ZTunnel version
+
+**Symptom:**
+```
+ZTunnel.sailoperator.io "default" is invalid: spec.version: Unsupported value: "v1.28.8"
+```
+(enum only lists `v1.26.x` / `v1.24.x` on Service Mesh 3.1).
+
+**Automated fix:** `charts/all/istio-ztunnel` leaves `spec.version` unset by
+default so the Sail CRD default applies. Pin only via overlay when you know
+the enum (`values-hub-rhpds.yaml` for Scenario D).
+
+**Check on a live cluster:**
+```bash
+oc get crd ztunnels.sailoperator.io -o jsonpath='{.spec.versions[-1].schema.openAPIV3Schema.properties.spec.properties.version.enum}'
+oc get istio -A -o custom-columns=NAME:.metadata.name,VER:.spec.version
+```
+
 ## 4. Quick health check after all fixes
 
 ```bash

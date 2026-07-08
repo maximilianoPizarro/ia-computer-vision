@@ -1,11 +1,99 @@
+{{- /*
+  Do NOT create the Authorino authorization Service from this chart.
+
+  RHCL / the Kuadrant operator owns that Service (ports, selectors). Creating
+  a ports-less Service via ServerSideApply races the operator and fails with:
+    Service "authorino-authorino-authorization" is invalid: spec.ports: Required value
+  which leaves models-as-a-service permanently Degraded on fresh installs.
+
+  Instead, wait for the operator-managed Service (kuadrant-system on most
+  installs; redhat-connectivity-link-operator on some RHCL layouts) and only
+  annotate it for OpenShift service-serving certs.
+*/ -}}
 {{- $auth := .Values.authorino | default dict -}}
+{{- $svcName := $auth.serviceName | default "authorino-authorino-authorization" -}}
+{{- $preferredNs := $auth.serviceNamespace | default "kuadrant-system" -}}
+{{- $image := $auth.tlsEnvJobImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
 ---
 apiVersion: v1
-kind: Service
+kind: ServiceAccount
 metadata:
-  name: {{ $auth.serviceName | default "authorino-authorino-authorization" }}
-  namespace: {{ $auth.serviceNamespace | default "redhat-connectivity-link-operator" }}
+  name: authorino-service-cert
+  namespace: {{ .Values.namespace }}
   annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: models-as-a-service-authorino-service-cert
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: models-as-a-service-authorino-service-cert
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: models-as-a-service-authorino-service-cert
+subjects:
+  - kind: ServiceAccount
+    name: authorino-service-cert
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authorino-service-cert
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
     argocd.argoproj.io/sync-wave: "2"
-    argocd.argoproj.io/sync-options: ServerSideApply=true
-    service.beta.openshift.io/serving-cert-secret-name: authorino-server-cert
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: authorino-service-cert
+      containers:
+        - name: annotate
+          image: {{ $image | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              SVC_NAME="{{ $svcName }}"
+              PREFERRED_NS="{{ $preferredNs }}"
+              CANDIDATES="${PREFERRED_NS} kuadrant-system redhat-connectivity-link-operator"
+              echo "Waiting for Service/${SVC_NAME} (Authorino authorization)..."
+              FOUND_NS=""
+              for i in $(seq 1 60); do
+                for ns in ${CANDIDATES}; do
+                  if oc get "svc/${SVC_NAME}" -n "${ns}" >/dev/null 2>&1; then
+                    FOUND_NS="${ns}"
+                    break 2
+                  fi
+                done
+                echo "  attempt ${i}/60: not found yet"
+                sleep 10
+              done
+              if [ -z "${FOUND_NS}" ]; then
+                echo "ERROR: ${SVC_NAME} not found in: ${CANDIDATES}"
+                exit 1
+              fi
+              echo "Annotating Service/${SVC_NAME} in ${FOUND_NS} for serving cert..."
+              oc annotate "svc/${SVC_NAME}" -n "${FOUND_NS}" \
+                service.beta.openshift.io/serving-cert-secret-name=authorino-server-cert \
+                --overwrite
+              echo "authorino-service-cert complete."

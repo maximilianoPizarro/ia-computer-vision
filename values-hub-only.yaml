@@ -168,8 +168,8 @@ clusterGroup:
 
     developer-hub:
       overrides:
-        - name: userCount
-          value: "5"
+        # Inherit userCount=30 from values-hub.yaml (do not set 5 here -- that
+        # desynced rhbk-iam / vault-secrets-bootstrap which still seed 30 users).
         # Spoke-only plumbing (east/west clusters, token sync, GitLab
         # ApplicationSet auto-registration) -- keep disabled, hub-only has
         # no spokes. Do NOT re-enable these here; they assume

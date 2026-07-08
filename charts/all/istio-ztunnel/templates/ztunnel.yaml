@@ -1,3 +1,10 @@
+{{- /*
+  ZTunnel version must match what the installed Sail / Service Mesh operator
+  CRD actually accepts. Pinning a fixed patch (e.g. v1.28.8) fails on clusters
+  where servicemeshoperator3 is still on the 3.1.x line (enum only allows
+  v1.26.x / v1.24.x). Prefer an explicit .Values.version override; otherwise
+  leave spec.version unset so the CRD default applies.
+*/ -}}
 apiVersion: sailoperator.io/v1alpha1
 kind: ZTunnel
 metadata:
@@ -8,4 +15,6 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   namespace: {{ .Values.namespace }}
+  {{- if .Values.version }}
   version: {{ .Values.version }}
+  {{- end }}

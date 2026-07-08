@@ -724,7 +724,8 @@ metadata:
   namespace: istio-system
 spec:
   namespace: ztunnel
-  version: v1.28.8
+  # version omitted by default -- Sail CRD default matches the installed
+  # servicemeshoperator3 CSV (pin via values-hub-rhpds.yaml when needed)
 ----
 
 *Connection*: ZTunnel → `ztunnel` namespace DaemonSet on every node. Without this CR, `oc get istio default -n istio-system` reports `ZTunnelNotFound` and mesh telemetry panels show no data.

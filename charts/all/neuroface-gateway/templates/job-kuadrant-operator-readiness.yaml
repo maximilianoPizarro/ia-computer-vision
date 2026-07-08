@@ -15,6 +15,8 @@
   a single cluster-wide fix -- it only needs to run from one app/wave, not
   from every app that creates AuthPolicy/RateLimitPolicy resources.
 */ -}}
+{{- if eq (.Values.kuadrant.enabled | toString) "true" }}
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -123,3 +125,4 @@ spec:
               oc rollout status deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator --timeout=120s || true
 
               echo "Done. AuthPolicy/RateLimitPolicy resources should flip to Accepted within ~1 minute."
+{{- end }}

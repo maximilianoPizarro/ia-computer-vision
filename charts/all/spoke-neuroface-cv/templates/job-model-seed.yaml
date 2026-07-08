@@ -38,6 +38,38 @@ subjects:
     name: default
     namespace: gitlab-system
 ---
+# Read gitlab-minio-secret via the API (not secretKeyRef) so the Job pod can
+# start before GitLab MinIO exists. secretKeyRef would leave the pod in
+# CreateContainerConfigError and block the PostSync hook until a manual refresh.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ppe-model-seed-minio-reader
+  namespace: gitlab-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["gitlab-minio-secret"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ppe-model-seed-minio-reader
+  namespace: gitlab-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ppe-model-seed-minio-reader
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: gitlab-system
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -48,8 +80,8 @@ metadata:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
-  backoffLimit: 3
-  activeDeadlineSeconds: 600
+  backoffLimit: 8
+  activeDeadlineSeconds: 1200
   template:
     spec:
       restartPolicy: OnFailure
@@ -63,14 +95,40 @@ spec:
             - |
               pip install -q boto3 2>&1 | tail -1
               python3 << 'PYEOF'
-              import boto3, urllib.request, os, sys
+              import boto3, urllib.request, os, sys, subprocess, json as j, base64, time
 
               endpoint = os.environ["S3_ENDPOINT"]
-              key = os.environ["S3_ACCESS_KEY"]
-              secret = os.environ["S3_SECRET_KEY"]
               bucket = os.environ.get("S3_BUCKET", "models")
               obj_key = os.environ.get("S3_OBJECT_KEY", "ppe-detection/model/best.pt")
               model_url = os.environ.get("MODEL_URL", "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt")
+
+              k8s_token = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().strip()
+              k8s_ca = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+              minio_api = ("https://kubernetes.default.svc/api/v1/namespaces/"
+                           "gitlab-system/secrets/gitlab-minio-secret")
+
+              print("Waiting for Secret/gitlab-minio-secret...")
+              key = secret = None
+              for i in range(1, 91):
+                  r = subprocess.run(["curl", "-sS", "--cacert", k8s_ca,
+                      "-H", "Authorization: Bearer " + k8s_token, minio_api],
+                      capture_output=True, text=True, timeout=15)
+                  if r.returncode == 0:
+                      try:
+                          data = j.loads(r.stdout).get("data") or {}
+                          if "accesskey" in data and "secretkey" in data:
+                              key = base64.b64decode(data["accesskey"]).decode()
+                              secret = base64.b64decode(data["secretkey"]).decode()
+                              print("gitlab-minio-secret ready (attempt %d)." % i)
+                              break
+                      except Exception as e:
+                          print("  attempt %d/90: parse error: %s" % (i, e))
+                  else:
+                      print("  attempt %d/90: curl rc=%s" % (i, r.returncode))
+                  time.sleep(10)
+              if not key or not secret:
+                  print("ERROR: gitlab-minio-secret not ready after 15 minutes")
+                  sys.exit(1)
 
               s3 = boto3.client("s3", endpoint_url=endpoint,
                   aws_access_key_id=key, aws_secret_access_key=secret,
@@ -103,19 +161,8 @@ spec:
               # minio-credentials) can actually download this model -- without this,
               # ESO keeps serving the random placeholder written by vault-secrets-
               # bootstrap and KServe's storage-initializer fails with S3 403 Forbidden.
-              #
-              # This cluster's Vault has no "kubernetes/" auth mount (only the
-              # read-only "hub/" mount used by ESO), so Kubernetes-auth login
-              # (as used elsewhere in this repo, e.g. hub-interconnect's own
-              # job-model-seed.yaml) always fails with "permission denied" here.
-              # Use the root token from imperative/vaultkeys instead -- the
-              # standard Validated Patterns location for Vault's root token,
-              # written by the pattern's own vault bootstrap on every install.
-              import subprocess, json as j, base64
               vault_addr = "https://vault.vault.svc:8200"
               try:
-                  k8s_token = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().strip()
-                  k8s_ca = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
                   api = ("https://kubernetes.default.svc/api/v1/namespaces/"
                          "imperative/secrets/vaultkeys")
                   r = subprocess.run(["curl", "-sS", "--cacert", k8s_ca,
@@ -126,11 +173,11 @@ spec:
                   vault_data = j.loads(base64.b64decode(raw))
                   root_token = vault_data.get("root_token")
                   if root_token:
-                      data = {"data": {"accesskey": key, "secretkey": secret}}
+                      payload = {"data": {"accesskey": key, "secretkey": secret}}
                       r = subprocess.run(["curl", "-sk", "-X", "POST",
                           vault_addr + "/v1/secret/data/hub/minio-credentials",
                           "-H", "X-Vault-Token: " + root_token,
-                          "-d", j.dumps(data)],
+                          "-d", j.dumps(payload)],
                           capture_output=True, text=True, timeout=10)
                       print("Vault minio-credentials: synced" if "version" in r.stdout else "Vault sync: %s" % r.stdout[:200])
                   else:
@@ -141,16 +188,6 @@ spec:
           env:
             - name: S3_ENDPOINT
               value: "http://gitlab-minio-svc.gitlab-system.svc:9000"
-            - name: S3_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: gitlab-minio-secret
-                  key: accesskey
-            - name: S3_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: gitlab-minio-secret
-                  key: secretkey
             - name: S3_BUCKET
               value: {{ $ms.bucket | default "models" | quote }}
             - name: S3_OBJECT_KEY
