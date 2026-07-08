@@ -1,0 +1,284 @@
+---
+title: Pattern CR guide
+weight: 12
+date: 2026-07-08
+summary: Which Pattern custom resource to apply for hub-only CPU, hub-spoke, and GPU installs.
+---
+:toc:
+:imagesdir: /ia-computer-vision/images/ia-computer-vision
+:_content-type: REFERENCE
+
+= Pattern CR guide
+
+The Validated Patterns Operator installs this pattern from a single `Pattern` custom resource (`gitops.hybrid-cloud-patterns.io/v1alpha1`). The `spec.clusterGroupName` field selects which values file the operator renders (`hub`, `east`, or `west`). Optional `spec.extraValueFiles` layer opt-in overlays on top of the default `values-hub.yaml`.
+
+[IMPORTANT]
+====
+Pick **one row** from the decision table below. Do not mix overlays from different scenarios — for example, do not add `values-hub-rhpds.yaml` on a fresh cluster with no pre-installed operators, and do not omit `values-hub-only.yaml` when you have no east or west spoke clusters.
+====
+
+Ready-to-apply YAML files live in the repository under `examples/pattern-cr/`.
+
+== Choosing the right Pattern CR
+
+[cols="1,1,1,1,2",options="header"]
+|===
+| Scenario | Clusters | GPU | Pre-installed operators | `extraValueFiles`
+
+| **A — Hub-only CPU** (most common)
+| 1 hub
+| No
+| No
+| `/values-hub-only.yaml`
+
+| **B — Hub + spokes CPU**
+| hub + east + west
+| No
+| No
+| *(none)*
+
+| **C — Hub-only GPU**
+| 1 hub
+| Yes
+| No
+| `/values-hub-gpu.yaml`, `/values-hub-only.yaml`
+
+| **D — Hub-only GPU, single-node sandbox**
+| 1 hub (all-in-one node)
+| Yes
+| Yes (NFD, GPU Op, Service Mesh, RHOAI, RHCL)
+| `/values-hub-gpu.yaml`, `/values-hub-single-node.yaml`, `/values-hub-rhpds.yaml`, `/values-hub-only.yaml`
+
+| **E — Spoke**
+| 1 spoke (east or west)
+| Optional
+| No
+| *(none)*
+|===
+
+[NOTE]
+====
+*Scenario A* is the recommended default for a single hub cluster with CPU inference and no pre-installed operators. It disables Skupper and ACM spoke import, runs NeuroFace and Kafka locally on the hub, and avoids `Missing`/`Degraded` Argo CD applications that appear when spoke clusters do not exist.
+====
+
+=== Decision flow
+
+```mermaid
+flowchart TD
+  start[How many clusters?] --> one[One hub only]
+  start --> three[Hub + east + west]
+  one --> gpu{GPU inference?}
+  gpu -->|No| A["Scenario A: hub-only-cpu.yaml"]
+  gpu -->|Yes| pre{Operators pre-installed?}
+  pre -->|No| C["Scenario C: hub-only-gpu-multi-node.yaml"]
+  pre -->|Yes| D["Scenario D: hub-only-gpu-single-node-preinstalled.yaml"]
+  three --> B["Scenario B: hub-spoke-cpu.yaml on hub"]
+  three --> E["Scenario E: spoke.yaml on each spoke"]
+```
+
+== Scenario A — Hub-only CPU (default)
+
+Use this when you provision **one hub cluster** with no east or west spokes, CPU-only inference, and **no operators pre-installed** beyond OCP and the Validated Patterns Operator. This is the most common install path.
+
+**Recommended sizing:** 3× `m6a.2xlarge` control plane + **4–5× `m6a.4xlarge` workers** (see link:../cluster-sizing/[Cluster sizing]).
+
+**Example file:** `examples/pattern-cr/hub-only-cpu.yaml`
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+
+**What `values-hub-only.yaml` does:**
+
+* Disables Skupper, `hub-interconnect`, `acm-hub-spoke`, and `skupper-network-observer`
+* Deploys NeuroFace and YOLO inference locally on the hub (`neuroface-hub`, `neuroface-cv`)
+* Routes `neuroface.apps.*` and `neuroface-cv.apps.*` via `neuroface-gateway` in `hubLocal` mode
+* Installs Kafka (AMQ Streams) on the hub for PPE violation alerts
+
+**Apply:**
+
+[source,bash]
+----
+$ oc apply -f examples/pattern-cr/hub-only-cpu.yaml
+----
+
+**CLI equivalent:**
+
+[source,bash]
+----
+$ EXTRA_HELM_OPTS='-f values-hub-only.yaml' ./pattern.sh make install
+----
+
+== Scenario B — Hub + spokes CPU
+
+Use this for the **full three-cluster topology** (hub, east, west). Install **east and west spokes first**, collect their API tokens, then install the hub last.
+
+**Hub example file:** `examples/pattern-cr/hub-spoke-cpu.yaml`
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+  extraParameters:
+    - name: spokeCredentials.mode
+      value: inline
+    - name: spokeCredentials.clusters.east.token
+      value: "<EAST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.east.apiUrl
+      value: "https://api.<EAST_DOMAIN>:6443"
+    - name: spokeCredentials.clusters.west.token
+      value: "<WEST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.west.apiUrl
+      value: "https://api.<WEST_DOMAIN>:6443"
+----
+
+[IMPORTANT]
+====
+Do **not** add `values-hub-only.yaml` in this scenario. The hub needs Skupper, `hub-interconnect`, and `acm-hub-spoke` to reach the east and west spokes.
+====
+
+Generate spoke tokens after each spoke install:
+
+[source,bash]
+----
+$ oc create token -n kube-system acm-import --duration=87600h
+$ oc whoami --show-server
+----
+
+See link:../getting-started/#installing-the-hub-cluster[Installing the hub cluster] for the full hub-spoke walkthrough.
+
+== Scenario C — Hub-only GPU (multi-node)
+
+Use when you have **one hub cluster with GPU worker nodes** and **no pre-installed operators**. The pattern installs NFD, the NVIDIA GPU Operator, and GPU-backed model serving.
+
+**Example file:** `examples/pattern-cr/hub-only-gpu-multi-node.yaml`
+
+[source,yaml]
+----
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml
+    - /values-hub-only.yaml
+----
+
+See link:../ideas-for-customization/#_enabling_gpu_workers_on_the_hub_real_local_model_download_and_serving[Enabling GPU workers on the hub] for GPU node requirements.
+
+== Scenario D — Hub-only GPU (single-node, pre-installed operators)
+
+Use only when **one node** acts as control plane and worker **and** operators such as NFD, the GPU Operator, Service Mesh, OpenShift AI, and Connectivity Link are **already installed** before you get cluster-admin access (typical of catalog sandboxes).
+
+**Example file:** `examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml`
+
+[source,yaml]
+----
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml
+    - /values-hub-single-node.yaml
+    - /values-hub-rhpds.yaml
+    - /values-hub-only.yaml
+----
+
+[WARNING]
+====
+**Before installing**, raise the kubelet `maxPods` limit to 500 on the single node. See link:../cluster-sizing/#single-node-rhpds-sandboxes-eg-g612xlarge-gpu-demo[Single-node RHPDS sandboxes] — this reboots the node (5–15 minutes).
+
+If `maxPods` cannot be changed, add `/values-hub-gpu-minimal.yaml` as a fifth overlay to strip GitLab, Developer Hub, and DevSpaces.
+====
+
+See link:../ideas-for-customization/#_configuring_gpu_inference_on_a_cluster_with_pre_installed_operators[Configuring GPU inference on a cluster with pre-installed operators] for the operator verification table.
+
+== Scenario E — Spoke (east or west)
+
+Install on **each spoke cluster before the hub**. No `extraValueFiles` or `extraParameters` are needed.
+
+**Example file:** `examples/pattern-cr/spoke.yaml`
+
+[source,yaml]
+----
+spec:
+  clusterGroupName: east    # use "west" on the west spoke
+----
+
+== Overlay reference
+
+[cols="2,3",options="header"]
+|===
+| File | Purpose
+
+| `values-hub-only.yaml`
+| Hub without east/west spokes — disables Skupper/ACM spoke import, runs NeuroFace and Kafka on the hub
+
+| `values-hub-gpu.yaml`
+| GPU model serving — adds NFD, NVIDIA GPU Operator subscriptions, and GPU InferenceServices
+
+| `values-hub-single-node.yaml`
+| Scales workshop `userCount` and replica counts for a single schedulable node
+
+| `values-hub-rhpds.yaml`
+| Skips duplicate OperatorGroups and aligns versions when operators are pre-installed for you
+
+| `values-hub-gpu-minimal.yaml`
+| Fallback — strips GitLab, Developer Hub, DevSpaces when pod-count ceiling cannot be raised
+|===
+
+Overlays are **opt-in** and **composable**. None load unless listed in `extraValueFiles`. The default install path (`values-hub.yaml` alone) is unchanged.
+
+== Common mistakes
+
+[cols="2,3",options="header"]
+|===
+| Mistake | Fix
+
+| Installing the default hub CR on a single cluster with no spokes
+| Add `/values-hub-only.yaml` (Scenario A)
+
+| Adding `values-hub-rhpds.yaml` on a fresh cluster
+| Omit it — use Scenario A or C instead
+
+| Adding `values-hub-only.yaml` when you have east and west spokes
+| Omit it — use Scenario B
+
+| Using `values-hub-single-node.yaml` on a 3+3 multi-node cluster
+| Omit it — only needed for single-node sandboxes (Scenario D)
+
+| Passing hub-only `developer-hub` overrides via `extraParameters`
+| Set `spokeCredentials.clusters.*.apiUrl` in `values-hub.yaml` under `developer-hub.overrides` instead
+|===
+
+== See also
+
+* link:../getting-started/[Getting started] — step-by-step install procedures
+* link:../crd-reference/[CRD reference] — annotated YAML for Kuadrant, ACM, Skupper, and other CRs
+* link:../cluster-sizing/[Cluster sizing] — instance types and worker count
+* `examples/pattern-cr/` in the GitHub repository — copy-paste ready Pattern CR files

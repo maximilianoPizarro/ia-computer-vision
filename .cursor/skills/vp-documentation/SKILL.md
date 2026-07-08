@@ -106,6 +106,7 @@ docs/
 │       └── ia-computer-vision/
 │           ├── _index.adoc        # ASSEMBLY: pattern overview
 │           ├── getting-started.adoc   # ASSEMBLY: deploy procedure
+│           ├── pattern-cr-guide.adoc  # REFERENCE: Pattern CR per topology (Scenarios A–E)
 │           ├── cluster-sizing.adoc    # ASSEMBLY: sizing tables
 │           ├── architecture.adoc      # ASSEMBLY: topology
 │           └── ideas-for-customization.adoc  # CONCEPT
@@ -179,7 +180,10 @@ Validated Patterns implementation of multi-cluster AI Computer Vision at the Edg
 [Component table: ACM, Vault, RHDH, GitLab, etc.]
 
 ## Quick start
-[3-step install for hub, east, west]
+[3-step install: hub-only CPU (default) or hub + spokes; link to pattern-cr-guide]
+
+## Pattern CR examples
+[`examples/pattern-cr/` — one YAML per topology; pattern-cr-guide.adoc is the decision table]
 
 ## Cluster sizing
 [Table with m6a.2xlarge specs]

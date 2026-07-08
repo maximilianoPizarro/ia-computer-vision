@@ -13,12 +13,26 @@
 # scoped NetworkPolicy — no Skupper VAN needed to deliver PPE violation
 # events to the email alert consumer, unlike the hub+spokes topology.
 #
-# Pattern CR example:
+# Pattern CR — hub-only CPU (DEFAULT, most common):
+#   extraValueFiles:
+#     - /values-hub-only.yaml
+#   File: examples/pattern-cr/hub-only-cpu.yaml
+#
+# Pattern CR — hub-only GPU on a fresh multi-node cluster:
+#   extraValueFiles:
+#     - /values-hub-gpu.yaml
+#     - /values-hub-only.yaml
+#   File: examples/pattern-cr/hub-only-gpu-multi-node.yaml
+#
+# Pattern CR — hub-only GPU on a single-node sandbox with pre-installed operators:
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml
 #     - /values-hub-single-node.yaml
 #     - /values-hub-rhpds.yaml
 #     - /values-hub-only.yaml
+#   File: examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml
+#
+# Docs: docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
 
 clusterGroup:
   subscriptions:

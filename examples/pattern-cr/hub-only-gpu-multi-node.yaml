@@ -1,0 +1,27 @@
+# Hub-only with GPU model serving on a dedicated multi-node cluster.
+#
+# Use when:
+#   - ONE hub cluster, no east/west spokes
+#   - GPU worker nodes available (e.g. g4dn, g5, g6)
+#   - NO operators pre-installed — the pattern installs NFD, GPU Operator, RHOAI, etc.
+#
+# Apply: oc apply -f examples/pattern-cr/hub-only-gpu-multi-node.yaml
+# Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
+---
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io

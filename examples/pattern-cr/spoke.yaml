@@ -1,0 +1,26 @@
+# East or west spoke cluster (CPU inference, default).
+#
+# Use when:
+#   - Installing a spoke in the full hub + east + west topology
+#   - Install spokes BEFORE the hub
+#
+# Replace clusterGroupName with "east" or "west".
+# No extraValueFiles or extraParameters needed on spokes.
+#
+# Apply: oc apply -f examples/pattern-cr/spoke.yaml
+# Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
+---
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: east    # change to "west" on the west spoke
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io

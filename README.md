@@ -20,7 +20,22 @@ Organizations deploying AI computer vision at distributed edge sites need:
 
 ## Solution
 
-The **AI Computer Vision** Validated Pattern deploys a three-cluster architecture:
+The **AI Computer Vision** Validated Pattern supports two deployment topologies:
+
+| Topology | Clusters | Pattern CR |
+|----------|----------|------------|
+| **Hub-only CPU** (default) | 1 hub | [`examples/pattern-cr/hub-only-cpu.yaml`](examples/pattern-cr/hub-only-cpu.yaml) |
+| **Hub + spokes** | hub + east + west | [`examples/pattern-cr/hub-spoke-cpu.yaml`](examples/pattern-cr/hub-spoke-cpu.yaml) + [`spoke.yaml`](examples/pattern-cr/spoke.yaml) |
+
+See the [Pattern CR guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/pattern-cr-guide/) for GPU and single-node sandbox variants.
+
+### Hub-only (one cluster)
+
+| Cluster | Role | Key components |
+|---------|------|----------------|
+| **Hub** | All-in-one platform | ACM (local), Vault, ESO, RHCL gateway, GitLab, Developer Hub, OpenShift AI, Keycloak, NeuroFace + YOLO CV (local), Kafka |
+
+### Hub + spokes (three clusters)
 
 | Cluster | Role | Key components |
 |---------|------|----------------|
@@ -28,7 +43,7 @@ The **AI Computer Vision** Validated Pattern deploys a three-cluster architectur
 | **East spoke** | Edge inference | NeuroFace, OVMS/YOLO CV, Skupper, Service Mesh ambient, ACS Secured, observability |
 | **West spoke** | Edge inference | Same as east (load-balanced via RHCL 50/50 HTTPRoute) |
 
-Install the pattern on each cluster with the Validated Patterns Operator or `./pattern.sh make install`, specifying `clusterGroupName: hub`, `east`, or `west`.
+Install with the Validated Patterns Operator (`oc apply -f examples/pattern-cr/...`) or `./pattern.sh make install`, specifying `clusterGroupName: hub`, `east`, or `west`.
 
 ## What you will deploy
 
@@ -122,32 +137,49 @@ flowchart TB
 
 ## Prerequisites
 
-- Three Red Hat OpenShift Container Platform 4.20+ clusters (hub, east, west)
-- Hub cluster: 3× `m6a.2xlarge` control plane + 3× **`m6a.4xlarge`** workers (16 vCPU, 64 GiB). For sandbox/demo, `m6a.2xlarge` works with [reduced resource requests](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/cluster-sizing/)
-- Spoke clusters: 3× `m6a.2xlarge` control plane + 3× `m6a.2xlarge` workers
-- Validated Patterns Operator installed on each cluster
+- Red Hat OpenShift Container Platform 4.20+ with the Validated Patterns Operator installed
+- **Hub-only (most common):** one hub cluster — 3× `m6a.2xlarge` control plane + **4–5× `m6a.4xlarge` workers**
+- **Hub + spokes:** three clusters (hub, east, west) — hub with 3× `m6a.4xlarge` workers; spokes with 3× `m6a.2xlarge` workers ([cluster sizing](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/cluster-sizing/))
 - `podman` and cluster admin `kubeconfig` for CLI install
 - Image builds use the OpenShift internal registry (no external Quay required)
 
-## Quick start (hub-last install order)
+## Quick start
+
+**Pick your topology first** — see the [Pattern CR guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/pattern-cr-guide/) for the full decision table. Ready-to-apply YAML files are in [`examples/pattern-cr/`](examples/pattern-cr/).
+
+### Hub-only CPU (default — one cluster)
+
+Most common install: one hub, CPU inference, no east/west spokes.
+
+```bash
+oc apply -f examples/pattern-cr/hub-only-cpu.yaml
+```
+
+Or via CLI:
+
+```bash
+EXTRA_HELM_OPTS='-f values-hub-only.yaml' ./pattern.sh make install
+```
+
+### Hub + east + west spokes (three clusters)
 
 Install east and west spokes first, then the hub last. This allows automatic RHACM spoke import via Vault tokens.
 
-### 1. East spoke
+#### 1. East spoke
 
 ```bash
 export TARGET_CLUSTERGROUP=east
 ./pattern.sh make install
 ```
 
-### 2. West spoke
+#### 2. West spoke
 
 ```bash
 export TARGET_CLUSTERGROUP=west
 ./pattern.sh make install
 ```
 
-### 3. Collect spoke tokens
+#### 3. Collect spoke tokens
 
 The pattern automatically creates a `acm-import` ServiceAccount with `cluster-admin` in `kube-system` on each spoke (via the `platform-users` chart at wave 0). You only need to generate the token:
 
@@ -159,64 +191,25 @@ oc whoami --show-server
 
 Add the tokens to `~/values-secret-ia-computer-vision.yaml` under `spoke-credentials`.
 
-### 4. Hub cluster
+#### 4. Hub cluster
 
 ```bash
 ./pattern.sh make install
 # Uses values-global.yaml (clusterGroupName: hub)
 ```
 
-Or create a Pattern CR directly from the OCP Console (**Operators → Installed Operators → Validated Patterns Operator → Pattern → Create Pattern**):
+Apply [`examples/pattern-cr/hub-spoke-cpu.yaml`](examples/pattern-cr/hub-spoke-cpu.yaml) (fill in spoke tokens from step 3) or create the Pattern CR from the OCP Console.
 
-```yaml
-apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
-kind: Pattern
-metadata:
-  name: ia-computer-vision
-  namespace: openshift-operators
-spec:
-  clusterGroupName: hub
-  gitSpec:
-    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
-    targetRevision: main
-  multiSourceConfig:
-    enabled: true
-    clusterGroupChartVersion: "0.9.*"
-    helmRepoUrl: https://charts.validatedpatterns.io
-  extraParameters:
-    - name: spokeCredentials.mode
-      value: inline
-    - name: spokeCredentials.clusters.east.token
-      value: "<EAST_SA_TOKEN>"
-    - name: spokeCredentials.clusters.east.apiUrl
-      value: "https://api.<EAST_DOMAIN>:6443"
-    - name: spokeCredentials.clusters.west.token
-      value: "<WEST_SA_TOKEN>"
-    - name: spokeCredentials.clusters.west.apiUrl
-      value: "https://api.<WEST_DOMAIN>:6443"
-```
+For spokes, use [`examples/pattern-cr/spoke.yaml`](examples/pattern-cr/spoke.yaml) with `clusterGroupName: east` or `west`.
 
-Replace `<EAST_SA_TOKEN>`, `<WEST_SA_TOKEN>`, `<EAST_DOMAIN>`, and `<WEST_DOMAIN>` with the values collected in step 3. Also set the same east/west API URLs in `values-hub.yaml` under `clusterGroup.applications.developer-hub.overrides` (`spokeCredentials.clusters.*.apiUrl`) before hub install.
+### Other topologies
 
-For spokes, create the same CR replacing `clusterGroupName: hub` with `east` or `west` and omitting `extraParameters`.
+| Scenario | File |
+|----------|------|
+| Hub-only GPU, multi-node | [`hub-only-gpu-multi-node.yaml`](examples/pattern-cr/hub-only-gpu-multi-node.yaml) |
+| Hub-only GPU, single-node with pre-installed operators | [`hub-only-gpu-single-node-preinstalled.yaml`](examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml) |
 
-**Hub-only GPU on a single-node sandbox** (e.g. RHPDS `g6.12xlarge`): the single node is both control plane and worker, and its default 250 max-pods kubelet limit is easily exhausted by the control plane + RHACM + Pipelines + RHOAI + GPU Operator baseline alone (hardware is not the constraint — a `g6.12xlarge` has 48 vCPU / 192 GiB free). **Before installing**, raise `maxPods` via `KubeletConfig` (see [Cluster sizing](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/cluster-sizing/#single-node-rhpds-sandboxes-eg-g612xlarge-gpu-demo) — this reboots the node, 5-15 min), then add these overlays:
-
-```yaml
-  extraValueFiles:
-    - /values-hub-gpu.yaml
-    - /values-hub-single-node.yaml
-    - /values-hub-rhpds.yaml
-    - /values-hub-only.yaml
-```
-
-`values-hub-rhpds.yaml` aligns the Service Mesh subscription channel and skips duplicate OperatorGroups for namespaces RHPDS pre-provisions (`openshift-nfd`, `nvidia-gpu-operator`, `redhat-ods-operator`), and exposes the RHOAI catalog's pre-installed `llama-32-3b-instruct` demo model through the workshop Kuadrant API gateway (`/llama`, same API-key UX as the other demo APIs). `values-hub-only.yaml` disables Skupper/ACM spoke import for a hub without east/west spokes.
-
-With `maxPods` raised, GitLab, Developer Hub, DevSpaces, and RHBK all fit alongside GPU model serving. If `maxPods` cannot be changed (immutable sandbox), add `/values-hub-gpu-minimal.yaml` as a fifth overlay to disable those and keep only Vault/ESO + OpenShift AI + GPU serving.
-
-The `acm-hub-spoke` chart (wave 6) auto-imports both spokes into RHACM using the inline tokens.
-
-For step-by-step verification commands, see the [Getting started guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/getting-started/).
+See the [Pattern CR guide](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/pattern-cr-guide/) for details on GPU sandboxes (including `maxPods` and `values-hub-gpu-minimal.yaml`).
 
 ## Secrets
 
@@ -305,7 +298,9 @@ To change the number of users, update the `userCount` override in `values-hub.ya
 | Topic | Link |
 |-------|------|
 | Pattern overview | [Documentation home](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/) |
+| **Pattern CR guide** | [Which CR to apply per topology](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/pattern-cr-guide/) |
 | Getting started | [Install and verify](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/getting-started/) |
+| Cluster sizing | [Instance types and worker count](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/cluster-sizing/) |
 | Architecture | [Topology and traffic flow](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/architecture/) |
 | Scaffolding and secrets | [Software template and Vault/ESO flows](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/scaffolding-and-secrets/) |
 | Troubleshooting | [Common issues](https://maximilianopizarro.github.io/ia-computer-vision/patterns/ia-computer-vision/troubleshooting/) |

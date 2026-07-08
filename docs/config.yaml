@@ -40,6 +40,9 @@ menu:
     - name: Getting started
       url: /patterns/ia-computer-vision/getting-started/
       weight: 20
+    - name: Pattern CR guide
+      url: /patterns/ia-computer-vision/pattern-cr-guide/
+      weight: 22
     - name: Cluster sizing
       url: /patterns/ia-computer-vision/cluster-sizing/
       weight: 25

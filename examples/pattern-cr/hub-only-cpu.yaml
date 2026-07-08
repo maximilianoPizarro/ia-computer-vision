@@ -1,0 +1,27 @@
+# DEFAULT — Hub-only, CPU inference, fresh multi-node cluster (no pre-installed operators).
+#
+# Use when:
+#   - You have ONE hub cluster (no east/west spokes)
+#   - CPU-only inference (default values-hub.yaml profile)
+#   - The cluster has no operators pre-installed beyond OCP + Validated Patterns Operator
+#   - Recommended sizing: 3× m6a.2xlarge control plane + 4–5× m6a.4xlarge workers
+#
+# Apply: oc apply -f examples/pattern-cr/hub-only-cpu.yaml
+# Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
+---
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io

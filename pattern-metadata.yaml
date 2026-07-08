@@ -4,6 +4,7 @@ pattern_version: "1.0"
 description: >
   Multi-cluster AI computer vision at the edge with hub-spoke GitOps,
   NeuroFace inference, Skupper connectivity, and centralized observability.
+  Supports hub-only CPU installs (single cluster, no spokes) via values-hub-only.yaml.
 display_name: AI Computer Vision
 repo_url: https://github.com/maximilianoPizarro/ia-computer-vision
 docs_repo_url: https://github.com/maximilianoPizarro/ia-computer-vision
@@ -65,7 +66,7 @@ requirements:
     compute:
       platform:
         aws:
-          replicas: 3
+          replicas: 4
           type: m6a.4xlarge
   spoke:
     controlPlane:
@@ -80,9 +81,12 @@ requirements:
           type: m6a.2xlarge
 extra_features:
   spoke_support: true
+  hub_only_support: true
   hypershift_support: false
 external_requirements:
   cluster_sizing_note: >
-    This pattern requires 3 clusters (hub + east spoke + west spoke).
+    Default install: one hub cluster (hub-only CPU) with 3 control plane + 4-5
+    m6a.4xlarge workers. Full topology: hub + east + west spokes (3 clusters).
     CPU-only inference is the default. For GPU-accelerated inference,
-    use g4dn.xlarge (T4) or g5.2xlarge (A10G) worker nodes on spokes.
+    use g4dn.xlarge (T4) or g5.2xlarge (A10G) worker nodes on spokes or hub.
+  pattern_cr_examples: examples/pattern-cr/

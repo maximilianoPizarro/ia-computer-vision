@@ -1,0 +1,33 @@
+# Hub-only GPU on a single-node sandbox with operators pre-installed for you.
+#
+# Use when:
+#   - ONE all-in-one node (control plane + worker on the same machine)
+#   - NFD, GPU Operator, Service Mesh, OpenShift AI, and Connectivity Link are
+#     already installed before you get cluster-admin access
+#   - Typical of catalog sandboxes (e.g. RHPDS "Red Hat OpenShift AI 3")
+#
+# BEFORE installing: raise kubelet maxPods to 500 (see cluster-sizing.adoc).
+# If maxPods cannot be changed, add /values-hub-gpu-minimal.yaml as a fifth overlay.
+#
+# Apply: oc apply -f examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml
+# Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
+---
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml
+    - /values-hub-single-node.yaml
+    - /values-hub-rhpds.yaml
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io

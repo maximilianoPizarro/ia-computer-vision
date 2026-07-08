@@ -1,0 +1,39 @@
+# Hub cluster in a full hub + east + west spoke topology (CPU inference).
+#
+# Use when:
+#   - You have THREE clusters (hub, east, west)
+#   - Install east and west spokes FIRST, collect their API tokens, then install the hub
+#   - CPU-only inference on spokes (default)
+#
+# Replace <EAST_SA_TOKEN>, <WEST_SA_TOKEN>, and API server URLs before applying.
+# Also set the same east/west apiUrl values in values-hub.yaml under
+# clusterGroup.applications.developer-hub.overrides (spokeCredentials.clusters.*.apiUrl).
+#
+# Apply: oc apply -f examples/pattern-cr/hub-spoke-cpu.yaml
+# Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
+---
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+  extraParameters:
+    - name: spokeCredentials.mode
+      value: inline
+    - name: spokeCredentials.clusters.east.token
+      value: "<EAST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.east.apiUrl
+      value: "https://api.<EAST_DOMAIN>:6443"
+    - name: spokeCredentials.clusters.west.token
+      value: "<WEST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.west.apiUrl
+      value: "https://api.<WEST_DOMAIN>:6443"

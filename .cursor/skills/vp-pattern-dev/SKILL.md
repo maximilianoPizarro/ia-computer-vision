@@ -180,7 +180,19 @@ Verify the live app list with `oc get application -n vp-gitops` — it drifts fr
 
 ## Hub-only + GPU + pre-installed-operators overlay stack
 
-Five OPT-IN overlay files at the repo root, composable via the Pattern CR's `extraValueFiles` on top of the default `values-hub.yaml`. None of them are loaded unless explicitly listed — the tagged/default install path is completely unaffected. Public docs describe this generically (no vendor name) in `docs/content/patterns/ia-computer-vision/ideas-for-customization.adoc`, "Configuring GPU inference on a cluster with pre-installed operators".
+Five OPT-IN overlay files at the repo root, composable via the Pattern CR's `extraValueFiles` on top of the default `values-hub.yaml`. None of them are loaded unless explicitly listed — the tagged/default install path is completely unaffected.
+
+**Authoritative Pattern CR decision table:** `docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc` and ready-to-apply YAML in `examples/pattern-cr/`.
+
+| Scenario | extraValueFiles | Example file |
+|----------|-----------------|--------------|
+| **A — Hub-only CPU (default)** | `values-hub-only.yaml` | `examples/pattern-cr/hub-only-cpu.yaml` |
+| B — Hub + spokes CPU | *(none on hub)* | `examples/pattern-cr/hub-spoke-cpu.yaml` |
+| C — Hub-only GPU multi-node | `values-hub-gpu.yaml`, `values-hub-only.yaml` | `examples/pattern-cr/hub-only-gpu-multi-node.yaml` |
+| D — Hub-only GPU single-node + pre-installed ops | gpu → single-node → rhpds → hub-only | `examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml` |
+| E — Spoke | *(none)* | `examples/pattern-cr/spoke.yaml` |
+
+Public docs for pre-installed-operator sandboxes (no vendor name in prose): `ideas-for-customization.adoc`, "Configuring GPU inference on a cluster with pre-installed operators".
 
 | File | Purpose | Depends on |
 |------|---------|------------|
@@ -190,7 +202,7 @@ Five OPT-IN overlay files at the repo root, composable via the Pattern CR's `ext
 | `values-hub-only.yaml` | Hub-only install with no east/west spokes: disables Skupper/`hub-interconnect`/`acm-hub-spoke`, deploys the upstream `neuroface` chart + local Kafka (Strimzi) on the hub, routes `neuroface(-cv).apps.*` via `neuroface-gateway` `hubLocal` mode | optional, loads last |
 | `values-hub-gpu-minimal.yaml` | Fallback for sandboxes where `maxPods` cannot be raised: disables the entire workshop/dev platform (GitLab, Developer Hub, DevSpaces, RHBK, Lightspeed) and keeps only Vault/ESO + OpenShift AI + vLLM `InferenceService`s | only when `values-hub-single-node.yaml` is not enough; loads after all four above |
 
-Documented Pattern CR order: `values-hub-gpu.yaml` → `values-hub-single-node.yaml` → `values-hub-rhpds.yaml` → `values-hub-only.yaml` (→ `values-hub-gpu-minimal.yaml` if needed).
+Documented Pattern CR order for **Scenario D only**: `values-hub-gpu.yaml` → `values-hub-single-node.yaml` → `values-hub-rhpds.yaml` → `values-hub-only.yaml` (→ `values-hub-gpu-minimal.yaml` if needed). **Scenario A (most common)** uses only `values-hub-only.yaml`.
 
 ### `ssoHostPrefix` — six charts must move together
 `developer-hub`, `rhbk-iam`, `neuroface-gateway`, `workshop-registration`, `devspaces`, `console-links` all read a chart-local `ssoHostPrefix` (default `"sso"`). If a pre-existing SSO instance already claims `sso.<domain>`, override all six to the same alternate value — a partial update leaves whichever chart(s) you missed pointing at the dead hostname. `values-hub-rhpds.yaml` sets all six to `rhdh-sso`.

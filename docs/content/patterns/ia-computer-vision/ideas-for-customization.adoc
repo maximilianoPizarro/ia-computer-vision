@@ -439,7 +439,7 @@ If a pre-existing SSO/Keycloak instance unrelated to this pattern already claims
 
 === What to change
 
-Layer the following opt-in overlay files on top of the default `values-hub.yaml`, in this order, using the Pattern custom resource's `extraValueFiles`:
+Layer the following opt-in overlay files on top of the default `values-hub.yaml`, in this order, using the Pattern custom resource's `extraValueFiles`. See link:../pattern-cr-guide/[Pattern CR guide] for the full decision table — this stack is **Scenario D** only.
 
 [source,yaml]
 ----

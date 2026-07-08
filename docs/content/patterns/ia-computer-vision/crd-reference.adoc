@@ -20,9 +20,101 @@ Documentation: link:https://validatedpatterns.io/[Validated Patterns]
 
 `gitops.hybrid-cloud-patterns.io/v1alpha1` — the single custom resource that bootstraps the entire pattern. The Validated Patterns Operator watches this object, installs OpenShift GitOps, and points it at this repository's `clustergroup` chart with the values files listed in `extraValueFiles`.
 
+[IMPORTANT]
+====
+See link:../pattern-cr-guide/[Pattern CR guide] for the full decision table (Scenarios A–E) and copy-paste ready files in `examples/pattern-cr/`. The examples below are annotated references — start with the guide to pick the right scenario.
+====
+
+==== Hub-only CPU on a fresh multi-node cluster (default)
+
+This is the **most common** install path: one hub cluster, CPU inference, no pre-installed operators, no east or west spokes.
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-only.yaml         # <1>
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+<1> Disables Skupper/ACM spoke import; runs NeuroFace, Kafka, and CPU inference locally on the hub. File: `examples/pattern-cr/hub-only-cpu.yaml`.
+
+==== Hub + east + west spokes (CPU)
+
+Three-cluster topology. Install spokes first, then the hub with inline spoke tokens:
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+  extraParameters:
+    - name: spokeCredentials.mode
+      value: inline
+    - name: spokeCredentials.clusters.east.token
+      value: "<EAST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.east.apiUrl
+      value: "https://api.<EAST_DOMAIN>:6443"
+    - name: spokeCredentials.clusters.west.token
+      value: "<WEST_SA_TOKEN>"
+    - name: spokeCredentials.clusters.west.apiUrl
+      value: "https://api.<WEST_DOMAIN>:6443"
+----
+
+Do **not** add `values-hub-only.yaml` in this scenario. File: `examples/pattern-cr/hub-spoke-cpu.yaml`.
+
+==== Hub-only with GPU, on a dedicated multi-node cluster
+
+If the hub has its own dedicated GPU worker nodes and no operator is pre-installed for you:
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-gpu.yaml
+    - /values-hub-only.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+
+File: `examples/pattern-cr/hub-only-gpu-multi-node.yaml`.
+
 ==== Hub-only with GPU, on a cluster where operators are already installed for you
 
-This is the exact, live-verified `Pattern` CR for a hub-only install with GPU-backed model serving on a cluster that already has Node Feature Discovery, the NVIDIA GPU Operator, OpenShift Service Mesh, OpenShift AI, and Connectivity Link pre-installed, and only a single node available:
+This is the live-verified `Pattern` CR for a hub-only install with GPU-backed model serving on a cluster that already has Node Feature Discovery, the NVIDIA GPU Operator, OpenShift Service Mesh, OpenShift AI, and Connectivity Link pre-installed, and only a single node available:
 
 [source,yaml]
 ----
@@ -51,37 +143,14 @@ spec:
 <3> Skips duplicate `OperatorGroup`s, pins the ZTunnel version to the pre-installed Service Mesh, and points `models-as-a-service` at the pre-installed Connectivity Link namespace. Omit this file entirely on a from-scratch, multi-node hub where the pattern should install its own copies of these operators.
 <4> Hub-only topology — no east/west spoke clusters.
 
-==== Hub-only with GPU, on a dedicated multi-node cluster
-
-If the hub has its own dedicated GPU worker node and no operator is pre-installed for you, drop the middle two files:
-
-[source,yaml]
-----
-apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
-kind: Pattern
-metadata:
-  name: ia-computer-vision
-  namespace: openshift-operators
-spec:
-  clusterGroupName: hub
-  extraValueFiles:
-    - /values-hub-gpu.yaml
-    - /values-hub-only.yaml
-  gitSpec:
-    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
-    targetRevision: main
-  multiSourceConfig:
-    enabled: true
-    clusterGroupChartVersion: "0.9.*"
-    helmRepoUrl: https://charts.validatedpatterns.io
-----
+File: `examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml`.
 
 [NOTE]
 ====
 Create this object with `oc apply -f pattern-cr.yaml`, or through the console: *Operators* -> *Installed Operators* -> *Validated Patterns Operator* -> *Pattern* tab -> *Create Pattern* -> *YAML view*. It replaces running `./pattern.sh make install` with `TARGET_CLUSTERGROUP=hub` plus manually editing `values-global.yaml`'s `extraValueFiles` — both paths converge on the same `Pattern` object.
 ====
 
-See link:../ideas-for-customization/#_configuring_gpu_inference_on_a_cluster_with_pre_installed_operators[Configuring GPU inference on a cluster with pre-installed operators] for the full walkthrough, including which operators to verify before you create this object, and link:../cluster-sizing/[Cluster sizing] for single-node `maxPods` guidance.
+See link:../pattern-cr-guide/[Pattern CR guide] for the decision table, link:../ideas-for-customization/#_configuring_gpu_inference_on_a_cluster_with_pre_installed_operators[Configuring GPU inference on a cluster with pre-installed operators] for the pre-installed-operator walkthrough, and link:../cluster-sizing/[Cluster sizing] for single-node `maxPods` guidance.
 
 *Connection*: Pattern → `patterns-operator` → OpenShift GitOps (`vp-gitops` namespace) → `ia-computer-vision-hub` umbrella Application → every Application listed in `clusterGroup.applications` across `values-hub.yaml` and the layered `extraValueFiles`.
 

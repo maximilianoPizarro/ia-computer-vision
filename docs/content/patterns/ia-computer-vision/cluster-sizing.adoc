@@ -17,8 +17,8 @@ This page documents cluster sizing requirements, network prerequisites, and the 
 
 | Hub
 | 3 x `m6a.2xlarge`
-| 3 x `m6a.4xlarge`
-| Hub runs 15+ operators and ~450 pods. `m6a.2xlarge` workers (8 vCPU) reach 98-99% CPU request allocation. Use `m6a.4xlarge` (16 vCPU, 64 GiB) for production. For sandbox/demo, `m6a.2xlarge` works if you remove the `NoSchedule` taint from master nodes.
+| 3–5 x `m6a.4xlarge`
+| Hub runs 15+ operators and ~450 pods. `m6a.2xlarge` workers (8 vCPU) reach 98-99% CPU request allocation. Use `m6a.4xlarge` (16 vCPU, 64 GiB) for production. **4–5 workers** recommended when `m6a.4xlarge` is the maximum instance type and you scale horizontally. For sandbox/demo, `m6a.2xlarge` works if you remove the `NoSchedule` taint from master nodes.
 
 | East spoke
 | 3 x `m6a.2xlarge`
@@ -76,7 +76,7 @@ For production deployments, use `m6a.4xlarge` or larger workers on the hub. The 
 == Minimum requirements
 
 * OCP 4.20 or later on all clusters
-* Three worker nodes per cluster (minimum); hub recommended `m6a.4xlarge` or equivalent
+* Three worker nodes per cluster (minimum); hub recommended **4–5× `m6a.4xlarge`** workers when that is the maximum instance type available
 * Sufficient persistent storage for Vault, GitLab, and OpenShift AI on the hub
 * Default StorageClass configured and provisioning PVCs
 * Hub total CPU capacity: minimum 32 vCPU allocatable across workers (with operator defaults)

@@ -7,20 +7,26 @@ weight: 10
 
 = Getting started with AI Computer Vision
 
-This guide walks you through deploying the AI Computer Vision pattern from a clean environment. Install the east and west spoke clusters first, collect their API tokens, then install the hub last so RHACM can auto-import both spokes. Each section includes verification commands with expected output so you know whether each step succeeded.
+This guide walks you through deploying the AI Computer Vision pattern from a clean environment.
 
 [IMPORTANT]
 ====
-Complete each cluster installation and verification before moving to the next. The hub imports spokes automatically when you provide spoke API tokens in `~/values-secret-ia-computer-vision.yaml`. Cross-cluster features such as Skupper, multi-cluster observability, RHACS Secured Cluster registration, and the RHCL inference gateway require imported spokes.
+**Choose your deployment topology first.** See link:../pattern-cr-guide/[Pattern CR guide] for the decision table and ready-to-apply YAML files in `examples/pattern-cr/`.
+
+* **One hub cluster, CPU inference (most common):** use Scenario A — `examples/pattern-cr/hub-only-cpu.yaml` with `extraValueFiles: [/values-hub-only.yaml]`.
+* **Hub + east + west spokes:** use Scenario B — install spokes first, collect tokens, then install the hub with `extraParameters` for ACM auto-import.
 ====
+
+The sections below describe the **full hub + spokes** install path (Scenario B). For hub-only CPU (Scenario A), install only the hub cluster and apply `examples/pattern-cr/hub-only-cpu.yaml` — skip the spoke sections entirely.
+
+Complete each cluster installation and verification before moving to the next. The hub imports spokes automatically when you provide spoke API tokens in `~/values-secret-ia-computer-vision.yaml` or the Pattern CR `extraParameters`. Cross-cluster features such as Skupper, multi-cluster observability, RHACS Secured Cluster registration, and the RHCL inference gateway require imported spokes.
 
 == Prerequisites
 
 === Cluster count and sizing
 
-* Three Red Hat OpenShift Container Platform (OCP) 4.20 or later clusters: one hub, one east spoke, one west spoke
-* Recommended AWS sizing per cluster: 3 control plane nodes (`m6a.2xlarge`) + 3 worker nodes (`m6a.2xlarge`)
-* See link:../cluster-sizing/[Cluster sizing] for GPU options and network requirements
+* **Hub-only (Scenario A):** one OCP 4.20+ hub cluster. Recommended: 3 control plane nodes (`m6a.2xlarge`) + **4–5 worker nodes (`m6a.4xlarge`)**. See link:../pattern-cr-guide/#scenario-a-hub-only-cpu-default[Pattern CR guide — Scenario A].
+* **Hub + spokes (Scenario B):** three clusters (hub, east, west). Recommended per cluster: 3 control plane nodes (`m6a.2xlarge`) + 3 worker nodes (`m6a.2xlarge` on spokes; `m6a.4xlarge` on hub). See link:../cluster-sizing/[Cluster sizing] for GPU options and network requirements.
 * CPU-only inference is the default; GPU workers are optional
 
 [NOTE]
@@ -301,7 +307,15 @@ The command creates a Pattern custom resource, which triggers the Validated Patt
 
 Instead of `./pattern.sh make install`, create the Pattern CR from the console: *Operators* -> *Installed Operators* -> *Validated Patterns Operator* -> *Pattern* tab -> *Create Pattern*.
 
-For **spoke** clusters (east or west), use a minimal CR without `extraParameters`:
+See link:../pattern-cr-guide/[Pattern CR guide] for the full decision table. Ready-to-apply files are in `examples/pattern-cr/` in the repository.
+
+==== Hub-only CPU (Scenario A — default)
+
+Apply `examples/pattern-cr/hub-only-cpu.yaml` or see link:../pattern-cr-guide/#scenario-a-hub-only-cpu-default[Pattern CR guide — Scenario A] for the full YAML.
+
+==== Spoke clusters (Scenario E)
+
+For **spoke** clusters (east or west), use a minimal CR without `extraParameters` or `extraValueFiles`:
 
 [source,yaml]
 ----
@@ -322,7 +336,9 @@ spec:
 ----
 <1> Replace with `west` for the west spoke.
 
-For the **hub** cluster, add `extraParameters` with the spoke tokens collected during spoke installation:
+==== Hub + spokes (Scenario B)
+
+Apply `examples/pattern-cr/hub-spoke-cpu.yaml` after filling in spoke tokens, or use the YAML below. See link:../pattern-cr-guide/#scenario-b-hub--spokes-cpu[Pattern CR guide — Scenario B].
 
 [source,yaml]
 ----
