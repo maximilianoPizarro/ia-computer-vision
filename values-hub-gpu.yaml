@@ -59,3 +59,69 @@ clusterGroup:
           value: "true"
         - name: gpu.enabled
           value: "true"
+
+    neuroface-hub:
+      name: neuroface-hub
+      namespace: neuroface-hub
+      argoProject: mesh
+      repoURL: https://maximilianopizarro.github.io/neuroface/
+      chart: neuroface
+      chartVersion: 1.4.*
+      syncWave: "7"
+      overrides:
+        - name: fullnameOverride
+          value: neuroface
+        - name: backend.image.tag
+          value: v1.5.1
+        - name: frontend.image.tag
+          value: v1.5.1
+        - name: chat.enabled
+          value: "true"
+        - name: chat.modelEndpoint
+          value: "http://qwen2-5-coder-7b-instruct-predictor.gpu-models.svc.cluster.local:8080"
+        - name: chat.modelName
+          value: qwen2-5-coder-7b-instruct
+        - name: chat.apiKey
+          value: ""
+        - name: chat.autoServiceAccount
+          value: "false"
+        - name: chat.maxTokens
+          value: "512"
+        - name: chat.systemPrompt
+          value: "You are NeuroFace, a helpful AI assistant running on the AI Computer Vision pattern's hub cluster. Be concise and informative."
+        - name: ovms.enabled
+          value: "false"
+        - name: litellm.enabled
+          value: "false"
+        - name: ppe.enabled
+          value: "true"
+        - name: ppe.endpoint
+          value: "http://yolo-ppe-serving-predictor.neuroface-cv.svc.cluster.local:8080"
+        - name: route.enabled
+          value: "false"
+        - name: persistence.enabled
+          value: "true"
+        - name: persistence.size
+          value: 1Gi
+
+    openshift-lightspeed:
+      name: openshift-lightspeed
+      namespace: openshift-lightspeed
+      argoProject: workshop
+      path: charts/all/openshift-lightspeed
+      syncWave: "7"
+      overrides:
+        - name: llm.providerName
+          value: gpu-vllm-local
+        - name: llm.url
+          value: "http://qwen2-5-coder-7b-instruct-predictor.gpu-models.svc.cluster.local:8080/v1"
+        - name: llm.model
+          value: qwen2-5-coder-7b-instruct
+        - name: llm.credentialsEnabled
+          value: "false"
+        - name: llm.contextWindowSize
+          value: "8192"
+        - name: llm.maxTokensForResponse
+          value: "1024"
+        - name: llm.toolBudgetRatio
+          value: "0.35"

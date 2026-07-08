@@ -84,13 +84,6 @@ clusterGroup:
           value: neuroface-cv-lb
         - name: kuadrant.realms[0].redirectAuth
           value: "false"
-        # RHPDS pre-provisions its own, unrelated Keycloak that already
-        # claims the default "sso.<domain>" hostname -- see values-hub-rhpds.yaml
-        # for the full explanation. Must match developer-hub/console-links
-        # overrides below and rhbk-iam/workshop-registration/devspaces
-        # overrides in values-hub-rhpds.yaml.
-        - name: kuadrant.ssoHostPrefix
-          value: rhdh-sso
 
     spoke-neuroface-cv:
       name: spoke-neuroface-cv
@@ -142,20 +135,10 @@ clusterGroup:
           value: v1.5.1
         - name: frontend.image.tag
           value: v1.5.1
+        # CPU-only (Scenario A): no local LLM on the hub. Enable chat via
+        # values-hub-gpu.yaml when GPU vLLM models are deployed.
         - name: chat.enabled
-          value: "true"
-        - name: chat.modelEndpoint
-          value: "http://qwen2-5-coder-7b-instruct-predictor.gpu-models.svc.cluster.local:8080"
-        - name: chat.modelName
-          value: qwen2-5-coder-7b-instruct
-        - name: chat.apiKey
-          value: ""
-        - name: chat.autoServiceAccount
           value: "false"
-        - name: chat.maxTokens
-          value: "512"
-        - name: chat.systemPrompt
-          value: "You are NeuroFace, a helpful AI assistant running on the AI Computer Vision pattern's hub cluster. Be concise and informative."
         - name: ovms.enabled
           value: "false"
         - name: litellm.enabled
@@ -210,39 +193,11 @@ clusterGroup:
         # chart default -- that would break Topology on hub+spokes installs.
         - name: kafka.enabled
           value: "true"
-        # RHPDS pre-provisions its own, unrelated Keycloak that already
-        # claims the default "sso.<domain>" hostname, permanently blocking
-        # this chart's own route-sso.yaml (HostAlreadyClaimed) and, in turn,
-        # Backstage's Deployment (a later sync wave) from ever being
-        # created. See values-hub-rhpds.yaml for the full explanation. Must
-        # match neuroface-gateway/console-links overrides in this file and
-        # rhbk-iam/workshop-registration/devspaces overrides in
-        # values-hub-rhpds.yaml.
-        - name: ssoHostPrefix
-          value: rhdh-sso
 
     argocd-mcp:
       overrides:
         - name: spokeSync.enabled
           value: "false"
-
-    openshift-lightspeed:
-      overrides:
-        - name: llm.providerName
-          value: gpu-vllm-local
-        - name: llm.url
-          value: "http://qwen2-5-coder-7b-instruct-predictor.gpu-models.svc.cluster.local:8080/v1"
-        - name: llm.model
-          value: qwen2-5-coder-7b-instruct
-        - name: llm.credentialsEnabled
-          value: "false"
-        # Must match openshift-ai-hub gpu.models[].maxModelLen / vLLM --max-model-len.
-        - name: llm.contextWindowSize
-          value: "8192"
-        - name: llm.maxTokensForResponse
-          value: "1024"
-        - name: llm.toolBudgetRatio
-          value: "0.35"
 
     observability:
       overrides:
@@ -259,8 +214,3 @@ clusterGroup:
         # Kafka runs locally on the hub in this overlay — show the Kafka Console link.
         - name: kafkaConsole.enabled
           value: "true"
-        # Must match developer-hub/neuroface-gateway overrides above and
-        # rhbk-iam/workshop-registration/devspaces overrides in
-        # values-hub-rhpds.yaml -- see there for the full explanation.
-        - name: ssoHostPrefix
-          value: rhdh-sso

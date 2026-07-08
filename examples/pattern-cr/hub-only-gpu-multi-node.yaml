@@ -16,8 +16,8 @@ metadata:
 spec:
   clusterGroupName: hub
   extraValueFiles:
-    - /values-hub-gpu.yaml
     - /values-hub-only.yaml
+    - /values-hub-gpu.yaml
   gitSpec:
     targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
     targetRevision: main
