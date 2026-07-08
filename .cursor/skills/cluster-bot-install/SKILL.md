@@ -51,7 +51,10 @@ workflow-launch openshift-e2e-aws 4.20 "COMPUTE_NODE_TYPE=m6a.4xlarge","CONTROL_
 
 These do NOT happen on RHPDS/sandbox clusters that come with operators
 pre-installed -- they are specific to truly empty clusters, which is exactly
-what Cluster Bot gives you.
+what Cluster Bot gives you. **As of the fixes below, all of these are now
+self-healing from `oc apply -f hub-only-cpu.yaml` alone -- no manual
+intervention should be needed on a fresh install.** Sections are kept for
+diagnosis if something still slips through.
 
 ### 3.1 cert-manager missing -> GitLab stuck in "Preparing" forever
 
@@ -67,39 +70,20 @@ regardless of `installCertmanager: false` / `certmanager.install: false` in
 the GitLab CR (those only control the GitLab *chart's* ingress certs). The
 pattern's `cert-manager` subscription in `values-hub.yaml` is commented out.
 
-**Fix (until the pattern enables it by default):**
-```bash
-oc apply -f - <<'EOF'
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: cert-manager-operator
----
-apiVersion: operators.coreos.com/v1
-kind: OperatorGroup
-metadata:
-  name: cert-manager-operator
-  namespace: cert-manager-operator
-spec:
-  targetNamespaces: []
----
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: openshift-cert-manager-operator
-  namespace: cert-manager-operator
-spec:
-  channel: stable-v1
-  name: openshift-cert-manager-operator
-  source: redhat-operators
-  sourceNamespace: openshift-marketplace
-EOF
-# Wait ~60s for cert-manager pods, then:
-oc delete pod -n gitlab-system -l app.kubernetes.io/name=gitlab-operator
-```
-GitLab then reconciles webservice/sidekiq/registry/kas/toolbox in a few
-minutes. **TODO: uncomment `cert-manager` in `values-hub.yaml` subscriptions
-so this is installed by default.**
+**Automated fix (already in the pattern):** `values-hub.yaml` now includes
+`cert-manager-operator` as a normal namespace + subscription (installed by
+OLM early, in parallel with every other operator, well before
+`gitlab-operator`'s sync-wave 3). No manual step needed on a fresh install
+-- GitLab's own controller retry loop (backoff up to ~16 min) would
+eventually self-heal even in the unlikely case of a residual race, but with
+cert-manager present from the start it should just work on the first pass.
+
+**Manual fallback if you hit an already-broken GitLab install** (e.g. an
+older cluster missing this fix): install `openshift-cert-manager-operator`
+(channel `stable-v1`) in its own `cert-manager-operator` namespace/
+OperatorGroup, wait ~60s, then `oc delete pod -n gitlab-system -l
+app.kubernetes.io/name=gitlab-operator` to force an immediate re-reconcile
+instead of waiting out the backoff.
 
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
@@ -137,17 +121,25 @@ show `Invalid (Not Accepted)` in the OpenShift console. Condition message:
 restart Kuadrant Operator pod once dependency has been installed
 ```
 
-**Cause:** the Kuadrant Operator starts and checks for a Gateway API
-provider (Istio) before Service Mesh/Istio has finished installing on a
-fresh cluster. It does not recheck automatically once Istio becomes ready.
+**Cause:** the `rhcl` subscription (Kuadrant Operator) is OLM-installed
+early, independently of Argo CD sync waves, and frequently starts before
+`servicemesh-config` (sync-wave 5, installs Istio) has finished. The
+operator checks for a Gateway API provider **once** at its own startup and
+never rechecks on its own.
 
-**Fix:**
+**Automated fix (already in the pattern):**
+`charts/all/neuroface-gateway/templates/job-kuadrant-operator-readiness.yaml`
+is a PostSync hook (sync-wave 5, same wave as `servicemesh-config`) that
+waits for the `istio` GatewayClass to be `Accepted`, then runs
+`oc rollout restart` on the Kuadrant + Limitador operator deployments. No
+manual step needed on a fresh install.
+
+**Manual fallback if it still races on a given cluster:**
 ```bash
 oc delete pod -n redhat-connectivity-link-operator -l control-plane=controller-manager
 # wait ~30s, then:
 oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status
 ```
-All AuthPolicy resources flip to `Accepted` within a minute of the restart.
 
 ### 3.4 Developer Hub OIDC "unauthorized_client (Invalid client or Invalid client credentials)"
 
@@ -229,6 +221,47 @@ helm template neuroface-gateway charts/all/neuroface-gateway \
 ```
 Verify: `oc get apiproducts.devportal.kuadrant.io -A` should list
 `neuroface-openapi` and `neuroface-cv-openapi` in `neuroface-gateway-system`.
+
+### 3.6 YOLO PPE InferenceService storage-initializer S3 403 Forbidden
+
+**Symptom:**
+```
+S3 error for s3://models/ppe-detection/model: An error occurred (403) when
+calling the HeadBucket operation: Forbidden
+```
+`yolo-ppe-serving-predictor` stuck `Init:CrashLoopBackOff`.
+
+**Cause:** `vault-secrets-bootstrap`'s job seeds `secret/data/hub/
+minio-credentials` with **random placeholder** values (it has no way to
+know GitLab's actual bundled MinIO root credentials at that point).
+`charts/all/spoke-neuroface-cv/templates/job-model-seed.yaml` already reads
+the REAL `gitlab-minio-secret` and overwrites Vault with the correct
+values as its last step -- this is not a missing feature, just a job that
+needs `gitlab-minio-secret` to exist (created early in GitLab's own
+reconciliation, well before webservice/sidekiq) and needs its own PostSync
+hook to actually run to completion.
+
+**If this still shows up:** it almost always means `spoke-neuroface-cv`'s
+Argo CD sync got stuck/retried before reaching its PostSync hooks (see
+diagnosis below) rather than a code problem -- `job-model-seed.yaml`'s fix
+is already in place.
+
+**Diagnosis:**
+```bash
+oc get application spoke-neuroface-cv -n vp-gitops -o custom-columns=SYNC:.status.sync.status,HEALTH:.status.health.status,OP:.status.operationState.phase,MSG:.status.operationState.message
+oc exec vault-0 -n vault -- vault kv get secret/hub/minio-credentials   # if still the placeholder rand() value, the hook hasn't run
+```
+
+**Recovery:**
+```bash
+oc annotate application spoke-neuroface-cv -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+# if the sync stays stuck retrying, clear it and let it retry clean:
+oc patch application spoke-neuroface-cv -n vp-gitops --type json -p '[{"op":"remove","path":"/operation"}]'
+oc annotate application spoke-neuroface-cv -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+# once synced, confirm:
+oc logs -n gitlab-system -l job-name=ppe-model-seed --tail=10   # should end with "Vault minio-credentials: synced"
+oc delete pod -n neuroface-cv -l serving.kserve.io/inferenceservice=yolo-ppe-serving
+```
 
 ## 4. Quick health check after all fixes
 

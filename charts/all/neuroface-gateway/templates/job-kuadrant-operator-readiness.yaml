@@ -1,0 +1,125 @@
+{{- /*
+  The Kuadrant Operator (rhcl-operator subscription, OLM-installed early and
+  independently of Argo CD sync waves) checks ONCE at its own pod startup
+  whether a Gateway API provider (Istio) is installed. On a from-scratch
+  cluster the operator pod frequently starts before Service Mesh/Istio
+  (servicemesh-config, sync-wave 5) has finished installing, and it does
+  NOT re-check on its own -- every AuthPolicy/RateLimitPolicy in the cluster
+  gets stuck "Invalid (Not Accepted)" with condition message:
+    "[Gateway API provider (istio / envoy gateway)] is not installed,
+     please restart Kuadrant Operator pod once dependency has been installed"
+  This PostSync hook (running at neuroface-gateway's own sync-wave, after
+  servicemesh-config) waits for the "istio" GatewayClass to be Accepted,
+  then unconditionally rolls the Kuadrant + Limitador operator deployments
+  so they redo their dependency check with Istio already present. This is
+  a single cluster-wide fix -- it only needs to run from one app/wave, not
+  from every app that creates AuthPolicy/RateLimitPolicy resources.
+*/ -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: neuroface-gateway-kuadrant-readiness
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gatewayclasses"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: neuroface-gateway-kuadrant-readiness
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: neuroface-gateway-kuadrant-readiness
+subjects:
+  - kind: ServiceAccount
+    name: neuroface-gateway-kuadrant-readiness
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: neuroface-gateway-kuadrant-readiness
+  namespace: redhat-connectivity-link-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: neuroface-gateway-kuadrant-readiness
+  namespace: redhat-connectivity-link-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: neuroface-gateway-kuadrant-readiness
+subjects:
+  - kind: ServiceAccount
+    name: neuroface-gateway-kuadrant-readiness
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: neuroface-gateway-kuadrant-readiness
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kuadrant-operator-readiness
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: neuroface-gateway-kuadrant-readiness
+      restartPolicy: OnFailure
+      containers:
+        - name: wait-and-restart
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              echo "Waiting for Istio GatewayClass to be Accepted..."
+              for i in $(seq 1 60); do
+                STATUS=$(oc get gatewayclass istio -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}' 2>/dev/null || echo "")
+                if [ "$STATUS" = "True" ]; then
+                  echo "Istio GatewayClass Accepted."
+                  break
+                fi
+                if [ "$i" -eq 60 ]; then
+                  echo "Istio GatewayClass not Accepted after 10 minutes -- restarting Kuadrant Operator anyway, it will retry on next Argo sync if Istio is still not ready."
+                fi
+                sleep 10
+              done
+
+              echo "Restarting Kuadrant/Limitador operator pods to re-check the Gateway API provider dependency..."
+              oc rollout restart deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator || true
+              oc rollout restart deployment/limitador-operator-controller-manager -n redhat-connectivity-link-operator || true
+              oc rollout status deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator --timeout=120s || true
+
+              echo "Done. AuthPolicy/RateLimitPolicy resources should flip to Accepted within ~1 minute."
