@@ -280,7 +280,9 @@ clusterGroup:
       argoProject: workshop
       chart: rhbk
       chartVersion: 0.1.*
-      syncWave: "2"
+      # After vault-secrets-bootstrap (wave 3) and openshift-external-secrets (wave 2):
+      # ExternalSecret creation needs the ESO validating webhook and Vault paths.
+      syncWave: "4"
       overrides:
         - name: keycloak.adminUser.passwordVaultKey
           value: secret/data/hub/rhbk-credentials
@@ -294,8 +296,8 @@ clusterGroup:
       namespace: keycloak-system
       argoProject: workshop
       path: charts/all/rhbk-iam
-      # After rhbk (wave 2): KeycloakRealmImport needs the Keycloak CR to exist.
-      syncWave: "3"
+      # After rhbk (wave 4): KeycloakRealmImport needs the Keycloak CR to exist.
+      syncWave: "5"
       overrides:
         - name: userCount
           value: "30"
@@ -327,7 +329,8 @@ clusterGroup:
       namespace: developer-hub
       argoProject: workshop
       path: charts/all/developer-hub
-      syncWave: "4"
+      # After rhbk-iam (wave 5): backstage-realm import needs Keycloak running.
+      syncWave: "6"
       overrides:
         - name: userCount
           value: "30"

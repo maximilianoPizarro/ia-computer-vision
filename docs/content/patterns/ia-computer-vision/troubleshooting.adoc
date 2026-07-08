@@ -636,7 +636,7 @@ Developer Hub OIDC login returns HTTP 500 with `Realm does not exist` on `/oidc/
 
 `KeycloakRealmImport` resources (`backstage-realm`, `realm-cv`, `realm-maas`, `realm-neuroface`) ran before the `Keycloak` CR existed. The RHBK operator marks the import with `HasErrors` and does not retry automatically. Argo CD can then block on the `developer-hub-keycloak-readiness` PostSync hook waiting for a realm that was never created.
 
-On a fresh install, `rhbk` and `rhbk-iam` used to share pattern sync wave `2`, so IAM realm imports raced the Keycloak CR.
+On a fresh install, `rhbk` and `rhbk-iam` used to share pattern sync wave `2`, so IAM realm imports raced the Keycloak CR. If `rhbk` also runs before the External Secrets Operator webhook is ready, its `postgresql-db` and `keycloak-admin-user` `ExternalSecret` resources fail with `no endpoints available for service external-secrets-webhook`, PostgreSQL never starts, and SSO returns HTTP 503.
 
 === Diagnosis
 
@@ -667,7 +667,16 @@ $ oc delete job developer-hub-keycloak-readiness -n developer-hub --ignore-not-f
 $ oc annotate application developer-hub rhbk-iam -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
 ----
 
-. Wait for Argo CD to recreate the imports (pattern fix: `rhbk-iam` sync wave `3`, after `rhbk` wave `2`).
+. Wait for Argo CD to recreate the imports (pattern fix: `rhbk` wave `4`, `rhbk-iam` wave `5`, `developer-hub` wave `6`).
+
+. If `rhbk` `ExternalSecret` failed with `external-secrets-webhook` / `no endpoints available`, refresh once ESO is healthy:
+
+[source,bash]
+----
+$ oc get pods -n external-secrets
+$ oc patch application rhbk -n vp-gitops --type json -p '[{"op":"remove","path":"/operation"}]'
+$ oc annotate application rhbk -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+----
 
 . Verify OIDC discovery returns JSON (not `Realm does not exist`):
 
