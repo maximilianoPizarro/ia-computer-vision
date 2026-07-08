@@ -626,6 +626,98 @@ After patching, delete the pod to restart with the corrected config:
 $ oc delete pod -n developer-hub -l app.kubernetes.io/name=backstage
 ----
 
+== Developer Hub login — "Realm does not exist"
+
+=== Symptom
+
+Developer Hub OIDC login returns HTTP 500 with `Realm does not exist` on `/oidc/start`. Keycloak SSO route (`https://sso.apps.<hub-domain>/realms/backstage`) returns the same error.
+
+=== Cause
+
+`KeycloakRealmImport` resources (`backstage-realm`, `realm-cv`, `realm-maas`, `realm-neuroface`) ran before the `Keycloak` CR existed. The RHBK operator marks the import with `HasErrors` and does not retry automatically. Argo CD can then block on the `developer-hub-keycloak-readiness` PostSync hook waiting for a realm that was never created.
+
+On a fresh install, `rhbk` and `rhbk-iam` used to share pattern sync wave `2`, so IAM realm imports raced the Keycloak CR.
+
+=== Diagnosis
+
+[source,bash]
+----
+$ curl -sk "https://sso.apps.<hub-domain>/realms/backstage/.well-known/openid-configuration" | head -1
+$ oc get keycloakrealmimport -n keycloak-system
+$ oc get keycloakrealmimport backstage-realm -n keycloak-system \
+  -o jsonpath='{.status.conditions[?(@.type=="HasErrors")].message}{"\n"}'
+$ oc get jobs -n developer-hub developer-hub-keycloak-readiness
+----
+
+=== Solution
+
+. Confirm Keycloak is running:
+
+[source,bash]
+----
+$ oc get keycloak,pods -n keycloak-system
+----
+
+. Delete failed realm imports and stuck readiness jobs, then refresh Argo CD:
+
+[source,bash]
+----
+$ oc delete keycloakrealmimport backstage-realm realm-cv realm-maas realm-neuroface -n keycloak-system
+$ oc delete job developer-hub-keycloak-readiness -n developer-hub --ignore-not-found
+$ oc annotate application developer-hub rhbk-iam -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+----
+
+. Wait for Argo CD to recreate the imports (pattern fix: `rhbk-iam` sync wave `3`, after `rhbk` wave `2`).
+
+. Verify OIDC discovery returns JSON (not `Realm does not exist`):
+
+[source,bash]
+----
+$ curl -sk "https://sso.apps.<hub-domain>/realms/backstage/.well-known/openid-configuration" | jq .issuer
+----
+
+Default login: `admin` / `Welcome123!` (or `user1`..`userN`).
+
+== Kafka Console not operational (hub-only)
+
+=== Symptom
+
+`https://kafka-console-neuroface-cv.apps.<hub-domain>/` returns HTTP 503 or does not load. Argo CD shows `spoke-neuroface-cv` Degraded with `Kafka/cv-kafka` Missing.
+
+=== Cause
+
+Hub-only installs run Kafka locally via `spoke-neuroface-cv` (`kafka.enabled: true` in `values-hub-only.yaml`). If the Strimzi `Kafka` CR was never applied (Argo CD sync blocked on another degraded resource, e.g. `yolo-ppe-serving`), the Streams Console operator has no broker to connect to.
+
+The console pods also need ~1–2 minutes after the `cv-kafka` cluster becomes Ready.
+
+=== Diagnosis
+
+[source,bash]
+----
+$ oc get kafka,kafkanodepool,pods -n neuroface-cv -l strimzi.io/cluster=cv-kafka
+$ oc get console -n neuroface-cv
+$ oc get pods -n neuroface-cv | grep kafka-console
+$ curl -sk -o /dev/null -w "%{http_code}\n" "https://kafka-console-neuroface-cv.apps.<hub-domain>/"
+----
+
+=== Solution
+
+. Ensure Strimzi operator is installed (`amq-streams` subscription in `values-hub-only.yaml`).
+
+. Sync or apply Kafka resources:
+
+[source,bash]
+----
+$ oc annotate application spoke-neuroface-cv -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+# Or from the pattern repo:
+$ helm template spoke-neuroface-cv charts/all/spoke-neuroface-cv \
+  --set clusterName=hub --set kafka.enabled=true \
+  --set kafka.directAccessNamespaces[0]=mailpit --set skupper.enabled=false \
+  | oc apply -f -
+----
+
+. Wait for `cv-kafka` Ready and console pods `2/2 Running`, then re-test the URL.
+
 == OCM / Kiali plugins (ghcr.io OCI)
 
 === Symptom

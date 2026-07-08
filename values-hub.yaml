@@ -294,7 +294,8 @@ clusterGroup:
       namespace: keycloak-system
       argoProject: workshop
       path: charts/all/rhbk-iam
-      syncWave: "2"
+      # After rhbk (wave 2): KeycloakRealmImport needs the Keycloak CR to exist.
+      syncWave: "3"
       overrides:
         - name: userCount
           value: "30"
