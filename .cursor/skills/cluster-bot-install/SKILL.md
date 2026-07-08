@@ -1,0 +1,246 @@
+---
+name: cluster-bot-install
+description: >-
+  Provision a fresh OpenShift cluster via Cluster Bot (ci-chat-bot) sized for
+  the ia-computer-vision hub-only CPU pattern, and recover from the known
+  first-boot issues a cluster with NO pre-installed operators hits (cert-manager
+  missing, RHBK/ESO sync-wave races, Keycloak Fine-Grained Admin Permissions
+  locking out the backstage realm, Kuadrant Gateway API dependency race). Use
+  when asked to launch a Cluster Bot cluster for this pattern, or when
+  diagnosing SSO 503s, Developer Hub "unauthorized_client"/"Realm does not
+  exist" errors, GitLab stuck in "Preparing", invalid Kuadrant AuthPolicy, or
+  missing API Products/Swagger definitions right after a fresh install.
+---
+
+# Cluster Bot install -- ia-computer-vision hub-only CPU
+
+## 1. Launch command (verified sizing)
+
+```
+workflow-launch openshift-e2e-aws 4.20 "COMPUTE_NODE_TYPE=m6a.4xlarge","CONTROL_PLANE_INSTANCE_TYPE=m6a.2xlarge","COMPUTE_NODE_REPLICAS=4"
+```
+
+- Parameter names come from the `openshift-e2e-aws` workflow (`ipi-conf-aws` step) --
+  `COMPUTE_TYPE`/`CONTROLPLANE_TYPE` **do not exist** and fail ci-operator config
+  resolution in ~10s (`parameter "X" is overridden ... but not declared in any step`).
+  Use `COMPUTE_NODE_TYPE`, `CONTROL_PLANE_INSTANCE_TYPE`, `COMPUTE_NODE_REPLICAS`.
+- Prefer a specific `4.20.x` (e.g. `4.20.28`, Accepted on
+  https://amd64.ocp.releases.ci.openshift.org/) over bare `4.20` if the latest
+  nightly is `Rejected` -- check with `lookup 4.20 amd64` in Cluster Bot first.
+- Confirmed working sizing: 3x control plane (8 vCPU/32Gi, `m6a.2xlarge`) +
+  4x workers (16 vCPU/64Gi, `m6a.4xlarge`). CPU usage stayed 6-29% across
+  workers with the full hub-only stack (GitLab, Developer Hub, Keycloak,
+  OpenShift AI, Kuadrant/Kiali/ServiceMesh, Kafka/Strimzi) -- do not go below
+  3 workers `m6a.4xlarge`; `m6a.2xlarge` workers hit ~98% CPU requests.
+- A job failing in ~10s = bad parameter name, not a real provisioning failure.
+  A job running 30-60+ min = real install in progress.
+
+## 2. Post-provision sequence
+
+1. `auth` in Cluster Bot (or wait for the bot's DM) to get the kubeconfig.
+2. Install the **Validated Patterns Operator** from OperatorHub.
+3. Apply the Pattern CR:
+   ```bash
+   oc apply -f https://raw.githubusercontent.com/maximilianoPizarro/ia-computer-vision/main/examples/pattern-cr/hub-only-cpu.yaml
+   ```
+4. Expect ~1-2h for ArgoCD to reach Healthy/Synced across ~26 apps. Work
+   through section 3 below **proactively** -- these are not edge cases, they
+   reproduced on every from-scratch Cluster Bot cluster tested.
+
+## 3. Known first-boot issues on a clean cluster (no pre-installed operators)
+
+These do NOT happen on RHPDS/sandbox clusters that come with operators
+pre-installed -- they are specific to truly empty clusters, which is exactly
+what Cluster Bot gives you.
+
+### 3.1 cert-manager missing -> GitLab stuck in "Preparing" forever
+
+**Symptom:** `oc get gitlab gitlab -n gitlab-system` stays `Preparing`; only
+gitaly/postgres/redis/minio pods exist, no webservice/sidekiq/registry/kas.
+`gitlab-controller-manager` logs loop on:
+```
+no matches for kind "Issuer" in version "cert-manager.io/v1"
+```
+
+**Cause:** the GitLab Operator needs cert-manager for its OWN webhook cert
+regardless of `installCertmanager: false` / `certmanager.install: false` in
+the GitLab CR (those only control the GitLab *chart's* ingress certs). The
+pattern's `cert-manager` subscription in `values-hub.yaml` is commented out.
+
+**Fix (until the pattern enables it by default):**
+```bash
+oc apply -f - <<'EOF'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager-operator
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: cert-manager-operator
+  namespace: cert-manager-operator
+spec:
+  targetNamespaces: []
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-cert-manager-operator
+  namespace: cert-manager-operator
+spec:
+  channel: stable-v1
+  name: openshift-cert-manager-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+EOF
+# Wait ~60s for cert-manager pods, then:
+oc delete pod -n gitlab-system -l app.kubernetes.io/name=gitlab-operator
+```
+GitLab then reconciles webservice/sidekiq/registry/kas/toolbox in a few
+minutes. **TODO: uncomment `cert-manager` in `values-hub.yaml` subscriptions
+so this is installed by default.**
+
+### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
+
+**Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login
+shows `OPError: expected 200 OK, got 503 Service Unavailable`.
+
+**Cause:** `rhbk` (Keycloak) used to share a sync wave with
+`openshift-external-secrets`. If RHBK's `ExternalSecret` resources
+(`postgresql-db`, `keycloak-admin-user`) sync before the ESO validating
+webhook has endpoints, they fail with
+`no endpoints available for service "external-secrets-webhook"`, PostgreSQL
+never starts, and Keycloak has no DB to connect to.
+
+**Pattern fix (already applied, `values-hub.yaml`):** `rhbk` now syncs at
+wave 4 (after `vault-secrets-bootstrap` wave 3), `rhbk-iam` at wave 5,
+`developer-hub` at wave 6.
+
+**If it still races on a given cluster:**
+```bash
+oc get pods -n external-secrets   # confirm webhook pod is Running
+oc patch application rhbk -n vp-gitops --type json -p '[{"op":"remove","path":"/operation"}]'
+oc annotate application rhbk -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+# If postgresql-db-0 is stuck CreateContainerConfigError from the failed run:
+oc scale statefulset postgresql-db -n keycloak-system --replicas=0
+oc delete pvc data-postgresql-db-0 -n keycloak-system
+oc scale statefulset postgresql-db -n keycloak-system --replicas=1
+```
+
+### 3.3 Kuadrant AuthPolicy stuck "Invalid" (MissingDependency)
+
+**Symptom:** AuthPolicy resources (`authpolicy-cv`, `workshop-*-auth`, etc.)
+show `Invalid (Not Accepted)` in the OpenShift console. Condition message:
+```
+[Gateway API provider (istio / envoy gateway)] is not installed, please
+restart Kuadrant Operator pod once dependency has been installed
+```
+
+**Cause:** the Kuadrant Operator starts and checks for a Gateway API
+provider (Istio) before Service Mesh/Istio has finished installing on a
+fresh cluster. It does not recheck automatically once Istio becomes ready.
+
+**Fix:**
+```bash
+oc delete pod -n redhat-connectivity-link-operator -l control-plane=controller-manager
+# wait ~30s, then:
+oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status
+```
+All AuthPolicy resources flip to `Accepted` within a minute of the restart.
+
+### 3.4 Developer Hub OIDC "unauthorized_client (Invalid client or Invalid client credentials)"
+
+This is the hardest one and can recur across realm re-imports if you only
+delete+recreate the `KeycloakRealmImport` CR -- **deleting the CR does not
+delete the realm from Keycloak's Postgres**, so a stale/locked realm persists
+underneath.
+
+**Diagnosis -- confirm it's a real secret mismatch (not a UI cache issue):**
+```bash
+DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')
+SECRET=$(oc get secret developer-hub-oidc-auth -n developer-hub -o jsonpath='{.data.OIDC_CLIENT_SECRET}' | base64 -d)
+curl -sk -X POST "https://sso.${DOMAIN}/realms/backstage/protocol/openid-connect/token" \
+  -d "grant_type=password" -d "client_id=developer-hub" -d "client_secret=${SECRET}" \
+  -d "username=admin" -d "password=Welcome123!" -w "\nHTTP:%{http_code}\n"
+```
+`HTTP:401 unauthorized_client` confirms the secret in Vault/K8s does not
+match what Keycloak has for the `developer-hub` client.
+
+**Root cause found on a from-scratch cluster:** the `backstage` realm
+(`charts/all/developer-hub/templates/keycloak-realm.yaml`) did not set
+`adminPermissionsEnabled`, and Keycloak defaulted it to Fine-Grained Admin
+Permissions **enabled** for that realm. With FGAP on, the master bootstrap
+admin loses its classic implicit cross-realm access: `GET
+/admin/realms/backstage` returns a truncated representation (just
+`realm`/`displayName`), and `/admin/realms/backstage/clients` etc. 403.
+This silently breaks the `developer-hub-sync-backstage-realm-secrets`
+PostSync job (which uses that same master-admin path to reconcile the
+secret), so drift is never repaired. Realms created by `rhbk-iam`
+(`cv`/`maas`/`neuroface`) are unaffected because they end up with
+`adminPermissionsEnabled: false`.
+
+**Pattern fix (already applied):** `keycloak-realm.yaml` now explicitly sets
+`adminPermissionsEnabled: false` on the backstage realm.
+
+**Recovery if you hit a cluster with an already-locked realm** (CR
+delete/recreate will NOT fix it -- confirmed the realm data survives):
+```bash
+oc delete keycloakrealmimport backstage-realm realm-cv realm-maas realm-neuroface -n keycloak-system --ignore-not-found
+oc scale statefulset postgresql-db -n keycloak-system --replicas=0
+sleep 5
+oc delete pvc data-postgresql-db-0 -n keycloak-system
+oc scale statefulset postgresql-db -n keycloak-system --replicas=1
+# wait for postgresql-db-0 and keycloak-0 to both be 1/1 Running (~2 min)
+oc patch application rhbk-iam developer-hub -n vp-gitops --type merge \
+  -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+# wait for keycloakrealmimport backstage-realm/realm-cv/realm-maas/realm-neuroface to reappear
+# then re-run the diagnosis curl above -- should return HTTP:200 with an access_token
+oc delete pod -n developer-hub -l rhdh.redhat.com/app=backstage-developer-hub
+```
+This wipes Keycloak's Postgres (acceptable pre-go-live; only workshop
+user1..N and scaffolded realm data are lost, nothing user-created). Wiping
+the DB is the only reliable fix found -- REST-based secret repair and CR
+recreation are both blocked by the same FGAP lockout.
+
+### 3.5 Missing "Computer Vision API" / Swagger definitions in Developer Hub catalog
+
+**Symptom:** the NeuroFace and Computer Vision API entries (with their
+Swagger/OpenAPI cards) don't show up under Developer Hub's API catalog on a
+hub-only CPU install, even though the underlying HTTPRoutes work fine.
+
+**Cause:** `charts/all/neuroface-gateway/templates/apiproducts.yaml` (the
+Kuadrant `APIProduct` CRs the Developer Hub Kuadrant plugin needs to render
+the catalog card) was gated on `{{- if or .Values.clusters.east.domain
+.Values.clusters.west.domain }}` only -- i.e. hub+spoke topology. Hub-only
+CPU installs (`hubLocal.enabled: true`) target the exact same
+`neuroface-app-lb`/`neuroface-cv-lb` HTTPRoutes but never got the
+`APIProduct` CRs created.
+
+**Pattern fix (already applied):** the guard now also fires when
+`hubLocal.enabled` is `"true"`.
+
+**Recovery on an already-installed cluster (before the ArgoCD app resyncs):**
+```bash
+DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')
+helm template neuroface-gateway charts/all/neuroface-gateway \
+  --set clusterDomain="${DOMAIN}" --set hubLocal.enabled=true \
+  --show-only templates/apiproducts.yaml | oc apply -f -
+```
+Verify: `oc get apiproducts.devportal.kuadrant.io -A` should list
+`neuroface-openapi` and `neuroface-cv-openapi` in `neuroface-gateway-system`.
+
+## 4. Quick health check after all fixes
+
+```bash
+DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')
+curl -sk -o /dev/null -w "sso:%{http_code}\n" "https://sso.${DOMAIN}/"
+curl -sk -o /dev/null -w "dh:%{http_code}\n" "https://developer-hub.${DOMAIN}/"
+curl -sk "https://developer-hub.${DOMAIN}/api/auth/oidc/start?env=production" -o /dev/null -w "oidc-start:%{http_code}\n"
+curl -sk -o /dev/null -w "gitlab:%{http_code}\n" "https://gitlab.apps.${DOMAIN#apps.}/"
+oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status
+oc get apiproducts.devportal.kuadrant.io -A
+```
+Expect `sso:302`, `dh:200`, `oidc-start:302` (not 500/503), `gitlab:200`
+(once webservice pods are 2/2 Running), all AuthPolicy `True`, and the
+`neuroface-*-openapi` APIProducts present.

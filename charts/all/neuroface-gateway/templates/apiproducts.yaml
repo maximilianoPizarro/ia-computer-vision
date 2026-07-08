@@ -1,5 +1,10 @@
 {{- $dhHost := printf "developer-hub.%s" (include "neuroface-gateway.clusterDomain" .) -}}
-{{- if or .Values.clusters.east.domain .Values.clusters.west.domain }}
+{{- /*
+  Render on hub+spoke (east/west domains set) AND on hub-only CPU installs
+  (hubLocal.enabled: true, values-hub-only.yaml) -- both topologies expose the
+  same neuroface-app-lb / neuroface-cv-lb HTTPRoutes these APIProducts target.
+*/ -}}
+{{- if or .Values.clusters.east.domain .Values.clusters.west.domain (eq (.Values.hubLocal.enabled | toString | default "false") "true") }}
 ---
 apiVersion: devportal.kuadrant.io/v1alpha1
 kind: APIProduct

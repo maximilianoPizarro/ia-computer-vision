@@ -32,6 +32,19 @@ spec:
     loginWithEmailAllowed: true
     registrationAllowed: false
     sslRequired: external
+    # Explicit false (Keycloak/RHBK 26 defaults new realms to Fine-Grained Admin
+    # Permissions v2 when this is omitted). With FGAP on, the master bootstrap
+    # admin loses its classic implicit cross-realm access to THIS realm's
+    # clients/users (Admin REST API silently returns a truncated
+    # RealmRepresentation and 403s on /clients, /users, DELETE) unless someone
+    # explicitly grants it fine-grained view/manage-realm permissions -- which
+    # nothing in this pattern does. This breaks developer-hub-sync-backstage-realm-secrets.yaml
+    # (its own admin-cli/master-password-grant sync job) and manual secret
+    # recovery alike, surfacing as a persistent OIDC "unauthorized_client
+    # (Invalid client or Invalid client credentials)" Developer Hub login error
+    # that survives realm re-imports. Keep false to match the classic
+    # admin model used by rhbk-iam's cv/maas/neuroface realms.
+    adminPermissionsEnabled: false
     roles:
       realm:
         - name: platform-engineer

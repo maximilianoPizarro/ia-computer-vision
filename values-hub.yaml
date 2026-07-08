@@ -31,6 +31,9 @@ clusterGroup:
       operatorGroup: true
       targetNamespaces: []
     external-secrets: {}
+    cert-manager-operator:
+      operatorGroup: true
+      targetNamespaces: []
     # stackrox: {}  # ACS disabled by default to save resources
     neuroface-gateway-system:
       labels:
@@ -175,11 +178,17 @@ clusterGroup:
     #   namespace: openshift-operators
     #   channel: alpha
     #   source: redhat-operators
-    # cert-manager:
-    #   name: openshift-cert-manager-operator
-    #   namespace: cert-manager-operator
-    #   channel: stable-v1
-    #   source: redhat-operators
+    # Required by the GitLab Operator for its own webhook cert, regardless of
+    # installCertmanager/certmanager.install: false in gitlab-cr.yaml (those
+    # only affect the GitLab chart's ingress certs). Without this, a
+    # from-scratch cluster (e.g. Cluster Bot, no pre-installed operators)
+    # leaves GitLab stuck in "Preparing" forever -- see
+    # .cursor/skills/cluster-bot-install/SKILL.md section 3.1.
+    cert-manager:
+      name: openshift-cert-manager-operator
+      namespace: cert-manager-operator
+      channel: stable-v1
+      source: redhat-operators
 
   argoProjects:
     - hub
