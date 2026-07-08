@@ -24,7 +24,7 @@ focus_areas:
 - Edge computing
 - DevOps
 aliases: /ia-computer-vision/
-pattern_logo: /ia-computer-vision/images/ia-computer-vision/architecture-hub-spoke.png
+pattern_logo: /ia-computer-vision/images/ia-computer-vision/ia-computer-vision-logo.png
 links:
   github: https://github.com/maximilianoPizarro/ia-computer-vision
   install: getting-started

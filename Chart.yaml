@@ -8,6 +8,7 @@ dependencies:
   - name: clustergroup
     version: 0.9.*
     repository: https://charts.validatedpatterns.io
+icon: https://maximilianopizarro.github.io/ia-computer-vision/images/ia-computer-vision/ia-computer-vision-logo.png
 maintainers:
   - name: Maximiliano Pizarro
     email: mapizarr@redhat.com
