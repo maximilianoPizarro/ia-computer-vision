@@ -9,6 +9,12 @@
 # BEFORE installing: raise kubelet maxPods to 500 (see cluster-sizing.adoc).
 # If maxPods cannot be changed, add /values-hub-gpu-minimal.yaml as a fifth overlay.
 #
+# Overlay order matters (Helm replaces each application's overrides: list
+# wholesale). values-hub-rhpds.yaml MUST be last — it repeats hub-only and
+# single-node overrides for shared apps (neuroface-gateway, developer-hub,
+# console-links) and adds ssoHostPrefix / OperatorGroup skips / cert-manager
+# disabled.
+#
 # Apply: oc apply -f examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml
 # Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
 ---
@@ -20,8 +26,8 @@ metadata:
 spec:
   clusterGroupName: hub
   extraValueFiles:
-    - /values-hub-only.yaml
     - /values-hub-gpu.yaml
+    - /values-hub-only.yaml
     - /values-hub-single-node.yaml
     - /values-hub-rhpds.yaml
   gitSpec:

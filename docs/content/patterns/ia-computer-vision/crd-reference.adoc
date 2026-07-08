@@ -127,9 +127,9 @@ spec:
   clusterGroupName: hub
   extraValueFiles:
     - /values-hub-gpu.yaml          # <1>
-    - /values-hub-single-node.yaml  # <2>
-    - /values-hub-rhpds.yaml        # <3>
-    - /values-hub-only.yaml         # <4>
+    - /values-hub-only.yaml         # <2>
+    - /values-hub-single-node.yaml  # <3>
+    - /values-hub-rhpds.yaml        # <4>
   gitSpec:
     targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
     targetRevision: main
@@ -139,9 +139,9 @@ spec:
     helmRepoUrl: https://charts.validatedpatterns.io
 ----
 <1> GPU-backed vLLM model serving on the hub.
-<2> Scales workshop user counts down to fit a single node's pod-count ceiling.
-<3> Skips duplicate `OperatorGroup`s, pins the ZTunnel version to the pre-installed Service Mesh, and points `models-as-a-service` at the pre-installed Connectivity Link namespace. Omit this file entirely on a from-scratch, multi-node hub where the pattern should install its own copies of these operators.
-<4> Hub-only topology — no east/west spoke clusters.
+<2> Hub-only topology — no east/west spoke clusters.
+<3> Scales workshop user counts down to fit a single node's pod-count ceiling.
+<4> Must be last. Skips duplicate `OperatorGroup`s (including cert-manager), disables the pattern cert-manager subscription, pins the ZTunnel version to the pre-installed Service Mesh, points `models-as-a-service` at the pre-installed Connectivity Link namespace, and repeats hub-only / single-node overrides for shared apps. Omit this file entirely on a from-scratch, multi-node hub where the pattern should install its own copies of these operators.
 
 File: `examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml`.
 

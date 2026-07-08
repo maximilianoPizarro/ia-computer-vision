@@ -31,6 +31,11 @@ clusterGroup:
       operatorGroup: true
       targetNamespaces: []
     external-secrets: {}
+    # Required by GitLab Operator webhook certs on from-scratch clusters.
+    # When openshift-cert-manager-operator is already installed (e.g. RHPDS),
+    # set operatorGroup: false here and subscriptions.cert-manager.disabled: true
+    # -- a second OperatorGroup causes CSV TooManyOperatorGroups.
+    # Overlay: values-hub-rhpds.yaml does both.
     cert-manager-operator:
       operatorGroup: true
       targetNamespaces: []
@@ -184,11 +189,20 @@ clusterGroup:
     # from-scratch cluster (e.g. Cluster Bot, no pre-installed operators)
     # leaves GitLab stuck in "Preparing" forever -- see
     # .cursor/skills/cluster-bot-install/SKILL.md section 3.1.
+    #
+    # Toggle (clustergroup chart native flag):
+    #   disabled: false  # default -- install cert-manager (Cluster Bot / clean)
+    #   disabled: true   # skip -- cluster already has openshift-cert-manager-operator
+    # Also set clusterGroup.namespaces.cert-manager-operator.operatorGroup: false
+    # (or disabled: true) when disabling the subscription, or OLM hits
+    # TooManyOperatorGroups. values-hub-rhpds.yaml disables the subscription
+    # and sets operatorGroup: false for pre-provisioned sandboxes.
     cert-manager:
       name: openshift-cert-manager-operator
       namespace: cert-manager-operator
       channel: stable-v1
       source: redhat-operators
+      # disabled: true
 
   argoProjects:
     - hub

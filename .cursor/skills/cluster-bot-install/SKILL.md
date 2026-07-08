@@ -67,16 +67,31 @@ no matches for kind "Issuer" in version "cert-manager.io/v1"
 
 **Cause:** the GitLab Operator needs cert-manager for its OWN webhook cert
 regardless of `installCertmanager: false` / `certmanager.install: false` in
-the GitLab CR (those only control the GitLab *chart's* ingress certs). The
-pattern's `cert-manager` subscription in `values-hub.yaml` is commented out.
+the GitLab CR (those only control the GitLab *chart's* ingress certs). On
+older pattern revisions the `cert-manager` subscription was commented out;
+current `values-hub.yaml` enables it by default.
 
-**Automated fix (already in the pattern):** `values-hub.yaml` now includes
+**Automated fix (already in the pattern):** `values-hub.yaml` includes
 `cert-manager-operator` as a normal namespace + subscription (installed by
 OLM early, in parallel with every other operator, well before
-`gitlab-operator`'s sync-wave 3). No manual step needed on a fresh install
--- GitLab's own controller retry loop (backoff up to ~16 min) would
-eventually self-heal even in the unlikely case of a residual race, but with
-cert-manager present from the start it should just work on the first pass.
+`gitlab-operator`'s sync-wave 3). Toggle with the clustergroup native flag:
+
+```yaml
+clusterGroup:
+  subscriptions:
+    cert-manager:
+      disabled: true   # skip install (cluster already has it)
+  namespaces:
+    cert-manager-operator:
+      operatorGroup: false   # avoid TooManyOperatorGroups
+```
+
+`values-hub-rhpds.yaml` sets both for Scenario D / pre-provisioned sandboxes.
+Default (no overlay) keeps cert-manager enabled for Cluster Bot / clean clusters.
+No manual step needed on a fresh install -- GitLab's own controller retry
+loop (backoff up to ~16 min) would eventually self-heal even in the unlikely
+case of a residual race, but with cert-manager present from the start it
+should just work on the first pass.
 
 **Manual fallback if you hit an already-broken GitLab install** (e.g. an
 older cluster missing this fix): install `openshift-cert-manager-operator`

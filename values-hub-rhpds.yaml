@@ -11,6 +11,13 @@
 # gpu-operator-certified, rhods-operator) Failed/TooManyOperatorGroups,
 # since it can't automatically pick a namespace scope with two present.
 #
+# Also disables the pattern's cert-manager subscription and skips creating a
+# second OperatorGroup in cert-manager-operator: RHPDS / Scenario D sandboxes
+# already ship openshift-cert-manager-operator. Keeping both would leave the
+# CSV Failed/TooManyOperatorGroups (operator pods still run, but OLM is
+# noisy). Re-enable on a clean cluster by omitting this overlay (default in
+# values-hub.yaml is enabled).
+#
 # Also pins the ZTunnel CR version to match the Istio version actually
 # supported by whatever servicemeshoperator3 build is currently installed
 # from RHPDS's preinstalled channel `stable` (a floating channel -- the
@@ -47,12 +54,15 @@
 # own (separate, MaaS-specific) auth chain. Only enable on clusters where
 # this InferenceService actually exists.
 #
-# Pattern CR example:
+# Pattern CR example (Scenario D — rhpds MUST be last so its overrides win):
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml
+#     - /values-hub-only.yaml
 #     - /values-hub-single-node.yaml
 #     - /values-hub-rhpds.yaml
-#     - /values-hub-only.yaml
+# Helm replaces each application's overrides: list wholesale across -f files.
+# Because this file loads last, every override below that also appears in an
+# earlier overlay (hub-only / single-node) is repeated here in full.
 
 global:
   options:
@@ -64,6 +74,9 @@ clusterGroup:
   subscriptions:
     servicemesh:
       channel: stable
+    # Pre-installed on RHPDS / Scenario D -- see header comment.
+    cert-manager:
+      disabled: true
 
   namespaces:
     openshift-nfd:
@@ -71,6 +84,9 @@ clusterGroup:
     nvidia-gpu-operator:
       operatorGroup: false
     redhat-ods-operator:
+      operatorGroup: false
+    # Pre-installed cert-manager -- skip second OperatorGroup only.
+    cert-manager-operator:
       operatorGroup: false
 
   applications:
@@ -138,16 +154,13 @@ clusterGroup:
     #   - devspaces       (OpenShift Dev Spaces OIDC identity provider)
     #   - console-links   (cosmetic "Keycloak (SSO)" link only)
     # NOTE: Helm replaces an application's overrides list wholesale, not
-    # merged by item, and this file loads AFTER values-hub-single-node.yaml
-    # (see Pattern CR example above) -- every override below that ALSO has
-    # an entry in values-hub-single-node.yaml repeats it here, or it would
-    # silently be dropped for the documented RHPDS stack (gpu+single-node+
-    # rhpds[+hub-only]). This is the exact same bug class already called
-    # out for models-as-a-service's userCount below; confirmed live once
-    # (rhbk-iam's userCount silently reverted to its chart default of 30,
-    # leaving ExternalSecrets for user6..user30 permanently Degraded with
-    # "could not get secret data from provider" since vault-secrets-
-    # bootstrap only ever seeded users 1..5).
+    # merged by item, and this file loads LAST in the Scenario D stack
+    # (gpu → hub-only → single-node → rhpds). Every override that ALSO has
+    # an entry in values-hub-only.yaml or values-hub-single-node.yaml is
+    # repeated here in full, or it would silently be dropped. Confirmed
+    # live once (rhbk-iam's userCount silently reverted to its chart
+    # default of 30, leaving ExternalSecrets for user6..user30 permanently
+    # Degraded).
     developer-hub:
       overrides:
         - name: userCount
@@ -156,6 +169,15 @@ clusterGroup:
           value: rhdh-sso
         - name: partnersPoc.enabled
           value: "false"
+        # Repeated from values-hub-only.yaml (this file loads after it).
+        - name: kubernetesSpokes.enabled
+          value: "false"
+        - name: spokeTokenSync.enabled
+          value: "false"
+        - name: applicationSet.enabled
+          value: "false"
+        - name: kafka.enabled
+          value: "true"
 
     rhbk-iam:
       overrides:
@@ -166,8 +188,23 @@ clusterGroup:
 
     neuroface-gateway:
       overrides:
+        # Repeated from values-hub-only.yaml (hubLocal + kuadrant realms).
+        - name: hubLocal.enabled
+          value: "true"
+        - name: hubLocal.appService
+          value: neuroface-frontend.neuroface-hub.svc.cluster.local
+        - name: hubLocal.cvService
+          value: yolo-ppe-serving.neuroface-cv.svc.cluster.local
         - name: gateway.replicas
           value: "1"
+        - name: kuadrant.enabled
+          value: "true"
+        - name: kuadrant.realms[0].name
+          value: cv
+        - name: kuadrant.realms[0].httpRoute
+          value: neuroface-cv-lb
+        - name: kuadrant.realms[0].redirectAuth
+          value: "false"
         - name: kuadrant.ssoHostPrefix
           value: rhdh-sso
 
@@ -187,5 +224,12 @@ clusterGroup:
 
     console-links:
       overrides:
+        # Repeated from values-hub-only.yaml + ssoHostPrefix for RHPDS.
+        - name: clusterRole
+          value: hub
+        - name: skupperConsole.enabled
+          value: "false"
+        - name: kafkaConsole.enabled
+          value: "true"
         - name: ssoHostPrefix
           value: rhdh-sso

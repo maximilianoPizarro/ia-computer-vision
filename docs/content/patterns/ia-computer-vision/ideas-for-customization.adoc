@@ -452,9 +452,9 @@ spec:
   clusterGroupName: hub
   extraValueFiles:
     - /values-hub-gpu.yaml          # <1>
-    - /values-hub-single-node.yaml  # <2>
-    - /values-hub-rhpds.yaml        # <3>
-    - /values-hub-only.yaml         # <4>
+    - /values-hub-only.yaml         # <2>
+    - /values-hub-single-node.yaml  # <3>
+    - /values-hub-rhpds.yaml        # <4>
   gitSpec:
     targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
     targetRevision: main
@@ -464,9 +464,9 @@ spec:
     helmRepoUrl: https://charts.validatedpatterns.io
 ----
 <1> Enables GPU-backed vLLM model serving on the hub (see the preceding section).
-<2> Scales workshop user counts and replica counts down so the full stack fits a single node's pod-count ceiling. See link:../cluster-sizing/[Cluster sizing].
-<3> Adapts the pattern to a cluster where NFD, the GPU Operator, Service Mesh, OpenShift AI, and Connectivity Link are already installed by someone else — this section's focus.
-<4> Optional. Only needed for a hub-only install with no east or west spoke clusters. Omit it if you plan to add spokes.
+<2> Hub-only topology (no east/west spokes). Omit if you plan to add spokes.
+<3> Scales workshop user counts and replica counts down so the full stack fits a single node's pod-count ceiling. See link:../cluster-sizing/[Cluster sizing].
+<4> Must be **last**. Adapts the pattern to a cluster where NFD, the GPU Operator, Service Mesh, OpenShift AI, Connectivity Link, and cert-manager are already installed — and repeats hub-only / single-node overrides for shared apps so Helm list replacement does not drop them.
 
 Each overlay is additive and independent: `values-hub-gpu.yaml` alone (with no other overlay) still works for a from-scratch, multi-node hub where the pattern installs its own NFD and GPU Operator. Add `values-hub-rhpds.yaml` only after you confirm the operator table above is already satisfied.
 
@@ -526,7 +526,7 @@ This is not a hypothetical risk: it caused a real, observed failure in this patt
 
 * `values-hub-gpu.yaml` — GPU-backed vLLM model serving (see the preceding section)
 * `values-hub-single-node.yaml` — user-count and replica scale-down for a single-node pod-count ceiling
-* `values-hub-rhpds.yaml` — `OperatorGroup` skip list, ZTunnel version pin, Connectivity Link namespace, manual install-plan auto-approval, and `ssoHostPrefix` overrides
+* `values-hub-rhpds.yaml` — `OperatorGroup` skip list (NFD, GPU, ODS, cert-manager), cert-manager subscription `disabled: true`, ZTunnel version pin, Connectivity Link namespace, manual install-plan auto-approval, and `ssoHostPrefix` overrides
 * `values-hub-only.yaml` — optional, only for a hub-only install with no spoke clusters
 
 === Validation
@@ -621,7 +621,7 @@ Your supply chain policy requires signed container images before deployment to e
 
 === What to change
 
-. Uncomment the RHTAS, RHTPA, and cert-manager subscription entries in `values-hub.yaml` (lines 105–120):
+. Uncomment the RHTAS and RHTPA subscription entries in `values-hub.yaml`. The `cert-manager` subscription is already enabled by default (required by GitLab Operator webhook certs). On sandboxes that already ship cert-manager (RHPDS / Scenario D), `values-hub-rhpds.yaml` sets `clusterGroup.subscriptions.cert-manager.disabled: true` so you do not get a duplicate OperatorGroup.
 
 [source,yaml]
 ----
@@ -634,11 +634,6 @@ Your supply chain policy requires signed container images before deployment to e
       name: rhtpa-operator
       namespace: openshift-operators
       channel: alpha
-      source: redhat-operators
-    cert-manager:
-      name: openshift-cert-manager-operator
-      namespace: cert-manager-operator
-      channel: stable-v1
       source: redhat-operators
 ----
 

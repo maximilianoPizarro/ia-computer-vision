@@ -41,13 +41,13 @@ Ready-to-apply YAML files live in the repository under `examples/pattern-cr/`.
 | 1 hub
 | Yes
 | No
-| `/values-hub-gpu.yaml`, `/values-hub-only.yaml`
+| `/values-hub-gpu.yaml`, `/values-hub-only.yaml` (in that order)
 
 | **D — Hub-only GPU, single-node sandbox**
 | 1 hub (all-in-one node)
 | Yes
 | Yes (NFD, GPU Op, Service Mesh, RHOAI, RHCL)
-| `/values-hub-gpu.yaml`, `/values-hub-single-node.yaml`, `/values-hub-rhpds.yaml`, `/values-hub-only.yaml`
+| `/values-hub-gpu.yaml`, `/values-hub-only.yaml`, `/values-hub-single-node.yaml`, `/values-hub-rhpds.yaml` (`rhpds` last)
 
 | **E — Spoke**
 | 1 spoke (east or west)
@@ -198,15 +198,20 @@ Use only when **one node** acts as control plane and worker **and** operators su
 
 **Example file:** `examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml`
 
+[IMPORTANT]
+====
+Overlay order is significant. Helm replaces each application's `overrides:` list wholesale across composed values files. `values-hub-rhpds.yaml` must be **last** because it repeats hub-only and single-node overrides for shared apps (`neuroface-gateway`, `developer-hub`, `console-links`) and then adds `ssoHostPrefix`, OperatorGroup skips, and `cert-manager.disabled: true`.
+====
+
 [source,yaml]
 ----
 spec:
   clusterGroupName: hub
   extraValueFiles:
     - /values-hub-gpu.yaml
+    - /values-hub-only.yaml
     - /values-hub-single-node.yaml
     - /values-hub-rhpds.yaml
-    - /values-hub-only.yaml
 ----
 
 [WARNING]
@@ -246,7 +251,7 @@ spec:
 | Scales workshop `userCount` and replica counts for a single schedulable node
 
 | `values-hub-rhpds.yaml`
-| Skips duplicate OperatorGroups and aligns versions when operators are pre-installed for you
+| Skips duplicate OperatorGroups (including cert-manager), disables the pattern cert-manager subscription when the operator is pre-installed, and aligns versions for RHPDS sandboxes
 
 | `values-hub-gpu-minimal.yaml`
 | Fallback — strips GitLab, Developer Hub, DevSpaces when pod-count ceiling cannot be raised
@@ -265,6 +270,9 @@ Overlays are **opt-in** and **composable**. None load unless listed in `extraVal
 
 | Adding `values-hub-rhpds.yaml` on a fresh cluster
 | Omit it — use Scenario A or C instead
+
+| Putting `values-hub-only.yaml` after `values-hub-rhpds.yaml` in Scenario D
+| Put `rhpds` last — otherwise hubLocal / kafka / spoke-disable overrides are dropped
 
 | Adding `values-hub-only.yaml` when you have east and west spokes
 | Omit it — use Scenario B

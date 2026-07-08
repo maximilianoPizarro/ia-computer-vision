@@ -25,11 +25,11 @@
 #   File: examples/pattern-cr/hub-only-gpu-multi-node.yaml
 #
 # Pattern CR — hub-only GPU on a single-node sandbox with pre-installed operators:
-#   extraValueFiles:
+#   extraValueFiles (rhpds LAST — it repeats hub-only overrides for shared apps):
 #     - /values-hub-gpu.yaml
+#     - /values-hub-only.yaml
 #     - /values-hub-single-node.yaml
 #     - /values-hub-rhpds.yaml
-#     - /values-hub-only.yaml
 #   File: examples/pattern-cr/hub-only-gpu-single-node-preinstalled.yaml
 #
 # Docs: docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
