@@ -326,6 +326,10 @@ data:
           # all and returns a real (not Backstage's) 401.
           allowedHeaders: ['Authorization']
           changeOrigin: true
+          # Same as /k8s-api: HPM does not honor NODE_TLS_REJECT_UNAUTHORIZED
+          # and Cluster Bot / Let's Encrypt chains often trip
+          # SELF_SIGNED_CERT_IN_CHAIN (surfaces as 500 proxying localhost:7007/...).
+          secure: false
         '/keycloak-provisioner-token':
           target: {{ include "developer-hub.ssoBaseUrl" . | quote }}
           allowedMethods: ['POST']
@@ -341,6 +345,7 @@ data:
           headers:
             Authorization: Basic ${KEYCLOAK_PROVISIONER_BASIC_AUTH}
           changeOrigin: true
+          secure: false
     integrations:
       gitlab:
         - host: {{ include "developer-hub.gitlabHost" . }}
