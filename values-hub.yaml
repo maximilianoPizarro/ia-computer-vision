@@ -320,8 +320,15 @@ clusterGroup:
         # Empty falls back to keycloak.<global.localClusterDomain>; wrong key left
         # Keycloak issuing tokens for keycloak.apps.example.com on every Cluster Bot install.
         # Full FQDN preferred so SSO Route and issuer match (sso.<apps-domain>).
+        # OIDC discovery advertises authorization_endpoint on this hostname — if it
+        # stays keycloak.<domain> while only the sso Route is Admitted, DH login
+        # redirects to a HostAlreadyClaimed / 503 endpoint.
         - name: keycloak.ingress.hostname
           value: 'sso.{{ .Values.global.localClusterDomain }}'
+        # developer-hub owns Route/sso; rhbk's keycloak-ingress would claim the
+        # same host and stay HostAlreadyClaimed forever.
+        - name: keycloak.ingress.enabled
+          value: "false"
 
     rhbk-iam:
       name: rhbk-iam

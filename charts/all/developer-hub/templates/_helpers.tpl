@@ -134,7 +134,7 @@ progressing past this resource's sync wave.
 */}}
 {{- define "developer-hub.workshopOpenAPISpec" -}}
 {{- $spec := .root.Files.Get .file -}}
-{{- $kcHost := printf "keycloak.%s" .hub -}}
+{{- $kcHost := printf "%s.%s" (.root.Values.ssoHostPrefix | default "sso") .hub -}}
 {{- $spec | replace "__HUB_APPS_DOMAIN__" .hub | replace "__KEYCLOAK_HOSTNAME__" $kcHost -}}
 {{- end -}}
 

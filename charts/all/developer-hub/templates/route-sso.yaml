@@ -1,6 +1,8 @@
 {{- /*
-  RHBK exposes keycloak.<apps-domain>; Developer Hub, DevSpaces, and catalog plugins
-  expect sso.<apps-domain>. This alias route keeps hybrid-mesh URLs working.
+  Shared SSO alias for Developer Hub / DevSpaces / catalog. Keycloak CR
+  hostname must be the same host (values-hub: keycloak.ingress.hostname =
+  sso.<apps-domain>) so OIDC discovery does not advertise keycloak.<domain>
+  while this Route is the only Admitted endpoint.
 */ -}}
 apiVersion: route.openshift.io/v1
 kind: Route
