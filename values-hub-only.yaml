@@ -104,6 +104,11 @@ clusterGroup:
           value: "true"
         - name: kafka.directAccessNamespaces[0]
           value: mailpit
+        # NeuroFace backend publishes PPE events into cv.ppe.detections; without
+        # this NetworkPolicy the producer cannot reach the plain listener (topic
+        # stays empty, Mailpit never gets alerts).
+        - name: kafka.directAccessNamespaces[1]
+          value: neuroface-hub
         - name: modelSeed.enabled
           value: "true"
         - name: yoloPpeServing.modelStorage.endpoint
@@ -156,6 +161,14 @@ clusterGroup:
           value: "true"
         - name: ppe.endpoint
           value: "http://yolo-ppe-serving-predictor.neuroface-cv.svc.cluster.local:8080"
+        # Publish PPE detections to the local Strimzi broker (hub-only has no
+        # Skupper VAN). Consumer is mailpit's ppe-kafka-mailpit Camel route.
+        - name: ppe.kafka.enabled
+          value: "true"
+        - name: ppe.kafka.bootstrap
+          value: "cv-kafka-kafka-bootstrap.neuroface-cv.svc.cluster.local:9092"
+        - name: ppe.kafka.topic
+          value: "cv.ppe.detections"
         - name: route.enabled
           value: "false"
         - name: persistence.enabled
