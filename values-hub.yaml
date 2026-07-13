@@ -306,6 +306,11 @@ clusterGroup:
       # After vault-secrets-bootstrap (wave 3) and openshift-external-secrets (wave 2):
       # ExternalSecret creation needs the ESO validating webhook and Vault paths.
       syncWave: "4"
+      ignoreDifferences:
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .status
       overrides:
         - name: keycloak.adminUser.passwordVaultKey
           value: secret/data/hub/rhbk-credentials

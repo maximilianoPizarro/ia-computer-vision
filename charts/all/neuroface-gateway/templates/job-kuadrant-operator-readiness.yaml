@@ -27,6 +27,9 @@ rules:
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["gatewayclasses"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["kuadrant.io"]
+    resources: ["authpolicies"]
+    verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -124,5 +127,32 @@ spec:
               oc rollout restart deployment/limitador-operator-controller-manager -n redhat-connectivity-link-operator || true
               oc rollout status deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator --timeout=120s || true
 
-              echo "Done. AuthPolicy/RateLimitPolicy resources should flip to Accepted within ~1 minute."
+              echo "Verifying AuthPolicy resources are Accepted (retry operator restart if needed)..."
+              for attempt in 1 2 3; do
+                sleep 30
+                INVALID=$(oc get authpolicy -A -o json 2>/dev/null | python3 -c "
+              import json,sys
+              data=json.load(sys.stdin)
+              bad=[]
+              for item in data.get('items', []):
+                  conds=item.get('status',{}).get('conditions') or []
+                  accepted=next((c for c in conds if c.get('type')=='Accepted'), {})
+                  if accepted.get('status') != 'True':
+                      bad.append(item['metadata']['namespace']+'/'+item['metadata']['name'])
+              print(len(bad))
+              if bad:
+                  print('Invalid: '+', '.join(bad[:5]), file=sys.stderr)
+              " 2>/dev/null || echo "999")
+                if [ "$INVALID" = "0" ]; then
+                  echo "All AuthPolicy resources Accepted."
+                  exit 0
+                fi
+                echo "Attempt $attempt/3: $INVALID AuthPolicy(ies) not Accepted -- restarting operators again..."
+                oc delete pod -n redhat-connectivity-link-operator -l control-plane=controller-manager || true
+                oc rollout status deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator --timeout=120s || true
+              done
+
+              echo "WARNING: some AuthPolicy resources still not Accepted after 3 restarts."
+              oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status,REASON:.status.conditions[0].reason || true
+              exit 1
 {{- end }}

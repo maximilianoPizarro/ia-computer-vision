@@ -23,3 +23,10 @@ bootstrap:
   # ExternalSecrets for any user beyond what's seeded here fail with
   # "could not get secret data from provider".
   userCount: 30
+
+rhbkEsoRetry:
+  argoNamespace: vp-gitops
+  applicationName: rhbk
+  keycloakNamespace: keycloak-system
+  esoNamespace: external-secrets
+  image: registry.redhat.io/openshift4/ose-cli:latest

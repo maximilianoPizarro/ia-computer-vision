@@ -1,0 +1,144 @@
+{{- if .Values.bootstrap.enabled }}
+{{- $argoNs := .Values.rhbkEsoRetry.argoNamespace | default "vp-gitops" -}}
+{{- $rhbkApp := .Values.rhbkEsoRetry.applicationName | default "rhbk" -}}
+{{- $kcNs := .Values.rhbkEsoRetry.keycloakNamespace | default "keycloak-system" -}}
+{{- $esoNs := .Values.rhbkEsoRetry.esoNamespace | default "external-secrets" -}}
+{{- $image := .Values.rhbkEsoRetry.image | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhbk-eso-readiness
+  namespace: {{ .Values.vault.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhbk-eso-readiness-argo
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    resourceNames: [{{ $rhbkApp | quote }}]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhbk-eso-readiness-argo
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rhbk-eso-readiness-argo
+subjects:
+  - kind: ServiceAccount
+    name: rhbk-eso-readiness
+    namespace: {{ .Values.vault.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhbk-eso-readiness-es
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhbk-eso-readiness-es
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rhbk-eso-readiness-es
+subjects:
+  - kind: ServiceAccount
+    name: rhbk-eso-readiness
+    namespace: {{ .Values.vault.namespace }}
+---
+# Runs after vault-secrets-bootstrap seeds Vault (wave 3) and before rhbk (wave 4).
+# If rhbk's first sync raced the ESO validating webhook, its ExternalSecrets fail
+# and Argo gets stuck waiting for postgresql-db health before re-applying them.
+# This job waits for the webhook, force-syncs the two bootstrap ExternalSecrets,
+# and hard-refreshes the rhbk Argo CD Application so the next sync can succeed.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhbk-eso-readiness
+  namespace: {{ .Values.vault.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: rhbk-eso-readiness
+      restartPolicy: OnFailure
+      containers:
+        - name: wait-and-refresh
+          image: {{ $image | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              ESO_NS="{{ $esoNs }}"
+              KC_NS="{{ $kcNs }}"
+              ARGO_NS="{{ $argoNs }}"
+              RHBK_APP="{{ $rhbkApp }}"
+
+              echo "Waiting for External Secrets Operator validating webhook endpoints..."
+              for i in $(seq 1 90); do
+                EP=$(oc get endpoints external-secrets-webhook -n "$ESO_NS" \
+                  -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || echo "")
+                if [ -n "$EP" ]; then
+                  echo "ESO webhook ready (endpoint $EP)."
+                  break
+                fi
+                if [ "$i" -eq 90 ]; then
+                  echo "ESO webhook not ready after 15 minutes -- refreshing rhbk anyway."
+                fi
+                sleep 10
+              done
+
+              for es in postgresql-db keycloak-admin-user; do
+                if oc get externalsecret "$es" -n "$KC_NS" >/dev/null 2>&1; then
+                  READY=$(oc get externalsecret "$es" -n "$KC_NS" \
+                    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+                  if [ "$READY" != "True" ]; then
+                    echo "Force-sync ExternalSecret/$es (Ready=$READY)..."
+                    oc annotate externalsecret "$es" -n "$KC_NS" \
+                      force-sync="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite || true
+                  else
+                    echo "ExternalSecret/$es already Ready."
+                  fi
+                else
+                  echo "ExternalSecret/$es not present yet -- rhbk sync will create it."
+                fi
+              done
+
+              echo "Hard-refreshing Argo CD Application/$RHBK_APP so ExternalSecrets re-apply..."
+              oc patch application "$RHBK_APP" -n "$ARGO_NS" --type json \
+                -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
+              oc annotate application "$RHBK_APP" -n "$ARGO_NS" \
+                argocd.argoproj.io/refresh=hard --overwrite
+
+              echo "Done. rhbk (wave 4) should sync ExternalSecrets with a live ESO webhook."
+{{- end }}

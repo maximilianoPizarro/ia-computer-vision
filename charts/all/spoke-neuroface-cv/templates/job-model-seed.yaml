@@ -76,8 +76,7 @@ metadata:
   name: ppe-model-seed
   namespace: gitlab-system
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
-    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 8
@@ -180,6 +179,17 @@ spec:
                           "-d", j.dumps(payload)],
                           capture_output=True, text=True, timeout=10)
                       print("Vault minio-credentials: synced" if "version" in r.stdout else "Vault sync: %s" % r.stdout[:200])
+                      # ESO may still serve the placeholder secret written before this job
+                      # ran; force a reconcile so yolo-ppe-serving's storage-initializer
+                      # picks up the real gitlab-minio credentials.
+                      subprocess.run(["curl", "-sS", "--cacert", k8s_ca,
+                          "-X", "PATCH",
+                          "-H", "Authorization: Bearer " + k8s_token,
+                          "-H", "Content-Type: application/merge-patch+json",
+                          "-d", j.dumps({"metadata":{"annotations":{"force-sync": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}}}),
+                          "https://kubernetes.default.svc/apis/external-secrets.io/v1/namespaces/neuroface-cv/externalsecrets/aws-connection-ppe-models"],
+                          capture_output=True, text=True, timeout=15)
+                      print("Triggered force-sync on ExternalSecret/aws-connection-ppe-models")
                   else:
                       print("Vault root token not found in imperative/vaultkeys -- skipping sync")
               except Exception as e:

@@ -114,7 +114,11 @@ never starts, and Keycloak has no DB to connect to.
 
 **Pattern fix (already applied, `values-hub.yaml`):** `rhbk` now syncs at
 wave 4 (after `vault-secrets-bootstrap` wave 3), `rhbk-iam` at wave 5,
-`developer-hub` at wave 6.
+`developer-hub` at wave 6. `vault-secrets-bootstrap`'s PostSync
+`rhbk-eso-readiness` job waits for the ESO webhook and hard-refreshes the
+`rhbk` Argo CD Application; `rhbk` also has `ignoreDifferences` on
+`ExternalSecret` `.status` so a transient webhook race does not block
+re-sync.
 
 **If it still races on a given cluster:**
 ```bash
@@ -146,7 +150,9 @@ never rechecks on its own.
 `charts/all/neuroface-gateway/templates/job-kuadrant-operator-readiness.yaml`
 is a PostSync hook (sync-wave 5, same wave as `servicemesh-config`) that
 waits for the `istio` GatewayClass to be `Accepted`, then runs
-`oc rollout restart` on the Kuadrant + Limitador operator deployments. No
+`oc rollout restart` on the Kuadrant + Limitador operator deployments and
+**re-verifies** all `AuthPolicy` resources are `Accepted`, restarting the
+operator again (up to 3 attempts) if any remain `MissingDependency`. No
 manual step needed on a fresh install.
 
 **Manual fallback if it still races on a given cluster:**
@@ -253,13 +259,16 @@ know GitLab's actual bundled MinIO root credentials at that point).
 the REAL `gitlab-minio-secret` and overwrites Vault with the correct
 values as its last step -- this is not a missing feature, just a job that
 needs `gitlab-minio-secret` to exist (created early in GitLab's own
-reconciliation, well before webservice/sidekiq) and needs its own PostSync
-hook to actually run to completion.
+reconciliation, well before webservice/sidekiq). The job now runs at
+sync-wave `0` (regular sync, **not** PostSync) so it is not blocked by an
+unhealthy `InferenceService`; `spoke-neuroface-cv` also has
+`ignoreDifferences` on `InferenceService` `.status`, and the job
+force-syncs `ExternalSecret/aws-connection-ppe-models` after writing Vault.
 
 **If this still shows up:** it almost always means `spoke-neuroface-cv`'s
-Argo CD sync got stuck/retried before reaching its PostSync hooks (see
-diagnosis below) rather than a code problem -- `job-model-seed.yaml`'s fix
-is already in place.
+Argo CD sync got stuck/retried before the model-seed Job could run (see
+diagnosis below) rather than a code problem -- the fixes above are already
+in place.
 
 **Diagnosis:**
 ```bash
