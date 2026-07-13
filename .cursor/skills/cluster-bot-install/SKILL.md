@@ -131,6 +131,12 @@ oc delete pvc data-postgresql-db-0 -n keycloak-system
 oc scale statefulset postgresql-db -n keycloak-system --replicas=1
 ```
 
+**Residual risk:** if the first `rhbk` sync fails admission on the
+ExternalSecrets and Argo then blocks forever on `StatefulSet/postgresql-db`
+health, a hard refresh alone may not re-apply Missing resources. Confirm with
+`oc get externalsecret -n keycloak-system postgresql-db` — if NotFound after
+wave 4, apply from the rhbk chart or clear the stuck operation and sync again.
+
 ### 3.3 Kuadrant AuthPolicy stuck "Invalid" (MissingDependency)
 
 **Symptom:** AuthPolicy resources (`authpolicy-cv`, `workshop-*-auth`, etc.)
