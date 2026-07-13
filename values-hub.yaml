@@ -325,10 +325,10 @@ clusterGroup:
         # redirects to a HostAlreadyClaimed / 503 endpoint.
         - name: keycloak.ingress.hostname
           value: 'sso.{{ .Values.global.localClusterDomain }}'
-        # developer-hub owns Route/sso; rhbk's keycloak-ingress would claim the
-        # same host and stay HostAlreadyClaimed forever.
-        - name: keycloak.ingress.enabled
-          value: "false"
+        # Do NOT set keycloak.ingress.enabled via Helm parameters: Argo passes
+        # them as strings and the upstream chart's `eq ... true` breaks. The
+        # rhbk Ingress for sso.<domain> will be HostAlreadyClaimed against
+        # developer-hub's Route/sso; that is harmless — Route/sso stays Admitted.
 
     rhbk-iam:
       name: rhbk-iam
