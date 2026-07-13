@@ -38,7 +38,6 @@ metadata:
   annotations:
     kuadrant/realm: neuroface
     kuadrant/client-id-secret: keycloak-client-neuroface-user1
-    workshop/oidc-self-service-target: "true"
 spec:
   type: openapi
   lifecycle: production

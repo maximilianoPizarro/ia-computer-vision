@@ -146,6 +146,3 @@ kafka:
   enabled: false
 camel:
   enabled: false
-
-partnersPoc:
-  enabled: true

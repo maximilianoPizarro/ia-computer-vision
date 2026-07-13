@@ -323,18 +323,18 @@ oc get istio -A -o custom-columns=NAME:.metadata.name,VER:.spec.version
 ### 3.9 OIDC self-service picker missing "Computer Vision API"
 
 **Symptom:** Developer Hub → Create → OIDC credentials self-service → Target API
-dropdown empty or missing Computer Vision / NeuroFace (MaaS may still appear).
+dropdown empty or missing Computer Vision (MaaS may still appear).
 
 **Cause:** Kuadrant APIProduct entity provider owns `api:default/neuroface-cv-openapi`
-and `api:default/neuroface-openapi` (same `metadata.name` as the APIProduct, required
-for "View in Catalog"). That overwrites the iam-realms catalog entity and drops
+(same `metadata.name` as the APIProduct, required for "View in Catalog"). That
+overwrites the iam-realms catalog entity and drops
 `workshop/oidc-self-service-target: "true"`, so an annotation-only EntityPicker
-filter hides them. `maas-openapi` stays visible because no APIProduct steals that name.
+filter hides it. `maas-openapi` stays visible because no APIProduct steals that name.
 
-**Pattern fix:** scaffolder `catalogFilter` OR-matches those API names in addition to
-the annotation; APIProducts also carry `workshop/oidc-self-service-target` for docs
-(Kuadrant may not propagate it into the catalog entity).
-
+**Pattern fix:** scaffolder `catalogFilter` OR-matches `neuroface-cv-openapi` by
+name in addition to the annotation. Workshop targets are **Computer Vision + MaaS
+only** (NeuroFace app API and partner PoCs Aura / Agenda de Vencimientos are not
+self-service targets).
 ### 3.10 Keycloak `Invalid parameter: redirect_uri` after manual realm reimport
 
 **Symptom:** OIDC login reaches Keycloak then `Invalid parameter: redirect_uri`.

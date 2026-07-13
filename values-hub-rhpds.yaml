@@ -163,8 +163,6 @@ clusterGroup:
           value: "5"
         - name: ssoHostPrefix
           value: rhdh-sso
-        - name: partnersPoc.enabled
-          value: "false"
         # Repeated from values-hub-only.yaml (this file loads after it).
         - name: kubernetesSpokes.enabled
           value: "false"
