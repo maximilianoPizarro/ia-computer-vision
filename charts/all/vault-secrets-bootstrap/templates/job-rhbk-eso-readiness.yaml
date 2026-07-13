@@ -52,7 +52,13 @@ metadata:
 rules:
   - apiGroups: ["external-secrets.io"]
     resources: ["externalsecrets"]
-    verbs: ["get", "list", "patch"]
+    verbs: ["get", "list", "create", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -65,6 +71,36 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: rhbk-eso-readiness-es
+subjects:
+  - kind: ServiceAccount
+    name: rhbk-eso-readiness
+    namespace: {{ .Values.vault.namespace }}
+---
+# Need endpoints get in the ESO install namespace -- without it the wait loop
+# always sees an empty IP (Forbidden swallowed by || echo "") and burns 15m.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhbk-eso-readiness-eso-endpoints
+  namespace: {{ $esoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints", "services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhbk-eso-readiness-eso-endpoints
+  namespace: {{ $esoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rhbk-eso-readiness-eso-endpoints
 subjects:
   - kind: ServiceAccount
     name: rhbk-eso-readiness
@@ -118,6 +154,12 @@ spec:
                 sleep 10
               done
 
+              # Clear any stuck Argo operation (e.g. waiting forever on STS health)
+              # so Missing ExternalSecrets can be applied on the next sync.
+              echo "Clearing stuck Argo operation on Application/$RHBK_APP (if any)..."
+              oc patch application "$RHBK_APP" -n "$ARGO_NS" --type json \
+                -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
+
               for es in postgresql-db keycloak-admin-user; do
                 if oc get externalsecret "$es" -n "$KC_NS" >/dev/null 2>&1; then
                   READY=$(oc get externalsecret "$es" -n "$KC_NS" \
@@ -130,15 +172,33 @@ spec:
                     echo "ExternalSecret/$es already Ready."
                   fi
                 else
-                  echo "ExternalSecret/$es not present yet -- rhbk sync will create it."
+                  echo "ExternalSecret/$es Missing -- will hard-refresh rhbk so Argo re-applies it."
                 fi
               done
 
               echo "Hard-refreshing Argo CD Application/$RHBK_APP so ExternalSecrets re-apply..."
-              oc patch application "$RHBK_APP" -n "$ARGO_NS" --type json \
-                -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
               oc annotate application "$RHBK_APP" -n "$ARGO_NS" \
                 argocd.argoproj.io/refresh=hard --overwrite
 
-              echo "Done. rhbk (wave 4) should sync ExternalSecrets with a live ESO webhook."
+              # Wait for bootstrap secrets (Argo may need a minute after refresh)
+              echo "Waiting for postgresql-db / keycloak-admin-user secrets..."
+              for i in $(seq 1 36); do
+                if oc get secret postgresql-db -n "$KC_NS" >/dev/null 2>&1 \
+                  && oc get secret keycloak-admin-user -n "$KC_NS" >/dev/null 2>&1; then
+                  echo "Bootstrap secrets present."
+                  # Kick postgres if it was stuck on CreateContainerConfigError
+                  oc delete pod -n "$KC_NS" -l name=postgresql-db --ignore-not-found 2>/dev/null || true
+                  exit 0
+                fi
+                # Re-clear stuck operation periodically
+                if [ $((i % 6)) -eq 0 ]; then
+                  oc patch application "$RHBK_APP" -n "$ARGO_NS" --type json \
+                    -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
+                  oc annotate application "$RHBK_APP" -n "$ARGO_NS" \
+                    argocd.argoproj.io/refresh=hard --overwrite || true
+                fi
+                sleep 10
+              done
+              echo "WARN: bootstrap secrets still missing after wait; check Application/$RHBK_APP and ESO."
+              exit 0
 {{- end }}

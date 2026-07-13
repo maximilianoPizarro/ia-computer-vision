@@ -322,7 +322,7 @@ Adding Istio ambient mesh labels (`istio.io/dataplane-mode: ambient`) to `keyclo
 
 ### SSO hostname mismatch (cookie domain)
 The Keycloak CR defaults to `hostname: keycloak.apps.<domain>` but the AuthPolicy `extAuth` redirects users to `sso.apps.<domain>`. This mismatch causes "Restart login cookie not found" because cookies are scoped to the wrong hostname.
-**Fix**: Override `keycloak.hostname: sso` in `values-hub.yaml` so Keycloak issues cookies on the `sso.apps.<domain>` hostname. Update console links to use `sso.<domain>` as well.
+**Fix**: Override `keycloak.ingress.hostname` (not `keycloak.hostname` — ignored by upstream rhbk) to `sso.{{ .Values.global.localClusterDomain }}` in `values-hub.yaml` so Keycloak issues cookies/tokens on `sso.<apps-domain>`. Empty ingress hostname falls back to `keycloak.<domain>`; a wrong key left Cluster Bot installs on `keycloak.apps.example.com`. Update console links to use `sso.<domain>` as well.
 
 ### OIDC blocking frontend API calls
 AuthPolicy on `neuroface-app-lb` HTTPRoute blocks XHR calls to `/api/health` (and other backend endpoints). The frontend badge logic needs `/api/health` to determine cluster identity (HUB/EAST/WEST).

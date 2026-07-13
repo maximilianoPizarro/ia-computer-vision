@@ -65,6 +65,9 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 600
   template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       restartPolicy: OnFailure
       serviceAccountName: kuadrant-operator-restart
@@ -95,9 +98,24 @@ spec:
                 ready=$(oc get kuadrant kuadrant -n kuadrant-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
                 if [[ "$ready" == "True" ]]; then
                   echo "Kuadrant Ready"
-                  exit 0
+                  break
                 fi
                 sleep 10
               done
-              echo "WARN: Kuadrant not Ready within timeout (policies may still reconcile)"
+
+              # Secondary safety net: if AuthPolicies are still MissingDependency
+              # (neuroface-gateway readiness Job raced or thrashing), restart once more.
+              echo "Checking AuthPolicy Accepted status..."
+              for attempt in 1 2 3; do
+                invalid=$(oc get authpolicy -A -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Accepted")]}{.status}{"\n"}{end}{end}' 2>/dev/null | grep -c False || true)
+                if [[ "${invalid:-0}" -eq 0 ]]; then
+                  echo "All AuthPolicies Accepted (or none present yet)."
+                  exit 0
+                fi
+                echo "Attempt $attempt/3: $invalid AuthPolicy(ies) not Accepted -- restarting $DEP..."
+                oc rollout restart "deployment/$DEP" -n "$NS" || true
+                oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s || true
+                sleep 20
+              done
+              echo "WARN: some AuthPolicies still not Accepted; neuroface-gateway readiness Job may still be reconciling"
               exit 0

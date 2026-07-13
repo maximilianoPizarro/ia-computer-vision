@@ -136,6 +136,17 @@ ExternalSecrets and Argo then blocks forever on `StatefulSet/postgresql-db`
 health, a hard refresh alone may not re-apply Missing resources. Confirm with
 `oc get externalsecret -n keycloak-system postgresql-db` — if NotFound after
 wave 4, apply from the rhbk chart or clear the stuck operation and sync again.
+The readiness Job now also clears a stuck `/operation`, waits for the
+bootstrap secrets, and can delete a stuck `postgresql-db` pod once secrets
+exist (needs endpoints get in `external-secrets` + pods delete in
+`keycloak-system`).
+
+**Also fixed (wrong Helm override key):** `keycloak.hostname: sso` is ignored
+by the upstream `rhbk` chart. Use
+`keycloak.ingress.hostname: 'sso.{{ .Values.global.localClusterDomain }}'`
+(clustergroup `tpl`-expands override values). The empty default rendered
+`keycloak.apps.example.com` and left Admin API / OIDC on a dead issuer until
+patched by hand.
 
 ### 3.3 Kuadrant AuthPolicy stuck "Invalid" (MissingDependency)
 
@@ -156,16 +167,28 @@ never rechecks on its own.
 `charts/all/neuroface-gateway/templates/job-kuadrant-operator-readiness.yaml`
 is a PostSync hook (sync-wave 5, same wave as `servicemesh-config`) that
 waits for the `istio` GatewayClass to be `Accepted`, then runs
-`oc rollout restart` on the Kuadrant + Limitador operator deployments and
-**re-verifies** all `AuthPolicy` resources are `Accepted`, restarting the
-operator again (up to 3 attempts) if any remain `MissingDependency`. No
-manual step needed on a fresh install.
+`oc rollout restart` on the Kuadrant + Limitador operator deployments,
+waits for AuthPolicies to appear, and **re-verifies** they are `Accepted`
+(up to 6 Kuadrant-only restarts). `workshop-kuadrant-apis` has a secondary
+PostSync restart hook as a safety net.
+
+**Bug found 2026-07-13 (ci-ln-3tzt90t):** the verify loop piped JSON into
+`python3 -c` with YAML-indented source, which always hit `IndentationError`
+→ `INVALID=999` → Job thrash (`OnFailure`) while AuthPolicies stayed
+`MissingDependency`. Fixed by using an unindented python one-liner / jq,
+`restartPolicy: Never`, Istio inject off, and deleting only
+`kuadrant-operator` pods (not every `control-plane=controller-manager`).
 
 **Manual fallback if it still races on a given cluster:**
 ```bash
-oc delete pod -n redhat-connectivity-link-operator -l control-plane=controller-manager
+oc delete pod -n redhat-connectivity-link-operator -l app.kubernetes.io/name=kuadrant-operator --force --grace-period=0
+# or:
+oc get pods -n redhat-connectivity-link-operator -o name | grep kuadrant-operator-controller | xargs oc delete -n redhat-connectivity-link-operator
 # wait ~30s, then:
-oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status
+oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status,REASON:.status.conditions[0].reason
+# expect Accepted=True; curl without token should 401:
+DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')
+curl -sk -o /dev/null -w '%{http_code}\n' "https://neuroface-cv.${DOMAIN}/health"
 ```
 
 ### 3.4 Developer Hub OIDC "unauthorized_client (Invalid client or Invalid client credentials)"

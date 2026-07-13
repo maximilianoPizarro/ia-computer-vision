@@ -14,6 +14,10 @@
   so they redo their dependency check with Istio already present. This is
   a single cluster-wide fix -- it only needs to run from one app/wave, not
   from every app that creates AuthPolicy/RateLimitPolicy resources.
+
+  Important: AuthPolicies from other apps may appear AFTER this hook starts.
+  The verify loop waits for at least one AuthPolicy to exist, then retries
+  operator restarts until all are Accepted (or deadline).
 */ -}}
 {{- if eq (.Values.kuadrant.enabled | toString) "true" }}
 
@@ -60,6 +64,9 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments/scale"]
     verbs: ["patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -95,12 +102,19 @@ metadata:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
-  backoffLimit: 5
-  activeDeadlineSeconds: 900
+  backoffLimit: 2
+  activeDeadlineSeconds: 1200
+  ttlSecondsAfterFinished: 600
   template:
+    metadata:
+      annotations:
+        # Ambient mesh / sidecar would keep the Job "Running" after the
+        # main container exits and break the verify loop retries.
+        sidecar.istio.io/inject: "false"
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": false }'
     spec:
       serviceAccountName: neuroface-gateway-kuadrant-readiness
-      restartPolicy: OnFailure
+      restartPolicy: Never
       containers:
         - name: wait-and-restart
           image: registry.redhat.io/openshift4/ose-cli:latest
@@ -109,6 +123,36 @@ spec:
             - -c
             - |
               set -euo pipefail
+              NS=redhat-connectivity-link-operator
+              DEP=kuadrant-operator-controller-manager
+              LIM=limitador-operator-controller-manager
+
+              count_invalid_authpolicies() {
+                # Prefer jq when present; fall back to python one-liner with NO leading indent
+                # (YAML-indented python -c strings previously IndentationError'd every check).
+                if command -v jq >/dev/null 2>&1; then
+                  oc get authpolicy -A -o json 2>/dev/null | jq '[.items[] | select((.status.conditions // []) | map(select(.type=="Accepted")) | .[0].status != "True")] | length'
+                else
+                  oc get authpolicy -A -o json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); bad=0
+for i in d.get("items",[]):
+  conds=i.get("status",{}).get("conditions") or []
+  acc=next((c for c in conds if c.get("type")=="Accepted"), {})
+  if acc.get("status")!="True": bad+=1
+print(bad)'
+                fi
+              }
+
+              count_authpolicies() {
+                oc get authpolicy -A --no-headers 2>/dev/null | wc -l | tr -d ' '
+              }
+
+              restart_kuadrant() {
+                echo "Restarting $DEP (+ $LIM) in $NS..."
+                oc rollout restart "deployment/$DEP" -n "$NS" || true
+                oc rollout restart "deployment/$LIM" -n "$NS" || true
+                oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s || true
+              }
+
               echo "Waiting for Istio GatewayClass to be Accepted..."
               for i in $(seq 1 60); do
                 STATUS=$(oc get gatewayclass istio -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}' 2>/dev/null || echo "")
@@ -117,42 +161,48 @@ spec:
                   break
                 fi
                 if [ "$i" -eq 60 ]; then
-                  echo "Istio GatewayClass not Accepted after 10 minutes -- restarting Kuadrant Operator anyway, it will retry on next Argo sync if Istio is still not ready."
+                  echo "Istio GatewayClass not Accepted after 10 minutes -- restarting Kuadrant anyway."
                 fi
                 sleep 10
               done
 
-              echo "Restarting Kuadrant/Limitador operator pods to re-check the Gateway API provider dependency..."
-              oc rollout restart deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator || true
-              oc rollout restart deployment/limitador-operator-controller-manager -n redhat-connectivity-link-operator || true
-              oc rollout status deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator --timeout=120s || true
+              restart_kuadrant
 
-              echo "Verifying AuthPolicy resources are Accepted (retry operator restart if needed)..."
-              for attempt in 1 2 3; do
-                sleep 30
-                INVALID=$(oc get authpolicy -A -o json 2>/dev/null | python3 -c "
-              import json,sys
-              data=json.load(sys.stdin)
-              bad=[]
-              for item in data.get('items', []):
-                  conds=item.get('status',{}).get('conditions') or []
-                  accepted=next((c for c in conds if c.get('type')=='Accepted'), {})
-                  if accepted.get('status') != 'True':
-                      bad.append(item['metadata']['namespace']+'/'+item['metadata']['name'])
-              print(len(bad))
-              if bad:
-                  print('Invalid: '+', '.join(bad[:5]), file=sys.stderr)
-              " 2>/dev/null || echo "999")
-                if [ "$INVALID" = "0" ]; then
-                  echo "All AuthPolicy resources Accepted."
-                  exit 0
+              echo "Waiting for AuthPolicy resources to appear (other apps may sync later)..."
+              for i in $(seq 1 36); do
+                TOTAL=$(count_authpolicies || echo 0)
+                if [ "${TOTAL:-0}" -gt 0 ]; then
+                  echo "Found $TOTAL AuthPolicy resource(s)."
+                  break
                 fi
-                echo "Attempt $attempt/3: $INVALID AuthPolicy(ies) not Accepted -- restarting operators again..."
-                oc delete pod -n redhat-connectivity-link-operator -l control-plane=controller-manager || true
-                oc rollout status deployment/kuadrant-operator-controller-manager -n redhat-connectivity-link-operator --timeout=120s || true
+                sleep 10
               done
 
-              echo "WARNING: some AuthPolicy resources still not Accepted after 3 restarts."
+              echo "Verifying AuthPolicy resources are Accepted (retry Kuadrant restart if needed)..."
+              for attempt in $(seq 1 6); do
+                sleep 20
+                TOTAL=$(count_authpolicies || echo 0)
+                if [ "${TOTAL:-0}" -eq 0 ]; then
+                  echo "Attempt $attempt/6: no AuthPolicies yet -- waiting..."
+                  continue
+                fi
+                INVALID=$(count_invalid_authpolicies 2>/dev/null || echo "999")
+                # Strip whitespace/newlines
+                INVALID=$(echo "$INVALID" | tr -d '[:space:]')
+                if [ "$INVALID" = "0" ]; then
+                  echo "All AuthPolicy resources Accepted."
+                  oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status,REASON:.status.conditions[0].reason || true
+                  exit 0
+                fi
+                echo "Attempt $attempt/6: $INVALID/$TOTAL AuthPolicy(ies) not Accepted -- restarting Kuadrant only..."
+                # Delete ONLY the kuadrant-operator pod (do not nuke authorino/dns/limitador via shared labels)
+                oc delete pod -n "$NS" -l app.kubernetes.io/name=kuadrant-operator --ignore-not-found || \
+                  oc get pods -n "$NS" -o name | grep kuadrant-operator-controller | xargs -r oc delete -n "$NS" --force --grace-period=0 || true
+                oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s || true
+              done
+
+              echo "WARNING: some AuthPolicy resources still not Accepted after retries."
               oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status,REASON:.status.conditions[0].reason || true
+              # Non-zero so Argo surfaces the hook failure; do not thrash (restartPolicy: Never).
               exit 1
 {{- end }}
