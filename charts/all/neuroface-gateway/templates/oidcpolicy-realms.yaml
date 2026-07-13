@@ -47,17 +47,15 @@ spec:
 {{- $realm := .name -}}
 {{- $httpRoute := .httpRoute | default "neuroface-app-lb" -}}
 {{/*
-  Keycloak's spec.hostname.hostname (its own canonical issuer, baked into
-  every token's "iss" claim and its OIDC discovery document) does not match
-  $ssoHost -- Authorino's strict OIDC discovery validation rejects any JWT
-  whose issuer doesn't exactly equal issuerUrl, so this must use the
-  operator-managed keycloak.<domain> hostname, not sso.<domain> (which is a
-  perfectly fine route for reaching Keycloak's endpoints, it's just not the
-  hostname Keycloak considers itself to be). Confirmed via Authorino logs:
-  "oidc: issuer did not match ... expected https://sso.../realms/cv got
-  https://keycloak.../realms/cv".
+  Authorino requires issuerUrl to equal the JWT "iss" claim exactly.
+  Keycloak CR hostname is sso.<apps-domain> (values-hub:
+  keycloak.ingress.hostname), so tokens carry iss=https://sso.../realms/<r>.
+  Using keycloak.<domain> here rejects every valid SSO-issued token with 401
+  (Swagger UI then surfaces it as a generic CORS "Failed to fetch").
+  Override per-realm with .issuerHost only if you intentionally keep a
+  different Keycloak canonical hostname.
 */}}
-{{- $issuerHost := .issuerHost | default (printf "keycloak.%s" (include "neuroface-gateway.clusterDomain" $root)) -}}
+{{- $issuerHost := .issuerHost | default $ssoHost -}}
 ---
 apiVersion: kuadrant.io/v1
 kind: AuthPolicy

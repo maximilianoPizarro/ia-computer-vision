@@ -1,13 +1,28 @@
 {{- /*
-  Patch Authorino's Deployment with OpenShift service-CA env vars so TLS
-  to the MaaS gateway works. Authorino may live in kuadrant-system (RHCL
-  managed instance) or redhat-connectivity-link-operator depending on the
-  install path -- discover at runtime instead of hard-failing on the wrong ns.
+  Make Authorino trust OpenShift ingress (router-ca) and service-CA certs.
+
+  Kuadrant mTLS / this Job set:
+    SSL_CERT_FILE=/etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt
+  but nothing historically mounted that path, so Authorino failed TLS when
+  fetching OIDC discovery from https://sso.<apps-domain>/realms/... (route
+  cert signed by ingress-operator router-ca). Swagger "Try it out" then
+  surfaces Authorino 401s as a generic browser CORS "Failed to fetch".
+
+  This Job:
+  1. Builds a PEM bundle (container system CAs + router-ca + service-ca)
+  2. Stores it in ConfigMap authorino-trusted-ca
+  3. Patches the live Authorino CR volumes to mount the bundle at the
+     SSL_CERT_FILE path above
+  4. Ensures the Deployment env vars still point at that path
+
+  Authorino may live in kuadrant-system (RHCL managed) or
+  redhat-connectivity-link-operator — discover at runtime.
 */ -}}
 {{- $auth := .Values.authorino | default dict -}}
 {{- $preferredNs := $auth.deploymentNamespace | default "kuadrant-system" -}}
 {{- $deployName := $auth.deploymentName | default "authorino" -}}
 {{- $image := $auth.tlsEnvJobImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
+{{- $script := include "models-as-a-service.authorinoTlsEnvScript" . -}}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -27,6 +42,15 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "patch"]
+  - apiGroups: ["operator.authorino.kuadrant.io"]
+    resources: ["authorinos"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -38,6 +62,64 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: models-as-a-service-authorino-tls-env
+subjects:
+  - kind: ServiceAccount
+    name: authorino-tls-env
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: models-as-a-service-authorino-tls-env-router-ca
+  namespace: openshift-ingress-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["router-ca"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: models-as-a-service-authorino-tls-env-router-ca
+  namespace: openshift-ingress-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: models-as-a-service-authorino-tls-env-router-ca
+subjects:
+  - kind: ServiceAccount
+    name: authorino-tls-env
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: models-as-a-service-authorino-tls-env-service-ca
+  namespace: openshift-config-managed
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
+    resourceNames: ["openshift-service-ca.crt"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: models-as-a-service-authorino-tls-env-service-ca
+  namespace: openshift-config-managed
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: models-as-a-service-authorino-tls-env-service-ca
 subjects:
   - kind: ServiceAccount
     name: authorino-tls-env
@@ -66,33 +148,7 @@ spec:
             - /bin/bash
             - -ec
             - |
-              set -euo pipefail
-              DEPLOY_NAME="{{ $deployName }}"
-              PREFERRED_NS="{{ $preferredNs }}"
-              CANDIDATES="${PREFERRED_NS} kuadrant-system redhat-connectivity-link-operator"
-              echo "Waiting for Deployment/${DEPLOY_NAME} (Authorino)..."
-              FOUND_NS=""
-              for i in $(seq 1 60); do
-                for ns in ${CANDIDATES}; do
-                  if oc get "deployment/${DEPLOY_NAME}" -n "${ns}" >/dev/null 2>&1; then
-                    FOUND_NS="${ns}"
-                    break 2
-                  fi
-                done
-                echo "  attempt ${i}/60: not found yet"
-                sleep 10
-              done
-              if [ -z "${FOUND_NS}" ]; then
-                echo "ERROR: deployment/${DEPLOY_NAME} not found in: ${CANDIDATES}"
-                exit 1
-              fi
-              CA=/etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt
-              echo "Setting Authorino TLS env vars on deployment/${DEPLOY_NAME} in ${FOUND_NS}..."
-              oc set env "deployment/${DEPLOY_NAME}" \
-                -n "${FOUND_NS}" \
-                SSL_CERT_FILE="${CA}" \
-                REQUESTS_CA_BUNDLE="${CA}"
-              echo "authorino-tls-env complete."
+{{ $script | indent 14 }}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -120,20 +176,4 @@ spec:
                 - /bin/bash
                 - -ec
                 - |
-                  DEPLOY_NAME="{{ $deployName }}"
-                  PREFERRED_NS="{{ $preferredNs }}"
-                  CANDIDATES="${PREFERRED_NS} kuadrant-system redhat-connectivity-link-operator"
-                  FOUND_NS=""
-                  for ns in ${CANDIDATES}; do
-                    if oc get "deployment/${DEPLOY_NAME}" -n "${ns}" >/dev/null 2>&1; then
-                      FOUND_NS="${ns}"
-                      break
-                    fi
-                  done
-                  [ -z "${FOUND_NS}" ] && exit 0
-                  CA=/etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt
-                  oc set env "deployment/${DEPLOY_NAME}" \
-                    -n "${FOUND_NS}" \
-                    SSL_CERT_FILE="${CA}" \
-                    REQUESTS_CA_BUNDLE="${CA}" \
-                    >/dev/null 2>&1 || true
+{{ $script | indent 18 }}

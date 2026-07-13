@@ -69,7 +69,7 @@ apis:
     oidc:
       enabled: true
       realm: maas
-      issuerHost: "" # default keycloak.<clusterDomain> (Keycloak's canonical issuer, not sso.<domain>)
+      issuerHost: "" # default sso.<clusterDomain> (Keycloak CR hostname; must match JWT iss)
 
 approvalMode: automatic # workshop: instant API keys for userN (use manual in production)
 

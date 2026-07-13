@@ -337,7 +337,32 @@ owned by RHCL; this pattern must only annotate it.
 waits for the operator-managed Service (tries `kuadrant-system` then
 `redhat-connectivity-link-operator`) and annotates it for serving certs.
 
-### 3.8 istio-ztunnel Invalid: Unsupported ZTunnel version
+### 3.8 Swagger "Try it out" → Failed to fetch (looks like CORS, is Authorino TLS/issuer)
+
+**Symptom:** Developer Hub Swagger "Try it out" on `neuroface-cv.../health`
+with a Bearer token shows Undocumented / Failed to fetch / Possible Reasons:
+CORS. Preflight `OPTIONS` already returns 204 with CORS headers.
+
+**Cause (not Envoy CORS):** Authorino could not fetch OIDC discovery from
+`https://sso.<apps>/realms/cv/.well-known/openid-configuration` because the
+route cert is signed by OpenShift `router-ca` and `SSL_CERT_FILE` pointed at
+a missing path (or only service-CA). AuthPolicy then 401s every JWT;
+browsers report that as CORS "Failed to fetch". A second failure mode is
+`issuerUrl` still pointing at `keycloak.` while tokens carry `iss=https://sso...`.
+
+**Automated fix:** `models-as-a-service` `authorino-tls-env` Job mounts a CA
+bundle (system + `router-ca` + service-CA) at
+`/etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt` and sets
+`SSL_CERT_FILE`. AuthPolicy `issuerUrl` defaults to `sso.` in
+`neuroface-gateway` / `workshop-kuadrant-apis`.
+
+**Live check:**
+```bash
+curl -sk -o /dev/null -w "%{http_code}\n" https://neuroface-cv.apps.<domain>/health
+# 401 without token; 200 with Bearer from sso
+```
+
+### 3.9 istio-ztunnel Invalid: Unsupported ZTunnel version
 
 **Symptom:**
 ```
@@ -355,7 +380,7 @@ oc get crd ztunnels.sailoperator.io -o jsonpath='{.spec.versions[-1].schema.open
 oc get istio -A -o custom-columns=NAME:.metadata.name,VER:.spec.version
 ```
 
-### 3.9 OIDC self-service picker missing "Computer Vision API"
+### 3.10 OIDC self-service picker missing "Computer Vision API"
 
 **Symptom:** Developer Hub → Create → OIDC credentials self-service → Target API
 dropdown empty or missing Computer Vision (MaaS may still appear).

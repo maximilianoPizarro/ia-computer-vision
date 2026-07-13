@@ -26,8 +26,6 @@ Computer vision inference runs close to cameras and sensors for low-latency resp
 .Hub-spoke topology diagram
 image::architecture-hub-spoke.png[Hub-spoke architecture showing hub cluster connected to east and west spoke clusters with RHCL gateway load balancing,align=center,width=100%]
 
-image::architecture.svg[Hub-spoke architecture SVG,align=center,width=100%]
-
 == Hub cluster components
 
 The hub cluster hosts fleet management, the developer platform, centralized security, and the external inference gateway.

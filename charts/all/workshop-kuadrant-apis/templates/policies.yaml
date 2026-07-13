@@ -219,12 +219,12 @@ spec:
 {{- $maasOidcEnabled := $maasOidc.enabled }}
 {{- $maasRealm := $maasOidc.realm | default "maas" }}
 {{/*
-  Keycloak's canonical issuer is keycloak.<domain>, not sso.<domain> (an alias
-  route) -- Authorino's strict OIDC issuer validation rejects tokens whose
-  "iss" claim doesn't exactly equal issuerUrl. See neuroface-gateway's
-  oidcpolicy-realms.yaml for the same fix applied to the cv/neuroface realms.
+  Authorino requires issuerUrl to equal the JWT "iss" claim. Keycloak CR
+  hostname is sso.<apps-domain>, so default issuerHost to sso (not keycloak).
+  See neuroface-gateway oidcpolicy-realms.yaml for the same rule.
 */}}
-{{- $maasIssuerHost := $maasOidc.issuerHost | default (printf "keycloak.%s" (include "workshop-kuadrant-apis.clusterDomain" .)) }}
+{{- $maasSsoHost := printf "sso.%s" (include "workshop-kuadrant-apis.clusterDomain" .) }}
+{{- $maasIssuerHost := $maasOidc.issuerHost | default $maasSsoHost }}
 ---
 apiVersion: kuadrant.io/v1
 kind: AuthPolicy
