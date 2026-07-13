@@ -335,6 +335,17 @@ filter hides it. `maas-openapi` stays visible because no APIProduct steals that 
 name in addition to the annotation. Workshop targets are **Computer Vision + MaaS
 only** (NeuroFace app API and partner PoCs Aura / Agenda de Vencimientos are not
 self-service targets).
+
+### 3.9b OIDC self-service step fails: proxy 500 / SELF_SIGNED_CERT_IN_CHAIN
+
+**Symptom:** scaffolder step "Authenticate provisioner (realm cv)" fails with
+`Error occurred while trying to proxy: localhost:7007/realms/cv/...` (HTTP 500).
+
+**Cause:** Backstage `http-proxy-middleware` does not honor
+`NODE_TLS_REJECT_UNAUTHORIZED` and rejects the cluster SSO/route TLS chain.
+
+**Pattern fix:** `proxy.endpoints['/keycloak']` and
+`['/keycloak-provisioner-token']` set `secure: false` (same as `/k8s-api`).
 ### 3.10 Keycloak `Invalid parameter: redirect_uri` after manual realm reimport
 
 **Symptom:** OIDC login reaches Keycloak then `Invalid parameter: redirect_uri`.
