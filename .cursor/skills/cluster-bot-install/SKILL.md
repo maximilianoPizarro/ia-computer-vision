@@ -148,6 +148,12 @@ by the upstream `rhbk` chart. Use
 `keycloak.apps.example.com` and left Admin API / OIDC on a dead issuer until
 patched by hand.
 
+**OIDC popup still opens `keycloak.<domain>` after hostname fix:** Developer
+Hub's `openid-client` caches discovery. Restart
+`deploy/backstage-developer-hub` after Keycloak hostname changes. The
+`developer-hub` chart also ships `Route/keycloak` as an alias so a stale
+redirect does not hit OpenShift's "Application is not available" page.
+
 ### 3.3 Kuadrant AuthPolicy stuck "Invalid" (MissingDependency)
 
 **Symptom:** AuthPolicy resources (`authpolicy-cv`, `workshop-*-auth`, etc.)

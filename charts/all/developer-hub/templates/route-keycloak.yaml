@@ -1,0 +1,28 @@
+{{- /*
+  Alias for keycloak.<apps-domain>. The Keycloak CR issuer/hostname is
+  sso.<apps-domain> (see values-hub keycloak.ingress.hostname), but the
+  upstream rhbk chart default and any process that cached OIDC discovery
+  before that override will still redirect browsers to keycloak.<domain>.
+  Without this Admitted Route the router returns "Application is not
+  available" (503) and Developer Hub login fails in a popup.
+*/ -}}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: keycloak
+  namespace: {{ include "developer-hub.keycloakNamespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  host: {{ printf "keycloak.%s" (include "developer-hub.clusterDomain" .) | quote }}
+  to:
+    kind: Service
+    name: {{ include "developer-hub.keycloakServiceName" . }}
+    weight: 100
+  port:
+    targetPort: 8443
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
