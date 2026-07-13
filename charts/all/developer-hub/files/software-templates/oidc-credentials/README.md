@@ -70,7 +70,7 @@ Backstage's) 401 on every admin-API step even with a valid token.
 
 | Parameter | Purpose |
 |-----------|---------|
-| **Target API** | EntityPicker over APIs annotated `workshop/oidc-self-service-target: "true"` |
+| **Target API** | EntityPicker: APIs with `workshop/oidc-self-service-target: "true"` **or** name `neuroface-cv-openapi` / `neuroface-openapi` |
 | **Client label** | Derives `clientId = client-{apiName}-{label}` |
 | **Grant type** | `client_credentials` (M2M) or `authorization_code` (with redirect URI) |
 | **Requester** / **Owner** | Recorded on the Keycloak client attributes |
@@ -82,13 +82,15 @@ feature (no `plan` claim) fall back to the per-IP default limit (120 req/min).
 
 ## API dropdown (EntityPicker)
 
-APIs annotated with `workshop/oidc-self-service-target: "true"` in [`iam-realms.yaml`](../../catalog/iam-realms.yaml):
+APIs annotated with `workshop/oidc-self-service-target: "true"` in [`iam-realms.yaml`](../../catalog/iam-realms.yaml), plus **name matches** for Kuadrant-owned entities:
 
-| API | OIDCPolicy | Actual issuer |
-|-----|------------|---------------|
-| `neuroface-openapi` | `oidc-neuroface` | realm `neuroface` |
-| `neuroface-cv-openapi` | `oidc-cv` | realm **`cv`** |
-| `maas-openapi` | `oidc-maas` | realm `maas` |
+| API | OIDCPolicy | Actual issuer | Catalog owner |
+|-----|------------|---------------|---------------|
+| `neuroface-openapi` | `oidc-neuroface` | realm `neuroface` | Kuadrant APIProduct (annotation filter alone is not enough) |
+| `neuroface-cv-openapi` | `oidc-cv` | realm **`cv`** | Kuadrant APIProduct (same) |
+| `maas-openapi` | `oidc-maas` | realm `maas` | iam-realms annotation |
+
+The Kuadrant Backstage provider registers `api:default/neuroface-*-openapi` from APIProducts and **wins** entity ownership over iam-realms, dropping `workshop/oidc-self-service-target`. APIProduct `metadata.name` must stay identical to the catalog API name (Kuadrant "View in Catalog" links). The scaffolder therefore OR-matches those names in `catalogFilter`.
 
 **PoC:** the template always creates clients in realm **`cv`**. The token works immediately for **`neuroface-cv-openapi`**. For other APIs the dropdown provides traceability (`clientId`, `targetApi` attribute); in production map API → actual realm issuer.
 
@@ -98,7 +100,7 @@ Developer Hub → **Create** → **Revoke OIDC client (Keycloak cv)**.
 
 Parameters match the create template:
 
-1. **Target API** — same EntityPicker filter (`workshop/oidc-self-service-target: "true"`).
+1. **Target API** — same EntityPicker filter (annotation **or** `neuroface-cv-openapi` / `neuroface-openapi` by name).
 2. **Client label** — same value used when the client was created.
 
 Steps: provisioner token → `GET .../clients?clientId=...` → `DELETE .../clients/{uuid}`.

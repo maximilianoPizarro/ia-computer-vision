@@ -18,6 +18,10 @@ metadata:
     argocd.argoproj.io/sync-wave: "6"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     backstage.io/owner: group:default/developers
+    # Surfaced on the Backstage API entity when the Kuadrant provider copies
+    # annotations; also documented for operators. EntityPicker falls back to
+    # metadata.name match if the provider does not propagate this key.
+    workshop/oidc-self-service-target: "true"
 spec:
   displayName: NeuroFace
   description: >
@@ -60,6 +64,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "6"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     backstage.io/owner: group:default/developers
+    workshop/oidc-self-service-target: "true"
 spec:
   displayName: Computer Vision API
   description: >

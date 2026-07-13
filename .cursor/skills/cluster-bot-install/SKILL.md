@@ -320,6 +320,34 @@ oc get crd ztunnels.sailoperator.io -o jsonpath='{.spec.versions[-1].schema.open
 oc get istio -A -o custom-columns=NAME:.metadata.name,VER:.spec.version
 ```
 
+### 3.9 OIDC self-service picker missing "Computer Vision API"
+
+**Symptom:** Developer Hub → Create → OIDC credentials self-service → Target API
+dropdown empty or missing Computer Vision / NeuroFace (MaaS may still appear).
+
+**Cause:** Kuadrant APIProduct entity provider owns `api:default/neuroface-cv-openapi`
+and `api:default/neuroface-openapi` (same `metadata.name` as the APIProduct, required
+for "View in Catalog"). That overwrites the iam-realms catalog entity and drops
+`workshop/oidc-self-service-target: "true"`, so an annotation-only EntityPicker
+filter hides them. `maas-openapi` stays visible because no APIProduct steals that name.
+
+**Pattern fix:** scaffolder `catalogFilter` OR-matches those API names in addition to
+the annotation; APIProducts also carry `workshop/oidc-self-service-target` for docs
+(Kuadrant may not propagate it into the catalog entity).
+
+### 3.10 Keycloak `Invalid parameter: redirect_uri` after manual realm reimport
+
+**Symptom:** OIDC login reaches Keycloak then `Invalid parameter: redirect_uri`.
+
+**Cause:** `KeycloakRealmImport` was applied with `hubClusterDomain=apps.${DOMAIN}`
+when `DOMAIN` from `oc get ingresses.config/cluster` was already `apps.<cluster>`,
+producing redirect URIs like `https://developer-hub.apps.apps.<cluster>/...`.
+
+**Fix:** set `global.localClusterDomain` / `global.hubClusterDomain` to the ingress
+domain **once** (already `apps....`), never prefix another `apps.`. Patch the
+`developer-hub` client redirectUris via Admin API if the realm was already imported
+(KeycloakRealmImport does not update existing realms).
+
 ## 4. Quick health check after all fixes
 
 ```bash
