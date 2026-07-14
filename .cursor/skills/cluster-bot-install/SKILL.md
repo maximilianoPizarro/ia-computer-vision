@@ -225,8 +225,10 @@ admin loses its classic implicit cross-realm access: `GET
 This silently breaks the `developer-hub-sync-backstage-realm-secrets`
 PostSync job (which uses that same master-admin path to reconcile the
 secret), so drift is never repaired. Realms created by `rhbk-iam`
-(`cv`/`maas`/`neuroface`) are unaffected because they end up with
-`adminPermissionsEnabled: false`.
+(`cv`/`maas`/`neuroface`) must also set `adminPermissionsEnabled: false`
+in `charts/all/rhbk-iam/values.yaml` (a prior revision left them `true`,
+which locked master admin out of `/admin/realms/cv/clients` — scaffolder
+then saw `Realm does not exist` / could not sync `backstage-provisioner`).
 
 **Pattern fix (already applied):** `keycloak-realm.yaml` now explicitly sets
 `adminPermissionsEnabled: false` on the backstage realm.
