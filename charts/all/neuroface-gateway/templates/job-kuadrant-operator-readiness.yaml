@@ -133,12 +133,8 @@ spec:
                 if command -v jq >/dev/null 2>&1; then
                   oc get authpolicy -A -o json 2>/dev/null | jq '[.items[] | select((.status.conditions // []) | map(select(.type=="Accepted")) | .[0].status != "True")] | length'
                 else
-                  oc get authpolicy -A -o json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); bad=0
-for i in d.get("items",[]):
-  conds=i.get("status",{}).get("conditions") or []
-  acc=next((c for c in conds if c.get("type")=="Accepted"), {})
-  if acc.get("status")!="True": bad+=1
-print(bad)'
+                  # Must stay one physical line: a bare "for ..." at column 0 ends the YAML | block.
+                  oc get authpolicy -A -o json 2>/dev/null | python3 -c 'import json,sys;d=json.load(sys.stdin);print(sum(1 for i in d.get("items",[]) if next((c for c in (i.get("status") or {}).get("conditions") or [] if c.get("type")=="Accepted"),{}).get("status")!="True"))'
                 fi
               }
 

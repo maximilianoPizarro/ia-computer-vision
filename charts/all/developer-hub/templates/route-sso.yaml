@@ -3,6 +3,12 @@
   hostname must be the same host (values-hub: keycloak.ingress.hostname =
   sso.<apps-domain>) so OIDC discovery does not advertise keycloak.<domain>
   while this Route is the only Admitted endpoint.
+
+  When the upstream rhbk chart also creates an Ingress for the same host,
+  OpenShift admits that Ingress Route first and this Route stays
+  HostAlreadyClaimed (Degraded). SSO still works via the Ingress Route;
+  ignore-healthcheck keeps Argo from aborting the rest of developer-hub
+  (Backstage CR never applied).
 */ -}}
 apiVersion: route.openshift.io/v1
 kind: Route
@@ -12,6 +18,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/ignore-healthcheck: "true"
 spec:
   host: {{ include "developer-hub.ssoHost" . | quote }}
   to:
