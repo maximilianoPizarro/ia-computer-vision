@@ -105,20 +105,25 @@ instead of waiting out the backoff.
 **Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login
 shows `OPError: expected 200 OK, got 503 Service Unavailable`.
 
-**Cause:** `rhbk` (Keycloak) used to share a sync wave with
-`openshift-external-secrets`. If RHBK's `ExternalSecret` resources
-(`postgresql-db`, `keycloak-admin-user`) sync before the ESO validating
-webhook has endpoints, they fail with
-`no endpoints available for service "external-secrets-webhook"`, PostgreSQL
-never starts, and Keycloak has no DB to connect to.
+**Cause (two common races):**
 
-**Pattern fix (already applied, `values-hub.yaml`):** `rhbk` now syncs at
-wave 4 (after `vault-secrets-bootstrap` wave 3), `rhbk-iam` at wave 5,
-`developer-hub` at wave 6. `vault-secrets-bootstrap`'s PostSync
-`rhbk-eso-readiness` job waits for the ESO webhook and hard-refreshes the
-`rhbk` Argo CD Application; `rhbk` also has `ignoreDifferences` on
-`ExternalSecret` `.status` so a transient webhook race does not block
-re-sync.
+1. **ESO webhook race:** `rhbk` ExternalSecrets (`postgresql-db`,
+   `keycloak-admin-user`) sync before the ESO validating webhook has
+   endpoints → admission fails, PostgreSQL never starts, Keycloak has no DB.
+2. **Keycloak CRD race (Cluster Bot first boot):** first `rhbk` sync runs
+   before `keycloaks.k8s.keycloak.org` exists → Argo marks the *entire*
+   sync invalid (`could not find k8s.keycloak.org/Keycloak`) and leaves
+   StatefulSet/Services/Ingress/Keycloak CR **Missing** even after the CRD
+   appears. Secrets may already exist via ESO fallback while SSO stays 503.
+
+**Pattern fix:** `rhbk` syncs at wave 4 (after `vault-secrets-bootstrap`
+wave 3), `rhbk-iam` at wave 5, `developer-hub` at wave 6.
+`rhbk-eso-readiness` waits for the ESO webhook, applies fallback
+ExternalSecrets + Keycloak CR (needs ClusterRole get on
+`ingresses.config.openshift.io`, Keycloak CRD, and Routes), clears a stuck
+`/operation`, and hard-refreshes `rhbk` when `StatefulSet/postgresql-db` is
+still Missing. `rhbk` also has `ignoreDifferences` on `ExternalSecret`
+`.status`.
 
 **If it still races on a given cluster:**
 ```bash
