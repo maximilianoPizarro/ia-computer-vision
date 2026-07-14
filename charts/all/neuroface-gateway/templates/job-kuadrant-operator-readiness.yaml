@@ -143,10 +143,20 @@ spec:
               }
 
               restart_kuadrant() {
-                echo "Restarting $DEP (+ $LIM) in $NS..."
+                echo "Restarting $DEP (+ $LIM + authorino-operator) in $NS..."
                 oc rollout restart "deployment/$DEP" -n "$NS" || true
                 oc rollout restart "deployment/$LIM" -n "$NS" || true
+                oc rollout restart deployment/authorino-operator -n "$NS" || true
                 oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s || true
+                oc rollout status deployment/authorino-operator -n "$NS" --timeout=180s || true
+              }
+
+              # RHCL pods use app=kuadrant / control-plane=authorino-operator, NOT
+              # app.kubernetes.io/name=kuadrant-operator (that selector matches nothing).
+              delete_kuadrant_pods() {
+                oc delete pod -n "$NS" -l app=kuadrant --ignore-not-found --force --grace-period=0 || true
+                oc delete pod -n "$NS" -l control-plane=authorino-operator --ignore-not-found --force --grace-period=0 || true
+                oc get pods -n "$NS" -o name 2>/dev/null | grep kuadrant-operator-controller | xargs -r oc delete -n "$NS" --force --grace-period=0 || true
               }
 
               echo "Waiting for Istio GatewayClass to be Accepted..."
@@ -190,11 +200,11 @@ spec:
                   oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status,REASON:.status.conditions[0].reason || true
                   exit 0
                 fi
-                echo "Attempt $attempt/6: $INVALID/$TOTAL AuthPolicy(ies) not Accepted -- restarting Kuadrant only..."
-                # Delete ONLY the kuadrant-operator pod (do not nuke authorino/dns/limitador via shared labels)
-                oc delete pod -n "$NS" -l app.kubernetes.io/name=kuadrant-operator --ignore-not-found || \
-                  oc get pods -n "$NS" -o name | grep kuadrant-operator-controller | xargs -r oc delete -n "$NS" --force --grace-period=0 || true
+                echo "Attempt $attempt/6: $INVALID/$TOTAL AuthPolicy(ies) not Accepted -- restarting Kuadrant + Authorino..."
+                # MissingDependency often lists both Istio Gateway API and Authorino Operator.
+                delete_kuadrant_pods
                 oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s || true
+                oc rollout status deployment/authorino-operator -n "$NS" --timeout=180s || true
               done
 
               echo "WARNING: some AuthPolicy resources still not Accepted after retries."
