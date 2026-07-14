@@ -108,6 +108,40 @@ subjects:
     name: rhbk-eso-readiness
     namespace: {{ .Values.vault.namespace }}
 ---
+# Cluster-scoped: resolve apps domain for Keycloak hostname fallback.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rhbk-eso-readiness-ingress
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: ["config.openshift.io"]
+    resources: ["ingresses"]
+    verbs: ["get"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    resourceNames: ["keycloaks.k8s.keycloak.org"]
+    verbs: ["get"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rhbk-eso-readiness-ingress
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: rhbk-eso-readiness-ingress
+subjects:
+  - kind: ServiceAccount
+    name: rhbk-eso-readiness
+    namespace: {{ .Values.vault.namespace }}
+---
 # Need endpoints get in the ESO install namespace -- without it the wait loop
 # always sees an empty IP (Forbidden swallowed by || echo "") and burns 15m.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -204,8 +238,24 @@ spec:
               }
 
               apply_keycloak_cr() {
-                local domain host
+                local domain host i
+                echo "Waiting for Keycloak CRD (k8s.keycloak.org)..."
+                for i in $(seq 1 60); do
+                  if oc get crd keycloaks.k8s.keycloak.org >/dev/null 2>&1; then
+                    echo "Keycloak CRD present."
+                    break
+                  fi
+                  if [ "$i" -eq 60 ]; then
+                    echo "WARN: Keycloak CRD still missing after 10m"
+                    return 0
+                  fi
+                  sleep 10
+                done
                 domain=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}' 2>/dev/null || echo "")
+                if [ -z "$domain" ]; then
+                  # Fallback: derive from any admitted Route host
+                  domain=$(oc get route -A -o jsonpath='{.items[0].spec.host}' 2>/dev/null | sed 's/^[^.]*\.//' || echo "")
+                fi
                 [ -z "$domain" ] && { echo "WARN: cannot resolve cluster domain for Keycloak CR"; return 0; }
                 host="sso.${domain}"
                 echo "Applying fallback Keycloak CR (hostname=${host})..."
@@ -247,9 +297,11 @@ spec:
                   echo "Bootstrap secrets present."
                   # Kick postgres if it was stuck on CreateContainerConfigError
                   oc delete pod -n "$KC_NS" -l name=postgresql-db --ignore-not-found 2>/dev/null || true
-                  # Ensure Keycloak CR exists (Argo wave 36 can stay blocked forever)
-                  if ! oc get keycloak.k8s.keycloak.org keycloak -n "$KC_NS" >/dev/null 2>&1; then
-                    apply_keycloak_cr
+                  # Ensure Keycloak CRD + CR exist (Argo fails the whole rhbk sync when
+                  # the CRD is missing, leaving STS/Services Missing forever).
+                  apply_keycloak_cr
+                  if ! oc get statefulset postgresql-db -n "$KC_NS" >/dev/null 2>&1; then
+                    echo "StatefulSet/postgresql-db Missing -- clearing stuck sync and hard-refreshing rhbk..."
                     oc patch application "$RHBK_APP" -n "$ARGO_NS" --type json \
                       -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
                     oc annotate application "$RHBK_APP" -n "$ARGO_NS" \
