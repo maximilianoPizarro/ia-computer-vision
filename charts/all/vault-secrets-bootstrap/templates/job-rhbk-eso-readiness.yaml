@@ -53,6 +53,9 @@ rules:
   - apiGroups: ["external-secrets.io"]
     resources: ["externalsecrets"]
     verbs: ["get", "list", "create", "patch", "update"]
+  - apiGroups: ["k8s.keycloak.org"]
+    resources: ["keycloaks"]
+    verbs: ["get", "list", "create", "patch", "update"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "delete"]
@@ -71,6 +74,35 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: rhbk-eso-readiness-es
+subjects:
+  - kind: ServiceAccount
+    name: rhbk-eso-readiness
+    namespace: {{ .Values.vault.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhbk-eso-readiness-fallback-cm
+  namespace: {{ .Values.vault.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["rhbk-eso-fallback-manifests"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhbk-eso-readiness-fallback-cm
+  namespace: {{ .Values.vault.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rhbk-eso-readiness-fallback-cm
 subjects:
   - kind: ServiceAccount
     name: rhbk-eso-readiness
@@ -160,6 +192,28 @@ spec:
               oc patch application "$RHBK_APP" -n "$ARGO_NS" --type json \
                 -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
 
+              # Fallback manifests from ConfigMap rhbk-eso-fallback-manifests.
+              apply_bootstrap_es() {
+                echo "Applying fallback ExternalSecret/postgresql-db + keycloak-admin-user..."
+                oc get configmap rhbk-eso-fallback-manifests -n "{{ .Values.vault.namespace }}" \
+                  -o jsonpath='{.data.postgresql-db\.yaml}' \
+                  | sed "s/__KC_NS__/${KC_NS}/g" | oc apply -f - || true
+                oc get configmap rhbk-eso-fallback-manifests -n "{{ .Values.vault.namespace }}" \
+                  -o jsonpath='{.data.keycloak-admin-user\.yaml}' \
+                  | sed "s/__KC_NS__/${KC_NS}/g" | oc apply -f - || true
+              }
+
+              apply_keycloak_cr() {
+                local domain host
+                domain=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}' 2>/dev/null || echo "")
+                [ -z "$domain" ] && { echo "WARN: cannot resolve cluster domain for Keycloak CR"; return 0; }
+                host="sso.${domain}"
+                echo "Applying fallback Keycloak CR (hostname=${host})..."
+                oc get configmap rhbk-eso-fallback-manifests -n "{{ .Values.vault.namespace }}" \
+                  -o jsonpath='{.data.keycloak\.yaml}' \
+                  | sed "s/__KC_NS__/${KC_NS}/g; s/__SSO_HOST__/${host}/g" | oc apply -f - || true
+              }
+
               for es in postgresql-db keycloak-admin-user; do
                 if oc get externalsecret "$es" -n "$KC_NS" >/dev/null 2>&1; then
                   READY=$(oc get externalsecret "$es" -n "$KC_NS" \
@@ -172,7 +226,8 @@ spec:
                     echo "ExternalSecret/$es already Ready."
                   fi
                 else
-                  echo "ExternalSecret/$es Missing -- will hard-refresh rhbk so Argo re-applies it."
+                  echo "ExternalSecret/$es Missing -- applying fallback + hard-refresh rhbk."
+                  apply_bootstrap_es
                 fi
               done
 
@@ -183,11 +238,23 @@ spec:
               # Wait for bootstrap secrets (Argo may need a minute after refresh)
               echo "Waiting for postgresql-db / keycloak-admin-user secrets..."
               for i in $(seq 1 36); do
+                if ! oc get externalsecret postgresql-db -n "$KC_NS" >/dev/null 2>&1 \
+                  || ! oc get externalsecret keycloak-admin-user -n "$KC_NS" >/dev/null 2>&1; then
+                  apply_bootstrap_es
+                fi
                 if oc get secret postgresql-db -n "$KC_NS" >/dev/null 2>&1 \
                   && oc get secret keycloak-admin-user -n "$KC_NS" >/dev/null 2>&1; then
                   echo "Bootstrap secrets present."
                   # Kick postgres if it was stuck on CreateContainerConfigError
                   oc delete pod -n "$KC_NS" -l name=postgresql-db --ignore-not-found 2>/dev/null || true
+                  # Ensure Keycloak CR exists (Argo wave 36 can stay blocked forever)
+                  if ! oc get keycloak.k8s.keycloak.org keycloak -n "$KC_NS" >/dev/null 2>&1; then
+                    apply_keycloak_cr
+                    oc patch application "$RHBK_APP" -n "$ARGO_NS" --type json \
+                      -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
+                    oc annotate application "$RHBK_APP" -n "$ARGO_NS" \
+                      argocd.argoproj.io/refresh=hard --overwrite || true
+                  fi
                   exit 0
                 fi
                 # Re-clear stuck operation periodically
@@ -196,9 +263,11 @@ spec:
                     -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
                   oc annotate application "$RHBK_APP" -n "$ARGO_NS" \
                     argocd.argoproj.io/refresh=hard --overwrite || true
+                  apply_bootstrap_es
                 fi
                 sleep 10
               done
-              echo "WARN: bootstrap secrets still missing after wait; check Application/$RHBK_APP and ESO."
+              echo "WARN: bootstrap secrets still missing after wait; applying Keycloak CR fallback anyway."
+              apply_keycloak_cr || true
               exit 0
 {{- end }}

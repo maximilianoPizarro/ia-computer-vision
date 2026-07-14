@@ -23,12 +23,16 @@ backstageProvisioner:
   clientSecret: "backstage-provisioner-poc-2026"
   vaultKey: secret/data/hub/keycloak/realms/cv/backstage-provisioner
 
+argoNamespace: vp-gitops
+argoApplicationName: rhbk-iam
+
 realms:
   # Fine-Grained Admin Permissions (FGAP) must stay false. When true, the
   # master bootstrap admin loses classic cross-realm access: GET realm returns
   # a truncated object and /clients is 403, so rhbk-iam-sync-client-secrets
   # cannot repair secrets and scaffolder OIDC self-service fails with
   # "Realm does not exist" / unauthorized_client against realm cv.
+  # Also set the same false via values-hub.yaml Helm overrides (Argo --set).
   - name: neuroface
     displayName: NeuroFace API
     adminPermissionsEnabled: false

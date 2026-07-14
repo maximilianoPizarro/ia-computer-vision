@@ -1,0 +1,171 @@
+{{- /*
+  PostSync: KeycloakRealmImport CRs sync at wave 4 while the Keycloak CR is
+  often still Missing (rhbk wave-36 / ESO race). The operator then records
+  HasErrors ("keycloak not found") and does not reliably retry after Keycloak
+  becomes Ready — leaving cv/maas/neuroface absent so Developer Hub scaffolder
+  returns "Realm does not exist".
+
+  This job waits for Keycloak, deletes any import still in HasErrors (or not
+  Done), and lets Argo re-apply the CRs via a hard refresh of this app.
+*/ -}}
+{{- $kcNs := .Values.keycloak.namespace | default "keycloak-system" -}}
+{{- $argoNs := .Values.argoNamespace | default "vp-gitops" -}}
+{{- $appName := .Values.argoApplicationName | default "rhbk-iam" -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhbk-iam-realm-readiness
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhbk-iam-realm-readiness
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["k8s.keycloak.org"]
+    resources: ["keycloaks", "keycloakrealmimports"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhbk-iam-realm-readiness
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rhbk-iam-realm-readiness
+subjects:
+  - kind: ServiceAccount
+    name: rhbk-iam-realm-readiness
+    namespace: {{ $kcNs }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhbk-iam-realm-readiness-argo
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    resourceNames: [{{ $appName | quote }}]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhbk-iam-realm-readiness-argo
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rhbk-iam-realm-readiness-argo
+subjects:
+  - kind: ServiceAccount
+    name: rhbk-iam-realm-readiness
+    namespace: {{ $kcNs }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhbk-iam-realm-readiness
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      serviceAccountName: rhbk-iam-realm-readiness
+      restartPolicy: Never
+      containers:
+        - name: wait-and-retry
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          env:
+            - name: KC_NS
+              value: {{ $kcNs | quote }}
+            - name: ARGO_NS
+              value: {{ $argoNs | quote }}
+            - name: APP_NAME
+              value: {{ $appName | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+
+              echo "Waiting for Keycloak CR + keycloak-0 Ready..."
+              for i in $(seq 1 60); do
+                if oc get keycloak.k8s.keycloak.org keycloak -n "$KC_NS" >/dev/null 2>&1 \
+                  && oc get pod keycloak-0 -n "$KC_NS" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null | grep -q true; then
+                  echo "Keycloak Ready."
+                  break
+                fi
+                if [ "$i" -eq 60 ]; then
+                  echo "WARN: Keycloak not Ready after 10m — retrying imports anyway."
+                fi
+                sleep 10
+              done
+
+              NEED_REFRESH=0
+              for name in realm-cv realm-maas realm-neuroface; do
+                if ! oc get keycloakrealmimport "$name" -n "$KC_NS" >/dev/null 2>&1; then
+                  echo "Missing KeycloakRealmImport/$name"
+                  NEED_REFRESH=1
+                  continue
+                fi
+                DONE=$(oc get keycloakrealmimport "$name" -n "$KC_NS" \
+                  -o jsonpath='{.status.conditions[?(@.type=="Done")].status}' 2>/dev/null || echo "")
+                ERR=$(oc get keycloakrealmimport "$name" -n "$KC_NS" \
+                  -o jsonpath='{.status.conditions[?(@.type=="HasErrors")].status}' 2>/dev/null || echo "")
+                if [ "$DONE" = "True" ] && [ "$ERR" != "True" ]; then
+                  echo "OK KeycloakRealmImport/$name"
+                  continue
+                fi
+                echo "Retry KeycloakRealmImport/$name (Done=$DONE HasErrors=$ERR) — deleting so Argo re-applies..."
+                oc delete keycloakrealmimport "$name" -n "$KC_NS" --ignore-not-found
+                # Drop completed/failed import Jobs so the operator creates a fresh one
+                oc delete job "$name" -n "$KC_NS" --ignore-not-found 2>/dev/null || true
+                NEED_REFRESH=1
+              done
+
+              if [ "$NEED_REFRESH" = "1" ]; then
+                oc patch application "$APP_NAME" -n "$ARGO_NS" --type json \
+                  -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
+                oc annotate application "$APP_NAME" -n "$ARGO_NS" \
+                  argocd.argoproj.io/refresh=hard --overwrite
+                echo "Waiting for realm imports to become Done..."
+                for i in $(seq 1 36); do
+                  ok=0
+                  for name in realm-cv realm-maas realm-neuroface; do
+                    DONE=$(oc get keycloakrealmimport "$name" -n "$KC_NS" \
+                      -o jsonpath='{.status.conditions[?(@.type=="Done")].status}' 2>/dev/null || echo "")
+                    [ "$DONE" = "True" ] && ok=$((ok+1))
+                  done
+                  echo "attempt $i: $ok/3 Done"
+                  [ "$ok" -eq 3 ] && break
+                  sleep 10
+                done
+              fi
+
+              echo "rhbk-iam realm readiness complete."
+              oc get keycloakrealmimport -n "$KC_NS" \
+                -o custom-columns=NAME:.metadata.name,DONE:.status.conditions[?(@.type==\"Done\")].status,ERR:.status.conditions[?(@.type==\"HasErrors\")].status || true

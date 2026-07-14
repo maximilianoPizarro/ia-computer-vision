@@ -342,25 +342,27 @@ clusterGroup:
           value: "30"
         # Set sibling keys explicitly: Helm --set realms[N].name alone can
         # replace the map at that index and drop adminPermissionsEnabled,
-        # leaving KeycloakRealmImport with a null FGAP flag.
+        # leaving KeycloakRealmImport with a null FGAP flag (Keycloak then
+        # defaults FGAP on and locks master admin out of /admin/realms/*/clients).
+        # MUST stay false -- see cluster-bot-install skill 3.4 / scaffolder OIDC.
         - name: realms[0].name
           value: neuroface
         - name: realms[0].displayName
           value: NeuroFace API
         - name: realms[0].adminPermissionsEnabled
-          value: "true"
+          value: "false"
         - name: realms[1].name
           value: maas
         - name: realms[1].displayName
           value: Model as a Service
         - name: realms[1].adminPermissionsEnabled
-          value: "true"
+          value: "false"
         - name: realms[2].name
           value: cv
         - name: realms[2].displayName
           value: Computer Vision
         - name: realms[2].adminPermissionsEnabled
-          value: "true"
+          value: "false"
 
     gitlab-operator:
       name: gitlab-operator

@@ -226,9 +226,11 @@ This silently breaks the `developer-hub-sync-backstage-realm-secrets`
 PostSync job (which uses that same master-admin path to reconcile the
 secret), so drift is never repaired. Realms created by `rhbk-iam`
 (`cv`/`maas`/`neuroface`) must also set `adminPermissionsEnabled: false`
-in `charts/all/rhbk-iam/values.yaml` (a prior revision left them `true`,
-which locked master admin out of `/admin/realms/cv/clients` — scaffolder
-then saw `Realm does not exist` / could not sync `backstage-provisioner`).
+in **both** `charts/all/rhbk-iam/values.yaml` **and** the Helm overrides in
+`values-hub.yaml` (`realms[N].adminPermissionsEnabled: "false"`). A prior
+revision left the hub overrides as `"true"`, which won over the chart default
+and locked master admin out of `/admin/realms/cv/clients` — scaffolder then
+saw `Realm does not exist` / could not sync `backstage-provisioner`.
 
 **Pattern fix (already applied):** `keycloak-realm.yaml` now explicitly sets
 `adminPermissionsEnabled: false` on the backstage realm.

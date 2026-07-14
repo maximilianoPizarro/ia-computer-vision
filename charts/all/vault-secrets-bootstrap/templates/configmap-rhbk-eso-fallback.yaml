@@ -1,0 +1,88 @@
+{{- if .Values.bootstrap.enabled }}
+{{- $kcNs := .Values.rhbkEsoRetry.keycloakNamespace | default "keycloak-system" -}}
+# Manifests applied by job-rhbk-eso-readiness when Argo leaves ExternalSecrets /
+# Keycloak CR Missing. Placeholders __KC_NS__ and __SSO_HOST__ are sed-replaced.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhbk-eso-fallback-manifests
+  namespace: {{ .Values.vault.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  postgresql-db.yaml: |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: postgresql-db
+      namespace: __KC_NS__
+    spec:
+      refreshInterval: 1h0m0s
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: postgresql-db
+        creationPolicy: Owner
+        template:
+          type: Opaque
+          data:
+            username: keycloak
+            database: keycloak
+            password: "{{ `{{ .password }}` }}"
+      data:
+      - secretKey: password
+        remoteRef:
+          key: secret/data/hub/rhbk-credentials
+          property: db-password
+  keycloak-admin-user.yaml: |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: keycloak-admin-user
+      namespace: __KC_NS__
+    spec:
+      refreshInterval: 1h0m0s
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: keycloak-admin-user
+        creationPolicy: Owner
+        template:
+          type: Opaque
+          data:
+            username: admin
+            password: "{{ `{{ .admin_password }}` }}"
+      data:
+      - secretKey: admin_password
+        remoteRef:
+          key: secret/data/hub/rhbk-credentials
+          property: admin-password
+  keycloak.yaml: |
+    apiVersion: k8s.keycloak.org/v2alpha1
+    kind: Keycloak
+    metadata:
+      name: keycloak
+      namespace: __KC_NS__
+    spec:
+      bootstrapAdmin:
+        user:
+          secret: keycloak-admin-user
+      db:
+        host: postgresql-db
+        passwordSecret:
+          key: password
+          name: postgresql-db
+        usernameSecret:
+          key: username
+          name: postgresql-db
+        vendor: postgres
+      hostname:
+        hostname: __SSO_HOST__
+      http:
+        tlsSecret: keycloak-tls
+      ingress:
+        enabled: false
+      instances: 1
+{{- end }}
