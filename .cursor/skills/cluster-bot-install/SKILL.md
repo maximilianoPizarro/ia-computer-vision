@@ -220,7 +220,27 @@ curl -sk -X POST "https://sso.${DOMAIN}/realms/backstage/protocol/openid-connect
 `HTTP:401 unauthorized_client` confirms the secret in Vault/K8s does not
 match what Keycloak has for the `developer-hub` client.
 
-**Root cause found on a from-scratch cluster:** the `backstage` realm
+**Root cause (sync job race — ci-ln-vdtmrl2, v1.8.0):** the PostSync job
+`developer-hub-sync-backstage-realm-secrets` can finish **before**
+`KeycloakRealmImport/backstage-realm` creates the OIDC clients (~60–90s).
+It logged `SKIP backstage/developer-hub (not found)` and exited 0, leaving
+Keycloak with the literal placeholder secret `$(OIDC_CLIENT_SECRET)` while
+RHDH uses the real Vault/ESO value → `unauthorized_client` after login.
+
+**Pattern fix:** the sync job now waits up to 12 minutes for
+`developer-hub-oidc-client` + the `developer-hub` client to exist, retries
+the Admin API merge+PUT, and exits non-zero if sync never succeeds (Argo
+retries the hook).
+
+**Quick recovery on a live cluster:**
+```bash
+oc delete job developer-hub-sync-backstage-realm-secrets -n keycloak-system
+oc annotate application developer-hub -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+# or helm template + oc apply the job from charts/all/developer-hub
+oc delete pod -n developer-hub -l rhdh.redhat.com/app=backstage-developer-hub
+```
+
+**Root cause (FGAP lockout — older clusters):** the `backstage` realm
 (`charts/all/developer-hub/templates/keycloak-realm.yaml`) did not set
 `adminPermissionsEnabled`, and Keycloak defaulted it to Fine-Grained Admin
 Permissions **enabled** for that realm. With FGAP on, the master bootstrap
