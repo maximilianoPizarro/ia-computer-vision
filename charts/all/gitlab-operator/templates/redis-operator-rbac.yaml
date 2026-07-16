@@ -1,0 +1,53 @@
+{{- $ext := .Values.external | default dict -}}
+{{- $redis := $ext.redis | default dict -}}
+{{- if eq ($redis.backend | default "opstree") "opstree" -}}
+# Opstree Redis Operator CSV (community) grants Redis/RedisCluster but omits
+# RedisReplication/RedisSentinel watches the controller always starts. Without
+# these verbs the operator CrashLoopBackOffs on OpenShift ("cannot list
+# redisreplications ... at the cluster scope") and never reconciles gitlab-redis.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: redis-operator-opstree-extra
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: gitlab-operator
+    app.kubernetes.io/component: redis-operator-rbac
+rules:
+  - apiGroups:
+      - redis.redis.opstreelabs.in
+    resources:
+      - redisreplications
+      - redissentinels
+      - redisreplications/status
+      - redissentinels/status
+      - redisreplications/finalizers
+      - redissentinels/finalizers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: redis-operator-opstree-extra
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: gitlab-operator
+    app.kubernetes.io/component: redis-operator-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: redis-operator-opstree-extra
+subjects:
+  - kind: ServiceAccount
+    name: redis-operator
+    namespace: redis-operator
+{{- end }}

@@ -59,9 +59,12 @@ clusterGroup:
     cnpg-system:
       operatorGroup: true
       targetNamespaces: []
+    # Own namespace; watch only gitlab-system (avoids AllNamespaces CSV spam and
+    # keeps Redis CR reconciliation scoped to the GitLab external dependency).
     redis-operator:
       operatorGroup: true
-      targetNamespaces: []
+      targetNamespaces:
+        - gitlab-system
     gitlab-runner: {}
     rhdh-operator:
       operatorGroup: true

@@ -45,9 +45,14 @@ spec:
         app.kubernetes.io/name: {{ $name }}
         app.kubernetes.io/component: object-storage
     spec:
+      # OpenShift restricted-v2/v3: do NOT pin fsGroup/runAsUser (UID 1000 is
+      # rejected). Let the platform assign an allowed UID/GID range. hostUsers
+      # false satisfies restricted-v3 on OCP 4.20+.
+      hostUsers: false
       securityContext:
         runAsNonRoot: true
-        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: minio
           image: {{ $minio.image | default "quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z" | quote }}
@@ -100,6 +105,8 @@ spec:
             capabilities:
               drop: ["ALL"]
             runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
       volumes:
         - name: data
           persistentVolumeClaim:

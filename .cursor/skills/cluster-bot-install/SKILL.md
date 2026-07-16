@@ -144,6 +144,20 @@ Do **not** enable `values-hub-odf-datagrid.yaml` on Cluster Bot. That overlay
 expects an existing ODF StorageCluster/MCG and Red Hat Data Grid (RESP for
 GitLab is experimental). Keep chart-managed MinIO + Opstree Redis here.
 
+### 3.1c MinIO SCC / Redis Operator RBAC (GitLab external deps stuck)
+
+**Symptom:** `gitlab-operator` Progressing forever; `StatefulSet/gitlab-minio`
+never creates a pod (`fsGroup: 1000` / `restricted-v3` hostUsers); Redis
+Operator pod CrashLoopBackOff with `cannot list resource "redisreplications"`.
+
+**Cause:** chart MinIO pinned UID/fsGroup 1000 (rejected by OpenShift
+restricted SCCs). Opstree Redis Operator CSV RBAC covers Redis/RedisCluster
+but the controller also watches RedisReplication/RedisSentinel.
+
+**Pattern fix:** MinIO pod uses platform-assigned UID + `hostUsers: false`;
+`redis-operator-rbac.yaml` adds the missing ClusterRoleBinding; Redis
+OperatorGroup targets only `gitlab-system`.
+
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
 **Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login

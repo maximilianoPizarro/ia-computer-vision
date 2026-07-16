@@ -38,9 +38,7 @@ spec:
         resources:
           requests:
             storage: {{ $redis.storage | default "5Gi" | quote }}
-  # OpenShift restricted-compatible identity (non-root).
+  # OpenShift restricted-v2/v3: do not pin UID/fsGroup 1000 (SCC rejects it).
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 1000
-    fsGroup: 1000
 {{- end }}
