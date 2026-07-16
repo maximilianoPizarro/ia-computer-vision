@@ -6,9 +6,44 @@
 {{- $svc := $minio.serviceName | default "gitlab-minio-svc" -}}
 {{- $secret := $minio.secretName | default "gitlab-minio-secret" -}}
 {{- $storage := $minio.storage | default "20Gi" -}}
+{{- $sa := printf "%s" $name -}}
 # Chart-managed MinIO (S3) — GitLab chart 10 removed the bundled MinIO chart.
 # Service/Secret names stay stable for ppe-model-seed + YOLO InferenceService.
 # Skipped when external.minio.backend=odf (see odf-*.yaml + values-hub-odf-datagrid.yaml).
+#
+# OpenShift: official MinIO image expects UID/GID 1000. restricted SCC rejects
+# that; hostUsers:false (user namespaces) breaks the image with setgroups.
+# Grant SCC anyuid to a dedicated ServiceAccount instead.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $sa }}
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/component: object-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $sa }}-anyuid
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/component: object-storage
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ $ns }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -45,14 +80,11 @@ spec:
         app.kubernetes.io/name: {{ $name }}
         app.kubernetes.io/component: object-storage
     spec:
-      # OpenShift restricted-v2/v3: do NOT pin fsGroup/runAsUser (UID 1000 is
-      # rejected). Let the platform assign an allowed UID/GID range. hostUsers
-      # false satisfies restricted-v3 on OCP 4.20+.
-      hostUsers: false
+      serviceAccountName: {{ $sa }}
       securityContext:
         runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: minio
           image: {{ $minio.image | default "quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z" | quote }}
@@ -105,8 +137,7 @@ spec:
             capabilities:
               drop: ["ALL"]
             runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
+            runAsUser: 1000
       volumes:
         - name: data
           persistentVolumeClaim:

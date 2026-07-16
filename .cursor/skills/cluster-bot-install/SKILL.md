@@ -154,7 +154,7 @@ Operator pod CrashLoopBackOff with `cannot list resource "redisreplications"`.
 restricted SCCs). Opstree Redis Operator CSV RBAC covers Redis/RedisCluster
 but the controller also watches RedisReplication/RedisSentinel.
 
-**Pattern fix:** MinIO pod uses platform-assigned UID + `hostUsers: false`;
+**Pattern fix:** MinIO uses SA `gitlab-minio` + SCC `anyuid` (UID 1000);
 `redis-operator-rbac.yaml` adds the missing ClusterRoleBinding; Redis
 OperatorGroup targets only `gitlab-system`.
 
