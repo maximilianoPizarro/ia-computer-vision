@@ -1,0 +1,25 @@
+{{- $ns := .Values.namespace -}}
+{{- $ext := .Values.external | default dict -}}
+{{- $minio := $ext.minio | default dict -}}
+{{- if eq ($minio.backend | default "chart") "odf" -}}
+{{- $odf := $minio.odf | default dict -}}
+{{- $nbNs := $odf.noobaaNamespace | default "openshift-storage" -}}
+{{- $account := $odf.accountName | default "gitlab-s3" -}}
+# NooBaa account with bucket-create rights so one shared S3 credential can
+# own all GitLab buckets + models (ObjectBucketClaim is one-account-per-bucket).
+# Prerequisite: ODF StorageCluster / MCG already running in openshift-storage.
+apiVersion: noobaa.io/v1alpha1
+kind: NooBaaAccount
+metadata:
+  name: {{ $account }}
+  namespace: {{ $nbNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/name: gitlab-odf
+    app.kubernetes.io/component: object-storage
+spec:
+  allow_bucket_creation: true
+  default_resource: {{ $odf.defaultResource | default "noobaa-default-backing-store" | quote }}
+{{- end }}

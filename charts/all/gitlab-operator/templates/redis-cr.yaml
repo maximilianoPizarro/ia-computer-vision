@@ -1,7 +1,9 @@
 {{- $ns := .Values.namespace -}}
 {{- $ext := .Values.external | default dict -}}
 {{- $redis := $ext.redis | default dict -}}
+{{- if eq ($redis.backend | default "opstree") "opstree" -}}
 {{- $name := $redis.name | default "gitlab-redis" -}}
+# Opstree Redis CR — skipped when external.redis.backend=datagrid.
 apiVersion: redis.redis.opstreelabs.in/v1beta1
 kind: Redis
 metadata:
@@ -41,3 +43,4 @@ spec:
     runAsNonRoot: true
     runAsUser: 1000
     fsGroup: 1000
+{{- end }}

@@ -136,16 +136,16 @@ spec:
               PYEOF
           env:
             - name: S3_ENDPOINT
-              value: "http://gitlab-minio-svc.gitlab-system.svc:9000"
+              value: {{ $ms.s3Endpoint | default "http://gitlab-minio-svc.gitlab-system.svc:9000" | quote }}
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: gitlab-minio-secret
+                  name: {{ $ms.s3SecretName | default "gitlab-minio-secret" | quote }}
                   key: accesskey
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: gitlab-minio-secret
+                  name: {{ $ms.s3SecretName | default "gitlab-minio-secret" | quote }}
                   key: secretkey
             - name: S3_BUCKET
               value: {{ $ms.bucket | default "models" | quote }}

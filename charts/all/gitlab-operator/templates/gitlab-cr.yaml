@@ -8,7 +8,11 @@
 {{- $minio := $ext.minio | default dict -}}
 {{- $pgCluster := $pg.clusterName | default "gitlab-rails-db" -}}
 {{- $pgHost := printf "%s-rw" $pgCluster -}}
-{{- $redisHost := $redis.host | default ($redis.name | default "gitlab-redis") -}}
+{{- $redisBackend := $redis.backend | default "opstree" -}}
+{{- $dg := $redis.datagrid | default dict -}}
+{{- $redisHost := ternary ($dg.name | default "gitlab-datagrid") ($redis.host | default ($redis.name | default "gitlab-redis")) (eq $redisBackend "datagrid") -}}
+{{- $redisPort := ternary ($dg.port | default 11222) ($redis.port | default 6379) (eq $redisBackend "datagrid") -}}
+{{- $redisUsername := ternary ($redis.username | default ($dg.username | default "default")) ($redis.username | default "") (eq $redisBackend "datagrid") -}}
 apiVersion: apps.gitlab.com/v1beta1
 kind: GitLab
 metadata:
@@ -53,10 +57,14 @@ spec:
             key: {{ $pg.passwordKey | default "password" | quote }}
         redis:
           host: {{ $redisHost | quote }}
+          port: {{ $redisPort }}
           auth:
             enabled: true
             secret: {{ $redis.passwordSecret | default "gitlab-redis-secret" | quote }}
             key: {{ $redis.passwordKey | default "password" | quote }}
+{{- if $redisUsername }}
+            username: {{ $redisUsername | quote }}
+{{- end }}
         appConfig:
           object_store:
             enabled: true

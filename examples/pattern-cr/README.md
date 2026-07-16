@@ -45,6 +45,7 @@ Pick **one** file. Do not mix overlays from different scenarios.
 | [`hub-only-gpu-multi-node.yaml`](hub-only-gpu-multi-node.yaml) | **C** | One hub with GPU workers, fresh cluster | `/values-hub-gpu.yaml`, `/values-hub-only.yaml` |
 | [`hub-only-gpu-single-node-preinstalled.yaml`](hub-only-gpu-single-node-preinstalled.yaml) | **D** | Single-node sandbox with operators pre-installed | `/values-hub-gpu.yaml`, `/values-hub-only.yaml`, `/values-hub-single-node.yaml`, `/values-hub-rhpds.yaml` (**rhpds last**) |
 | [`spoke.yaml`](spoke.yaml) | **E** | East or west spoke (`clusterGroupName: east` or `west`) | *(none)* |
+| [`hub-odf-datagrid.yaml`](hub-odf-datagrid.yaml) | **F** | Hub with ODF/MCG S3 + experimental Data Grid RESP (requires Ready ODF; not for Cluster Bot) | `/values-hub-odf-datagrid.yaml` |
 
 ## Overlay order (important)
 

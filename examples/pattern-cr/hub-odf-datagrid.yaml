@@ -1,0 +1,33 @@
+# Hub with opt-in ODF object storage + Red Hat Data Grid (RESP) for GitLab.
+#
+# Use when:
+#   - Hub already has OpenShift Data Foundation installed and StorageCluster / MCG
+#     (NooBaa) Ready in openshift-storage
+#   - You want GitLab S3 on MCG instead of chart MinIO, and experimental Data Grid
+#     RESP instead of Opstree Redis
+#
+# Do NOT use on Cluster Bot / small workshop clusters.
+# Data Grid for GitLab is EXPERIMENTAL (not a supported Redis/Valkey backend).
+#
+# Overlay order: odf-datagrid first, then hub-only if you also want hub-only topology.
+#
+# Apply: oc apply -f examples/pattern-cr/hub-odf-datagrid.yaml
+# Docs:  docs/content/patterns/ia-computer-vision/ideas-for-customization.adoc
+#        (section: Using OpenShift Data Foundation and Data Grid...)
+---
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-odf-datagrid.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io

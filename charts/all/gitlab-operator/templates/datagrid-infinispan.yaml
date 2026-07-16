@@ -1,0 +1,33 @@
+{{- $ns := .Values.namespace -}}
+{{- $ext := .Values.external | default dict -}}
+{{- $redis := $ext.redis | default dict -}}
+{{- if eq ($redis.backend | default "opstree") "datagrid" -}}
+{{- $dg := $redis.datagrid | default dict -}}
+{{- $name := $dg.name | default "gitlab-datagrid" -}}
+# Red Hat Data Grid (Infinispan) with RESP endpoint for GitLab.
+# EXPERIMENTAL: GitLab expects Redis/Valkey; Data Grid RESP3 is not a supported
+# GitLab backend. Enable only via values-hub-odf-datagrid.yaml after validation.
+apiVersion: infinispan.org/v1
+kind: Infinispan
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/component: datagrid
+spec:
+  replicas: {{ $dg.replicas | default 1 }}
+  service:
+    type: DataGrid
+  security:
+    endpointAuthentication: true
+    endpointSecretName: {{ $dg.identitiesSecret | default "gitlab-datagrid-identities" | quote }}
+  container:
+    cpu: {{ $dg.cpu | default "500m" | quote }}
+    memory: {{ $dg.memory | default "1Gi" | quote }}
+  configListener:
+    enabled: false
+{{- end }}

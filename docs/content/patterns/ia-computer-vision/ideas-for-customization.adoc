@@ -763,4 +763,62 @@ Apply the same `userCount: "50"` to `platform-users` in `values-east.yaml` and `
 
 See link:../workshop/[Workshop mode] for details on what each chart provisions per user.
 
+== Using OpenShift Data Foundation and Data Grid instead of MinIO and Redis
+
+=== Context
+
+By default the hub uses a chart-managed MinIO StatefulSet and an Opstree Redis CR for GitLab (and shared S3 for YOLO model weights). Production hubs that already run Red Hat OpenShift Data Foundation (ODF) can opt into MCG/NooBaa object storage and, experimentally, Red Hat Data Grid over the RESP protocol.
+
+The default workshop and Cluster Bot path stays on MinIO and Opstree Redis. The opt-in file is `values-hub-odf-datagrid.yaml` (same pattern as `values-hub-gpu.yaml`).
+
+=== Prerequisites
+
+* An ODF StorageCluster with Multicloud Object Gateway (NooBaa) Ready in `openshift-storage`. The overlay does not create a StorageCluster.
+* Do not use this overlay on Cluster Bot or small workshop clusters.
+
+[IMPORTANT]
+====
+Data Grid for GitLab is experimental. GitLab documents external Redis or Valkey only. Data Grid RESP3 is not a supported GitLab backend. Validate Sidekiq, cache, and sessions on a dedicated hub before production use.
+====
+
+=== What to change
+
+Pass the overlay as an extra Helm values file when you install or refresh the pattern:
+
+[source,bash]
+----
+$ EXTRA_HELM_OPTS='-f values-hub-odf-datagrid.yaml' ./pattern.sh make install
+----
+
+The overlay:
+
+* Subscribes to the Data Grid Operator (`datagrid`, channel `8.6.x`).
+* Sets `external.minio.backend=odf` and `external.redis.backend=datagrid` on the `gitlab-operator` chart.
+* Retargets the Skupper `minio-hub` connector and PPE model seed Job to `s3.openshift-storage.svc`.
+
+Helm replaces application `overrides:` lists wholesale. Keep `userCount` (and any other `gitlab-operator` overrides you rely on) in sync between `values-hub.yaml` and `values-hub-odf-datagrid.yaml`.
+
+=== Spoke clusters (Skupper)
+
+If east/west spokes pull models or PPE data from hub object storage over Skupper, retarget the listener and S3 URLs to HTTPS on port 443 (MCG):
+
+* Spoke interconnect: set `minioHub.port=443` on the `spoke-interconnect` application.
+* PPE / CV values: change `ppe.dataPersistence.s3Endpoint` and spoke-neuroface-cv model storage endpoints from `http://minio-hub.service-interconnect.svc:9000` to `https://minio-hub.service-interconnect.svc:443`. Clients may need to trust or skip verification for the MCG service certificate.
+
+=== Rollback
+
+Remove the overlay from `EXTRA_HELM_OPTS` / `helmOverrides`, then re-sync. The chart recreates MinIO and the Opstree Redis CR. You may need to restore or re-seed object data and Redis state separately.
+
+=== Validation
+
+[source,bash]
+----
+$ oc get noobaaaccount gitlab-s3 -n openshift-storage
+$ oc get infinispan gitlab-datagrid -n gitlab-system
+$ oc get sts gitlab-minio -n gitlab-system
+$ oc get redis gitlab-redis -n gitlab-system
+----
+
+.Expected: NooBaaAccount and Infinispan exist; chart MinIO StatefulSet and Opstree Redis CR are absent when the overlay is active.
+
 For installation issues during customization, see link:../troubleshooting/[Troubleshooting].

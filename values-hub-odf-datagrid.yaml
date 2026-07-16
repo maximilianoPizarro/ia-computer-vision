@@ -1,0 +1,78 @@
+# OPT-IN overlay: replace chart MinIO with ODF/MCG S3 and Opstree Redis with
+# Red Hat Data Grid (RESP) for GitLab.
+#
+# This file is NOT loaded automatically -- values-hub.yaml (workshop / Cluster
+# Bot default with chart MinIO + Opstree Redis) stays unchanged.
+#
+# Enable with an EXTRA Helm values file on top of the normal install, e.g.:
+#
+#   EXTRA_HELM_OPTS='-f /path/to/values-hub-odf-datagrid.yaml' ./pattern.sh make install
+#
+# or add it to helmOverrides / an extra -f in your own install tooling.
+#
+# PREREQUISITES
+# - OpenShift Data Foundation is already installed and a StorageCluster / MCG
+#   (NooBaa) is Ready in openshift-storage. This overlay does NOT create a
+#   StorageCluster (too heavy for Cluster Bot / small hubs).
+# - Do NOT use this overlay on Cluster Bot workshops.
+#
+# WARNING — Data Grid for GitLab is EXPERIMENTAL
+# GitLab supports external Redis or Valkey (RESP). Red Hat Data Grid exposes a
+# RESP3-compatible endpoint that is NOT a supported GitLab backend. Command
+# coverage and Sidekiq behavior may differ. Validate on a dedicated hub before
+# any production use.
+#
+# IMPORTANT: Helm merges multiple -f files by deep-merging maps, but LISTS
+# (like an application's `overrides:`) are replaced wholesale, not merged by
+# item. The gitlab-operator `overrides:` list below repeats userCount from
+# values-hub.yaml plus the backend flips -- if you change one, change the other.
+
+clusterGroup:
+  namespaces:
+    # Data Grid Operator (AllNamespaces via empty targetNamespaces).
+    datagrid-system:
+      operatorGroup: true
+      targetNamespaces: []
+
+  subscriptions:
+    datagrid:
+      name: datagrid
+      namespace: datagrid-system
+      channel: 8.6.x
+      source: redhat-operators
+
+  applications:
+    gitlab-operator:
+      name: gitlab-operator
+      namespace: gitlab-system
+      argoProject: workshop
+      path: charts/all/gitlab-operator
+      syncWave: "3"
+      overrides:
+        - name: userCount
+          value: "30"
+        - name: external.minio.backend
+          value: "odf"
+        - name: external.redis.backend
+          value: "datagrid"
+        # Point GitLab object_store connection at MCG (same secret names as MinIO).
+        - name: external.minio.endpoint
+          value: "https://s3.openshift-storage.svc"
+        - name: external.minio.odf.endpoint
+          value: "https://s3.openshift-storage.svc"
+        - name: external.minio.odf.secure
+          value: "true"
+
+    hub-interconnect:
+      name: hub-interconnect
+      namespace: service-interconnect
+      argoProject: mesh
+      path: charts/all/hub-interconnect
+      syncWave: "5"
+      overrides:
+        - name: minioHub.host
+          value: "s3.openshift-storage.svc.cluster.local"
+        - name: minioHub.port
+          value: "443"
+        - name: modelSeed.s3Endpoint
+          value: "https://s3.openshift-storage.svc"

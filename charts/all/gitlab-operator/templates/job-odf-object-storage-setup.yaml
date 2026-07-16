@@ -1,20 +1,23 @@
 {{- $ns := .Values.namespace -}}
 {{- $ext := .Values.external | default dict -}}
 {{- $minio := $ext.minio | default dict -}}
-{{- if eq ($minio.backend | default "chart") "chart" -}}
+{{- if eq ($minio.backend | default "chart") "odf" -}}
+{{- $odf := $minio.odf | default dict -}}
+{{- $nbNs := $odf.noobaaNamespace | default "openshift-storage" -}}
+{{- $account := $odf.accountName | default "gitlab-s3" -}}
 {{- $secret := $minio.secretName | default "gitlab-minio-secret" -}}
-{{- $svc := $minio.serviceName | default "gitlab-minio-svc" -}}
-{{- $endpoint := $minio.endpoint | default (printf "http://%s.%s.svc:9000" $svc $ns) -}}
+{{- $endpoint := $odf.endpoint | default "https://s3.openshift-storage.svc" -}}
+{{- $secure := $odf.secure | default true -}}
 {{- $objSecret := $minio.objectStorageSecret | default "gitlab-object-storage" -}}
 {{- $regSecret := $minio.registryStorageSecret | default "gitlab-registry-storage" -}}
-{{- $mcImage := $minio.mcImage | default "quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z" -}}
 {{- $cliImage := $minio.cliImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
-# Creates GitLab S3 buckets + connection Secrets once MinIO is ready.
-# Skipped when external.minio.backend=odf (see job-odf-object-storage-setup.yaml).
+{{- $mcImage := $minio.mcImage | default "quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z" -}}
+# After NooBaaAccount is ready: copy keys into gitlab-minio-secret, create
+# GitLab buckets, and write connection Secrets (same names as chart MinIO path).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: gitlab-object-storage-setup
+  name: gitlab-odf-object-storage-setup
   namespace: {{ $ns }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
@@ -22,7 +25,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: gitlab-object-storage-setup
+  name: gitlab-odf-object-storage-setup
   namespace: {{ $ns }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
@@ -30,33 +33,56 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitlab-odf-object-storage-setup
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+rules:
   - apiGroups: [""]
-    resources: ["pods", "services"]
+    resources: ["secrets"]
     verbs: ["get", "list"]
-  - apiGroups: ["apps"]
-    resources: ["statefulsets"]
+  - apiGroups: ["noobaa.io"]
+    resources: ["noobaaaccounts"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: gitlab-object-storage-setup
+  name: gitlab-odf-object-storage-setup
   namespace: {{ $ns }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: gitlab-object-storage-setup
+  name: gitlab-odf-object-storage-setup
 subjects:
   - kind: ServiceAccount
-    name: gitlab-object-storage-setup
+    name: gitlab-odf-object-storage-setup
+    namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitlab-odf-object-storage-setup
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gitlab-odf-object-storage-setup
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-odf-object-storage-setup
     namespace: {{ $ns }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: gitlab-object-storage-setup
+  name: gitlab-odf-object-storage-setup
   namespace: {{ $ns }}
   annotations:
     argocd.argoproj.io/hook: Sync
@@ -68,37 +94,48 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: gitlab-object-storage-setup
+        app.kubernetes.io/name: gitlab-odf-object-storage-setup
     spec:
-      serviceAccountName: gitlab-object-storage-setup
+      serviceAccountName: gitlab-odf-object-storage-setup
       restartPolicy: OnFailure
       initContainers:
-        - name: wait-minio
+        - name: wait-and-copy-creds
           image: {{ $cliImage | quote }}
           imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
             - -ec
             - |
-              echo "Waiting for Secret/{{ $secret }} and Service/{{ $svc }}..."
+              NB_NS="{{ $nbNs }}"
+              ACCOUNT="{{ $account }}"
+              NS="{{ $ns }}"
+              MINIO_SECRET="{{ $secret }}"
+              echo "Waiting for NooBaaAccount/${ACCOUNT} secret in ${NB_NS}..."
+              # Operator creates Secret noobaa-account-<name> with AWS keys
+              ACCT_SECRET=""
               for i in $(seq 1 90); do
-                if oc get secret "{{ $secret }}" -n "{{ $ns }}" >/dev/null 2>&1 \
-                   && oc get svc "{{ $svc }}" -n "{{ $ns }}" >/dev/null 2>&1; then
-                  echo "Secret and Service present (attempt ${i})"
-                  break
-                fi
+                for cand in "noobaa-account-${ACCOUNT}" "${ACCOUNT}"; do
+                  if oc get secret "${cand}" -n "${NB_NS}" >/dev/null 2>&1; then
+                    if oc get secret "${cand}" -n "${NB_NS}" -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' 2>/dev/null | grep -q .; then
+                      ACCT_SECRET="${cand}"
+                      break 2
+                    fi
+                  fi
+                done
                 sleep 5
               done
-              # Wait until MinIO answers on the Service (pod Ready).
-              for i in $(seq 1 90); do
-                if oc get endpoints "{{ $svc }}" -n "{{ $ns }}" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q .; then
-                  echo "MinIO endpoints ready (attempt ${i})"
-                  exit 0
-                fi
-                sleep 5
-              done
-              echo "ERROR: MinIO not ready after ~7.5 minutes"
-              exit 1
+              if [ -z "${ACCT_SECRET}" ]; then
+                echo "ERROR: NooBaaAccount credentials secret not found after ~7.5 minutes"
+                echo "Ensure ODF/MCG is installed and NooBaaAccount/${ACCOUNT} is Ready."
+                exit 1
+              fi
+              ACCESS="$(oc get secret "${ACCT_SECRET}" -n "${NB_NS}" -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)"
+              SECRET="$(oc get secret "${ACCT_SECRET}" -n "${NB_NS}" -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)"
+              oc create secret generic "${MINIO_SECRET}" -n "${NS}" \
+                --from-literal=accesskey="${ACCESS}" \
+                --from-literal=secretkey="${SECRET}" \
+                --dry-run=client -o yaml | oc apply -f -
+              echo "Synced ${MINIO_SECRET} from ${NB_NS}/${ACCT_SECRET}"
         - name: create-buckets
           image: {{ $mcImage | quote }}
           imagePullPolicy: IfNotPresent
@@ -119,7 +156,8 @@ spec:
             - /bin/sh
             - -ec
             - |
-              mc alias set local "${MINIO_ENDPOINT}" "${MINIO_ACCESS}" "${MINIO_SECRET}"
+              # MCG uses TLS; mc needs --insecure for the cluster service CA.
+              mc alias set local "${MINIO_ENDPOINT}" "${MINIO_ACCESS}" "${MINIO_SECRET}" --insecure
               for b in \
                 git-lfs \
                 gitlab-artifacts \
@@ -136,10 +174,10 @@ spec:
                 runner-cache \
                 tmp \
                 models; do
-                mc mb --ignore-existing "local/${b}" || true
+                mc mb --ignore-existing --insecure "local/${b}" || true
               done
-              mc ls local/
-              echo "Buckets ready"
+              mc ls --insecure local/
+              echo "Buckets ready on ODF/MCG"
       containers:
         - name: connection-secrets
           image: {{ $cliImage | quote }}
@@ -165,12 +203,20 @@ spec:
               value: {{ $minio.backupStorageSecret | default "gitlab-object-storage-s3cmd" | quote }}
             - name: NS
               value: {{ $ns | quote }}
+            - name: USE_HTTPS
+              value: {{ ternary "True" "False" ($secure | default true) | quote }}
           command:
             - /bin/bash
             - -ec
             - |
               HOST="${MINIO_ENDPOINT#http://}"
               HOST="${HOST#https://}"
+              SECURE_BOOL="false"
+              S3CMD_HTTPS="False"
+              if [ "${USE_HTTPS}" = "True" ] || [ "${USE_HTTPS}" = "true" ]; then
+                SECURE_BOOL="true"
+                S3CMD_HTTPS="True"
+              fi
               cat >/tmp/object-storage.yaml <<EOF
               provider: AWS
               region: us-east-1
@@ -181,7 +227,6 @@ spec:
               endpoint: "${MINIO_ENDPOINT}"
               path_style: true
               EOF
-              # Trim leading spaces from heredoc indentation
               sed -i 's/^[[:space:]]*//' /tmp/object-storage.yaml
 
               cat >/tmp/registry-storage.yaml <<EOF
@@ -191,7 +236,7 @@ spec:
                 bucket: registry
                 region: us-east-1
                 regionendpoint: ${MINIO_ENDPOINT}
-                secure: false
+                secure: ${SECURE_BOOL}
                 v4auth: true
                 pathstyle: true
               EOF
@@ -203,7 +248,7 @@ spec:
               secret_key = ${MINIO_SECRET}
               host_base = ${HOST}
               host_bucket = ${HOST}
-              use_https = False
+              use_https = ${S3CMD_HTTPS}
               EOF
               sed -i 's/^[[:space:]]*//' /tmp/s3cmd.cfg
 
@@ -216,5 +261,5 @@ spec:
               oc create secret generic "${BACKUP_SECRET}" -n "${NS}" \
                 --from-file=config=/tmp/s3cmd.cfg \
                 --dry-run=client -o yaml | oc apply -f -
-              echo "Created/updated ${OBJ_SECRET}, ${REG_SECRET}, and ${BACKUP_SECRET}"
+              echo "Created/updated ${OBJ_SECRET}, ${REG_SECRET}, and ${BACKUP_SECRET} (ODF)"
 {{- end }}

@@ -1,12 +1,14 @@
 {{- $ns := .Values.namespace -}}
 {{- $ext := .Values.external | default dict -}}
 {{- $minio := $ext.minio | default dict -}}
+{{- if eq ($minio.backend | default "chart") "chart" -}}
 {{- $name := $minio.name | default "gitlab-minio" -}}
 {{- $svc := $minio.serviceName | default "gitlab-minio-svc" -}}
 {{- $secret := $minio.secretName | default "gitlab-minio-secret" -}}
 {{- $storage := $minio.storage | default "20Gi" -}}
 # Chart-managed MinIO (S3) — GitLab chart 10 removed the bundled MinIO chart.
 # Service/Secret names stay stable for ppe-model-seed + YOLO InferenceService.
+# Skipped when external.minio.backend=odf (see odf-*.yaml + values-hub-odf-datagrid.yaml).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -123,3 +125,4 @@ spec:
     - name: console
       port: 9001
       targetPort: console
+{{- end }}

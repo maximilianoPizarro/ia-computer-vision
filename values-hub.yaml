@@ -54,6 +54,8 @@ clusterGroup:
     # (certified) and Redis Operator (community) provide the external DBs;
     # object storage is a chart-managed MinIO in gitlab-system (AIStor needs
     # a commercial license and is not zero-touch on Cluster Bot).
+    # Opt-in ODF + Data Grid (production hubs with ODF already installed):
+    # see values-hub-odf-datagrid.yaml — NOT loaded by default.
     cnpg-system:
       operatorGroup: true
       targetNamespaces: []

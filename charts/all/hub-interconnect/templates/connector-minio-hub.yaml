@@ -1,3 +1,4 @@
+{{- $minio := .Values.minioHub | default dict -}}
 apiVersion: skupper.io/v2alpha1
 kind: Connector
 metadata:
@@ -7,5 +8,5 @@ metadata:
     argocd.argoproj.io/sync-wave: "3"
 spec:
   routingKey: minio-hub
-  host: gitlab-minio-svc.gitlab-system.svc.cluster.local
-  port: 9000
+  host: {{ $minio.host | default "gitlab-minio-svc.gitlab-system.svc.cluster.local" | quote }}
+  port: {{ $minio.port | default 9000 }}

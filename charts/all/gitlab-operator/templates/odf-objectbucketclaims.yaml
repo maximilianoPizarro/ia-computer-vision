@@ -1,0 +1,13 @@
+{{- /*
+  ObjectBucketClaim-per-bucket is intentionally not used for the ODF path.
+
+  Each NooBaa OBC creates credentials scoped to a single bucket, but GitLab
+  consolidated object_store needs one access key for many buckets (artifacts,
+  registry, models, ...). The active ODF path uses a NooBaaAccount with
+  allow_bucket_creation (odf-noobaa-account.yaml) plus
+  job-odf-object-storage-setup.yaml instead.
+
+  If you experiment with OBCs, keep storageClassName from
+  external.minio.odf.storageClassName (default openshift-storage.noobaa.io)
+  and wire per-feature connection secrets in the GitLab CR.
+*/ -}}

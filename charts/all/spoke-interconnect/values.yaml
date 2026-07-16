@@ -3,3 +3,8 @@ clusterName: ""
 hubClusterDomain: ""
 industrialEdge:
   enabled: false
+
+# Skupper Listener for hub object storage (chart MinIO port 9000 by default;
+# use 443 when the hub overlay points the Connector at ODF/MCG).
+minioHub:
+  port: 9000

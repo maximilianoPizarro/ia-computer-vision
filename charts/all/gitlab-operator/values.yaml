@@ -29,6 +29,7 @@ runnerOperator:
 
 # External deps for GitLab Helm chart 10.x (bundled PG/Redis/MinIO removed).
 # Operators (CNPG + Redis) are subscribed from values-hub.yaml; CRs + MinIO live here.
+# Opt-in ODF + Data Grid: set backends via values-hub-odf-datagrid.yaml (not loaded by default).
 external:
   postgresql:
     clusterName: gitlab-rails-db
@@ -40,14 +41,32 @@ external:
     passwordSecret: gitlab-rails-db-app
     passwordKey: password
   redis:
+    # opstree (default) | datagrid (experimental RESP — see values-hub-odf-datagrid.yaml)
+    backend: opstree
     name: gitlab-redis
     # Opstree standalone exposes Service named after the Redis CR
     host: gitlab-redis
+    port: 6379
     passwordSecret: gitlab-redis-secret
     passwordKey: password
+    # Optional Redis ACL username (Data Grid RESP). Empty for Opstree password-only.
+    username: ""
     storage: 5Gi
     image: quay.io/opstree/redis:v7.0.15
+    datagrid:
+      name: gitlab-datagrid
+      # Operator multiplexes Hot Rod / REST / RESP on this port
+      port: 11222
+      replicas: 1
+      identitiesSecret: gitlab-datagrid-identities
+      # Identity username written into identities.yaml + GitLab redis.auth.username
+      username: default
+      cpu: "500m"
+      memory: "1Gi"
+      storage: 1Gi
   minio:
+    # chart (default) | odf (NooBaa account + S3 buckets — requires ODF StorageCluster)
+    backend: chart
     name: gitlab-minio
     serviceName: gitlab-minio-svc
     secretName: gitlab-minio-secret
@@ -59,6 +78,19 @@ external:
     registryStorageSecret: gitlab-registry-storage
     backupStorageSecret: gitlab-object-storage-s3cmd
     cliImage: registry.redhat.io/openshift4/ose-cli:latest
+    odf:
+      # NooBaaAccount + bucket setup (shared credentials for all GitLab buckets + models)
+      noobaaNamespace: openshift-storage
+      accountName: gitlab-s3
+      defaultResource: noobaa-default-backing-store
+      # Internal MCG S3 endpoint (HTTPS). Skupper connector host/port should match.
+      endpoint: https://s3.openshift-storage.svc
+      serviceHost: s3.openshift-storage.svc.cluster.local
+      servicePort: 443
+      secure: true
+      # Kept for docs / alternate OBC-per-bucket experiments
+      storageClassName: openshift-storage.noobaa.io
+      awsCliImage: registry.redhat.io/ubi9/ubi-minimal:latest
 
 gitlab:
   # GitLab Operator 3.2.x (certified-operators) only admits chart 10.x

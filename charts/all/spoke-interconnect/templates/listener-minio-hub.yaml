@@ -1,3 +1,4 @@
+{{- $minio := .Values.minioHub | default dict -}}
 apiVersion: skupper.io/v2alpha1
 kind: Listener
 metadata:
@@ -8,4 +9,4 @@ metadata:
 spec:
   routingKey: minio-hub
   host: minio-hub
-  port: 9000
+  port: {{ $minio.port | default 9000 }}

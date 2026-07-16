@@ -140,6 +140,10 @@ oc get gitlab gitlab -n gitlab-system   # expect Running / Available
 Do **not** use MinIO AIStor ObjectStore for Cluster Bot workshops — it is
 commercial (SUBNET) and will not zero-touch install.
 
+Do **not** enable `values-hub-odf-datagrid.yaml` on Cluster Bot. That overlay
+expects an existing ODF StorageCluster/MCG and Red Hat Data Grid (RESP for
+GitLab is experimental). Keep chart-managed MinIO + Opstree Redis here.
+
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
 **Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login

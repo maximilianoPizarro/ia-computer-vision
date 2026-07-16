@@ -8,6 +8,15 @@ modelSeed:
   objectKey: ppe-detection/model/best.pt
   modelUrl: "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt"
   image: registry.redhat.io/ubi9/python-311:latest
+  # Override when using values-hub-odf-datagrid.yaml (ODF/MCG endpoint).
+  s3Endpoint: "http://gitlab-minio-svc.gitlab-system.svc:9000"
+  s3SecretName: gitlab-minio-secret
+  s3SecretNamespace: gitlab-system
+
+# Skupper Connector target for hub object storage (chart MinIO by default).
+minioHub:
+  host: gitlab-minio-svc.gitlab-system.svc.cluster.local
+  port: 9000
 
 accessTokenSync:
   enabled: true
