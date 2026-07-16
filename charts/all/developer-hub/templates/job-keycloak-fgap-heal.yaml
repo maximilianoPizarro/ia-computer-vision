@@ -1,0 +1,273 @@
+{{- /*
+  PostSync (wave 5, before secret-sync wave 6): detect Fine-Grained Admin
+  Permissions lockout on the backstage realm and self-heal by wiping Keycloak
+  Postgres + re-importing realms.
+
+  Symptoms of FGAP lockout (Keycloak 26+):
+    - GET /admin/realms/backstage returns a truncated RealmRepresentation
+    - GET /admin/realms/backstage/clients → HTTP 403
+  Master admin then cannot sync OIDC client secrets → Developer Hub login
+  fails with unauthorized_client (literal $(OIDC_CLIENT_SECRET) left in place).
+
+  Deleting KeycloakRealmImport CRs alone does NOT clear the realm from
+  Postgres — a PVC wipe is required. Safe for hub-only workshop / Cluster Bot
+  first-boot; workshop users are re-created by realm import.
+*/ -}}
+{{- $kcNs := include "developer-hub.keycloakNamespace" . -}}
+{{- $kcHost := include "developer-hub.ssoBaseUrl" . -}}
+{{- $argoNs := .Values.global.vpArgoNamespace | default "vp-gitops" -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak-fgap-heal
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keycloak-fgap-heal
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["keycloak-admin-user"]
+    verbs: ["get"]
+  - apiGroups: ["k8s.keycloak.org"]
+    resources: ["keycloaks", "keycloakrealmimports"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "statefulsets/scale"]
+    resourceNames: ["postgresql-db"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "persistentvolumeclaims"]
+    verbs: ["get", "list", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keycloak-fgap-heal
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: keycloak-fgap-heal
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-fgap-heal
+    namespace: {{ $kcNs }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keycloak-fgap-heal-argo
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    resourceNames: ["developer-hub", "rhbk-iam"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keycloak-fgap-heal-argo
+  namespace: {{ $argoNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: keycloak-fgap-heal-argo
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-fgap-heal
+    namespace: {{ $kcNs }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-fgap-heal
+  namespace: {{ $kcNs }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Before developer-hub-sync-backstage-realm-secrets (wave 6).
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      serviceAccountName: keycloak-fgap-heal
+      restartPolicy: Never
+      containers:
+        - name: heal
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          env:
+            - name: KC_HOST
+              value: {{ $kcHost | quote }}
+            - name: KC_NS
+              value: {{ $kcNs | quote }}
+            - name: ARGO_NS
+              value: {{ $argoNs | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+
+              get_token() {
+                local i body pass
+                pass=$(oc get secret keycloak-admin-user -n "$KC_NS" \
+                  -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)
+                [ -z "$pass" ] && return 1
+                for i in $(seq 1 24); do
+                  body=$(curl -sk -X POST "$KC_HOST/realms/master/protocol/openid-connect/token" \
+                    -d "grant_type=password&client_id=admin-cli&username=admin&password=${pass}" || true)
+                  if echo "$body" | python3 -c "import json,sys; json.load(sys.stdin)['access_token']" >/dev/null 2>&1; then
+                    echo "$body" | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])"
+                    return 0
+                  fi
+                  sleep 5
+                done
+                return 1
+              }
+
+              # Exit 0 = Admin API healthy. Exit 1 = FGAP lockout.
+              admin_api_ok() {
+                local token="$1" code body keys
+                code=$(curl -sk -o /tmp/fgap-clients.json -w '%{http_code}' \
+                  -H "Authorization: Bearer $token" \
+                  "$KC_HOST/admin/realms/backstage/clients?max=1" || echo "000")
+                body=$(cat /tmp/fgap-clients.json 2>/dev/null || echo "")
+                if [ "$code" = "403" ] || echo "$body" | grep -q '403 Forbidden'; then
+                  echo "FGAP detected: backstage clients Admin API HTTP $code"
+                  return 1
+                fi
+                # Truncated realm representation is another FGAP signal.
+                # One-line python — multiline "try:" at column 0 breaks the YAML | block.
+                curl -sk -H "Authorization: Bearer $token" \
+                  "$KC_HOST/admin/realms/backstage" -o /tmp/fgap-realm.json || true
+                keys=$(python3 -c "import json; r=json.load(open('/tmp/fgap-realm.json')); print(len(r.keys()) if isinstance(r,dict) else 0)" 2>/dev/null || echo "0")
+                if [ "$keys" -gt 0 ] && [ "$keys" -lt 20 ]; then
+                  echo "FGAP detected: truncated RealmRepresentation keys=$keys"
+                  return 1
+                fi
+                return 0
+              }
+
+              echo "Waiting for SSO + master admin token..."
+              TOKEN=""
+              for i in $(seq 1 60); do
+                code=$(curl -sk -o /dev/null -w '%{http_code}' "$KC_HOST/" || echo "000")
+                if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "303" ]; then
+                  TOKEN=$(get_token || true)
+                  [ -n "$TOKEN" ] && break
+                fi
+                echo "attempt $i/60: sso=$code token=${#TOKEN}"
+                sleep 10
+              done
+              if [ -z "$TOKEN" ]; then
+                echo "WARN: no admin token yet — skipping FGAP heal (Keycloak still starting)."
+                exit 0
+              fi
+
+              # If backstage realm is absent, nothing to heal (import still pending).
+              disc=$(curl -sk -o /dev/null -w '%{http_code}' \
+                "$KC_HOST/realms/backstage/.well-known/openid-configuration" || echo "000")
+              if [ "$disc" != "200" ]; then
+                echo "backstage realm OIDC not ready yet (HTTP $disc) — no FGAP heal needed."
+                exit 0
+              fi
+
+              if admin_api_ok "$TOKEN"; then
+                echo "backstage realm Admin API healthy — no FGAP heal needed."
+                exit 0
+              fi
+
+              echo "=== FGAP lockout detected — wiping Keycloak Postgres and re-importing realms ==="
+              oc delete keycloakrealmimport backstage-realm realm-cv realm-maas realm-neuroface \
+                -n "$KC_NS" --ignore-not-found --wait=false || true
+              oc delete job backstage-realm realm-cv realm-maas realm-neuroface \
+                -n "$KC_NS" --ignore-not-found --wait=false || true
+
+              oc scale statefulset postgresql-db -n "$KC_NS" --replicas=0
+              for i in $(seq 1 30); do
+                if ! oc get pod postgresql-db-0 -n "$KC_NS" >/dev/null 2>&1; then
+                  break
+                fi
+                oc delete pod postgresql-db-0 -n "$KC_NS" --force --grace-period=0 2>/dev/null || true
+                sleep 2
+              done
+
+              oc delete pvc data-postgresql-db-0 -n "$KC_NS" --ignore-not-found --wait=false || true
+              for i in $(seq 1 30); do
+                if ! oc get pvc data-postgresql-db-0 -n "$KC_NS" >/dev/null 2>&1; then
+                  break
+                fi
+                oc patch pvc data-postgresql-db-0 -n "$KC_NS" \
+                  --type merge -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
+                oc delete pvc data-postgresql-db-0 -n "$KC_NS" --force --grace-period=0 2>/dev/null || true
+                sleep 2
+              done
+
+              oc scale statefulset postgresql-db -n "$KC_NS" --replicas=1
+              echo "Waiting for postgresql-db-0 + keycloak-0 Ready..."
+              for i in $(seq 1 60); do
+                pg=$(oc get pod postgresql-db-0 -n "$KC_NS" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo false)
+                kc=$(oc get pod keycloak-0 -n "$KC_NS" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo false)
+                echo "attempt $i/60: postgres_ready=$pg keycloak_ready=$kc"
+                [ "$pg" = "true" ] && [ "$kc" = "true" ] && break
+                if [ $((i % 10)) -eq 0 ]; then
+                  oc delete pod keycloak-0 -n "$KC_NS" --force --grace-period=0 2>/dev/null || true
+                fi
+                sleep 10
+              done
+
+              echo "Hard-refreshing Argo apps rhbk-iam + developer-hub..."
+              for app in rhbk-iam developer-hub; do
+                oc patch application "$app" -n "$ARGO_NS" --type json \
+                  -p '[{"op":"remove","path":"/operation"}]' 2>/dev/null || true
+                oc annotate application "$app" -n "$ARGO_NS" \
+                  argocd.argoproj.io/refresh=hard --overwrite || true
+              done
+
+              echo "Waiting for backstage Admin API (FGAP cleared) + realm imports..."
+              for i in $(seq 1 72); do
+                TOKEN=$(get_token || true)
+                if [ -n "$TOKEN" ] && admin_api_ok "$TOKEN"; then
+                  done_n=$(oc get keycloakrealmimport -n "$KC_NS" \
+                    -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Done")].status}{"\n"}{end}' 2>/dev/null \
+                    | grep -c True || true)
+                  echo "attempt $i/72: FGAP cleared, realmimports Done=$done_n"
+                  if [ "$done_n" -ge 1 ]; then
+                    echo "keycloak-fgap-heal complete."
+                    exit 0
+                  fi
+                else
+                  echo "attempt $i/72: still waiting for healthy Admin API..."
+                fi
+                if [ $((i % 12)) -eq 0 ]; then
+                  for app in rhbk-iam developer-hub; do
+                    oc annotate application "$app" -n "$ARGO_NS" \
+                      argocd.argoproj.io/refresh=hard --overwrite || true
+                  done
+                fi
+                sleep 10
+              done
+
+              echo "ERROR: FGAP heal did not clear Admin API lockout after 12 minutes" >&2
+              exit 1

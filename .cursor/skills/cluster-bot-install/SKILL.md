@@ -220,65 +220,38 @@ curl -sk -X POST "https://sso.${DOMAIN}/realms/backstage/protocol/openid-connect
 `HTTP:401 unauthorized_client` confirms the secret in Vault/K8s does not
 match what Keycloak has for the `developer-hub` client.
 
-**Root cause (sync job race — ci-ln-vdtmrl2, v1.8.0):** the PostSync job
-`developer-hub-sync-backstage-realm-secrets` can finish **before**
-`KeycloakRealmImport/backstage-realm` creates the OIDC clients (~60–90s).
-It logged `SKIP backstage/developer-hub (not found)` and exited 0, leaving
-Keycloak with the literal placeholder secret `$(OIDC_CLIENT_SECRET)` while
-RHDH uses the real Vault/ESO value → `unauthorized_client` after login.
+**Root causes (both seen on clean Cluster Bot installs):**
 
-**Pattern fix:** the sync job now waits up to 12 minutes for
-`developer-hub-oidc-client` + the `developer-hub` client to exist, retries
-the Admin API merge+PUT, and exits non-zero if sync never succeeds (Argo
-retries the hook).
+1. **Sync job race (v1.8.0):** PostSync `developer-hub-sync-backstage-realm-secrets`
+   finished before `KeycloakRealmImport/backstage-realm` created clients →
+   `SKIP ... (not found)` exit 0 → literal `$(OIDC_CLIENT_SECRET)` in Keycloak.
+2. **FGAP lockout (ci-ln-iph27ib, even with CR `adminPermissionsEnabled: false`):**
+   live realm still had Fine-Grained Admin Permissions on → Admin API
+   `/clients` **403** / truncated RealmRepresentation. Sync jobs treated 403
+   as “client missing” and spun for 12 minutes; secrets never repaired.
 
-**Quick recovery on a live cluster:**
-```bash
-oc delete job developer-hub-sync-backstage-realm-secrets -n keycloak-system
-oc annotate application developer-hub -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
-# or helm template + oc apply the job from charts/all/developer-hub
-oc delete pod -n developer-hub -l rhdh.redhat.com/app=backstage-developer-hub
-```
+**Pattern fix (v1.8.2+):**
 
-**Root cause (FGAP lockout — older clusters):** the `backstage` realm
-(`charts/all/developer-hub/templates/keycloak-realm.yaml`) did not set
-`adminPermissionsEnabled`, and Keycloak defaulted it to Fine-Grained Admin
-Permissions **enabled** for that realm. With FGAP on, the master bootstrap
-admin loses its classic implicit cross-realm access: `GET
-/admin/realms/backstage` returns a truncated representation (just
-`realm`/`displayName`), and `/admin/realms/backstage/clients` etc. 403.
-This silently breaks the `developer-hub-sync-backstage-realm-secrets`
-PostSync job (which uses that same master-admin path to reconcile the
-secret), so drift is never repaired. Realms created by `rhbk-iam`
-(`cv`/`maas`/`neuroface`) must also set `adminPermissionsEnabled: false`
-in **both** `charts/all/rhbk-iam/values.yaml` **and** the Helm overrides in
-`values-hub.yaml` (`realms[N].adminPermissionsEnabled: "false"`). A prior
-revision left the hub overrides as `"true"`, which won over the chart default
-and locked master admin out of `/admin/realms/cv/clients` — scaffolder then
-saw `Realm does not exist` / could not sync `backstage-provisioner`.
+| Component | Behavior |
+|-----------|----------|
+| `keycloak-fgap-heal` (developer-hub PostSync wave 5) | Detects FGAP (403 or truncated realm) → deletes realm-imports → wipes `postgresql-db` PVC → hard-refreshes `rhbk-iam` + `developer-hub` → waits until Admin API is healthy |
+| `developer-hub-sync-backstage-realm-secrets` (wave 6) | Waits for clients; fail-fast on Admin API 403 (does not spin) |
+| `rhbk-iam-sync-client-secrets` | Same wait/retry + 403 fail-fast for realm `cv` |
+| Realm CRs | Keep `adminPermissionsEnabled: false` on backstage + rhbk-iam realms |
 
-**Pattern fix (already applied):** `keycloak-realm.yaml` now explicitly sets
-`adminPermissionsEnabled: false` on the backstage realm.
+Healthy installs: heal exits immediately (“no FGAP heal needed”). Wipe only
+runs when lockout is detected (hub-only workshop data is re-imported).
 
-**Recovery if you hit a cluster with an already-locked realm** (CR
-delete/recreate will NOT fix it -- confirmed the realm data survives):
+**Manual fallback** (if an older tag is still installed):
 ```bash
 oc delete keycloakrealmimport backstage-realm realm-cv realm-maas realm-neuroface -n keycloak-system --ignore-not-found
 oc scale statefulset postgresql-db -n keycloak-system --replicas=0
-sleep 5
+oc delete pod postgresql-db-0 -n keycloak-system --force --grace-period=0
 oc delete pvc data-postgresql-db-0 -n keycloak-system
 oc scale statefulset postgresql-db -n keycloak-system --replicas=1
-# wait for postgresql-db-0 and keycloak-0 to both be 1/1 Running (~2 min)
-oc patch application rhbk-iam developer-hub -n vp-gitops --type merge \
-  -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-# wait for keycloakrealmimport backstage-realm/realm-cv/realm-maas/realm-neuroface to reappear
-# then re-run the diagnosis curl above -- should return HTTP:200 with an access_token
-oc delete pod -n developer-hub -l rhdh.redhat.com/app=backstage-developer-hub
+oc annotate application rhbk-iam developer-hub -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
+oc delete job developer-hub-sync-backstage-realm-secrets keycloak-fgap-heal -n keycloak-system --ignore-not-found
 ```
-This wipes Keycloak's Postgres (acceptable pre-go-live; only workshop
-user1..N and scaffolded realm data are lost, nothing user-created). Wiping
-the DB is the only reliable fix found -- REST-based secret repair and CR
-recreation are both blocked by the same FGAP lockout.
 
 ### 3.5 Missing "Computer Vision API" / Swagger definitions in Developer Hub catalog
 
