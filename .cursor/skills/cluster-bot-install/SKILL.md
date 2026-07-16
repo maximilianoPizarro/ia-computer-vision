@@ -117,15 +117,15 @@ missing → `ppe-model-seed` and YOLO Init stay blocked.
 removed bundled PostgreSQL, Redis, and MinIO. Values that still set
 `global.minio.enabled` fail template render (NOTES.txt hard-fail).
 
-**Automated fix (v1.8.5+):**
+**Automated fix (v1.8.5+ / v1.8.6):**
 - OLM: `cloudnative-pg` (certified) + `redis-operator` (community) from
   `values-hub.yaml`
-- Chart `gitlab-operator`: CNPG `Cluster/gitlab-rails-db`, Redis CR,
-  chart-managed MinIO (`gitlab-minio-svc` + `gitlab-minio-secret`), Job that
-  creates GitLab S3 buckets + `gitlab-object-storage` /
-  `gitlab-registry-storage`, GitLab CR with `postgresql.install: false`,
-  `redis.install: false`, external `psql`/`redis`/`object_store` (no
-  `global.minio`)
+- Chart `gitlab-operator`: CNPG `Cluster/gitlab-rails-db`, Redis CR
+  (includes required `redisExporter.image`), chart-managed MinIO
+  (`gitlab-minio-svc` + `gitlab-minio-secret`), Job that creates GitLab S3
+  buckets + `gitlab-object-storage` / `gitlab-registry-storage` /
+  `gitlab-object-storage-s3cmd`, GitLab CR with external `psql`/`redis`/
+  `object_store` + toolbox backup objectStorage (no `global.minio`)
 
 **Verify:**
 ```bash
