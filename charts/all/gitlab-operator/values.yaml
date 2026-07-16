@@ -28,7 +28,9 @@ runnerOperator:
   installPlanApproval: Automatic
 
 gitlab:
-  chartVersion: "9.11.7"
+  # GitLab Operator 3.2.x (certified-operators) only admits chart 10.x
+  # (10.2.0 / 10.1.2 / 10.0.4). 9.11.7 is rejected by the validating webhook.
+  chartVersion: "10.2.0"
   rootPasswordSecret: gitlab-gitlab-initial-root-password
   postgresStorage: 50Gi
   gitalyStorage: 50Gi

@@ -76,11 +76,16 @@ metadata:
   name: ppe-model-seed
   namespace: gitlab-system
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    # PostSync (not sync-wave 0): a DeadlineExceeded Job at wave 0 keeps later
+    # waves (Kafka / InferenceService) from applying — Console then reports
+    # "No such Kafka resource: neuroface-cv/cv-kafka".
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 8
-  activeDeadlineSeconds: 1200
+  # GitLab MinIO can take 20–40m on Cluster Bot after chart apply.
+  activeDeadlineSeconds: 3600
   template:
     spec:
       restartPolicy: OnFailure
