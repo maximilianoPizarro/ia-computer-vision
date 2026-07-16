@@ -57,6 +57,7 @@ external:
     endpoint: http://gitlab-minio-svc.gitlab-system.svc:9000
     objectStorageSecret: gitlab-object-storage
     registryStorageSecret: gitlab-registry-storage
+    backupStorageSecret: gitlab-object-storage-s3cmd
     cliImage: registry.redhat.io/openshift4/ose-cli:latest
 
 gitlab:

@@ -127,6 +127,10 @@ spec:
           backups:
             cron:
               enabled: false
+            objectStorage:
+              config:
+                secret: {{ $minio.backupStorageSecret | default "gitlab-object-storage-s3cmd" | quote }}
+                key: config
       gitlab-shell:
         minReplicas: {{ $sh.minReplicas | default 2 }}
         maxReplicas: {{ $sh.maxReplicas | default 2 }}

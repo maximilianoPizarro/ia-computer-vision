@@ -159,6 +159,8 @@ spec:
               value: {{ $objSecret | quote }}
             - name: REG_SECRET
               value: {{ $regSecret | quote }}
+            - name: BACKUP_SECRET
+              value: {{ $minio.backupStorageSecret | default "gitlab-object-storage-s3cmd" | quote }}
             - name: NS
               value: {{ $ns | quote }}
           command:
@@ -193,10 +195,23 @@ spec:
               EOF
               sed -i 's/^[[:space:]]*//' /tmp/registry-storage.yaml
 
+              cat >/tmp/s3cmd.cfg <<EOF
+              [default]
+              access_key = ${MINIO_ACCESS}
+              secret_key = ${MINIO_SECRET}
+              host_base = ${HOST}
+              host_bucket = ${HOST}
+              use_https = False
+              EOF
+              sed -i 's/^[[:space:]]*//' /tmp/s3cmd.cfg
+
               oc create secret generic "${OBJ_SECRET}" -n "${NS}" \
                 --from-file=config=/tmp/object-storage.yaml \
                 --dry-run=client -o yaml | oc apply -f -
               oc create secret generic "${REG_SECRET}" -n "${NS}" \
                 --from-file=config=/tmp/registry-storage.yaml \
                 --dry-run=client -o yaml | oc apply -f -
-              echo "Created/updated ${OBJ_SECRET} and ${REG_SECRET}"
+              oc create secret generic "${BACKUP_SECRET}" -n "${NS}" \
+                --from-file=config=/tmp/s3cmd.cfg \
+                --dry-run=client -o yaml | oc apply -f -
+              echo "Created/updated ${OBJ_SECRET}, ${REG_SECRET}, and ${BACKUP_SECRET}"
