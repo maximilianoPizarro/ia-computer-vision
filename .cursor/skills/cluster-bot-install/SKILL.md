@@ -8,7 +8,8 @@ description: >-
   locking out the backstage realm, Kuadrant Gateway API dependency race). Use
   when asked to launch a Cluster Bot cluster for this pattern, or when
   diagnosing SSO 503s, Developer Hub "unauthorized_client"/"Realm does not
-  exist" errors, GitLab stuck in "Preparing", invalid Kuadrant AuthPolicy, or
+  exist" errors, GitLab stuck in "Preparing" (cert-manager missing OR chart
+  10.x missing external Postgres/Redis/MinIO), invalid Kuadrant AuthPolicy, or
   missing API Products/Swagger definitions right after a fresh install.
 ---
 
@@ -99,6 +100,45 @@ older cluster missing this fix): install `openshift-cert-manager-operator`
 OperatorGroup, wait ~60s, then `oc delete pod -n gitlab-system -l
 app.kubernetes.io/name=gitlab-operator` to force an immediate re-reconcile
 instead of waiting out the backoff.
+
+### 3.1b GitLab chart 10.x "bundled MinIO removed" -> Preparing forever
+
+**Symptom:** `oc get gitlab gitlab -n gitlab-system` stays `Preparing` with
+`Initialized=False` / "There is a configuration error". Operator logs:
+```
+REMOVALS:
+global.minio:
+    The bundled MinIO chart has been removed...
+```
+No webservice pods; route returns 503; `gitlab-minio-secret` / `gitlab-minio-svc`
+missing → `ppe-model-seed` and YOLO Init stay blocked.
+
+**Cause:** GitLab Operator 3.2.x only admits Helm chart **10.x**. Chart 10
+removed bundled PostgreSQL, Redis, and MinIO. Values that still set
+`global.minio.enabled` fail template render (NOTES.txt hard-fail).
+
+**Automated fix (v1.8.5+):**
+- OLM: `cloudnative-pg` (certified) + `redis-operator` (community) from
+  `values-hub.yaml`
+- Chart `gitlab-operator`: CNPG `Cluster/gitlab-rails-db`, Redis CR,
+  chart-managed MinIO (`gitlab-minio-svc` + `gitlab-minio-secret`), Job that
+  creates GitLab S3 buckets + `gitlab-object-storage` /
+  `gitlab-registry-storage`, GitLab CR with `postgresql.install: false`,
+  `redis.install: false`, external `psql`/`redis`/`object_store` (no
+  `global.minio`)
+
+**Verify:**
+```bash
+oc get csv -n cnpg-system | grep cloudnative
+oc get csv -n redis-operator | grep redis
+oc get cluster.postgresql.cnpg.io -n gitlab-system
+oc get redis -n gitlab-system
+oc get sts,svc,secret -n gitlab-system | grep -E 'minio|object-storage|registry-storage'
+oc get gitlab gitlab -n gitlab-system   # expect Running / Available
+```
+
+Do **not** use MinIO AIStor ObjectStore for Cluster Bot workshops — it is
+commercial (SUBNET) and will not zero-touch install.
 
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
@@ -291,14 +331,14 @@ calling the HeadBucket operation: Forbidden
 
 **Cause:** `vault-secrets-bootstrap`'s job seeds `secret/data/hub/
 minio-credentials` with **random placeholder** values (it has no way to
-know GitLab's actual bundled MinIO root credentials at that point).
+know GitLab MinIO root credentials at that point — those come from chart-
+managed MinIO / `gitlab-minio-secret` under GitLab chart 10.x).
 `charts/all/spoke-neuroface-cv/templates/job-model-seed.yaml` already reads
 the REAL `gitlab-minio-secret` and overwrites Vault with the correct
 values as its last step -- this is not a missing feature, just a job that
-needs `gitlab-minio-secret` to exist (created early in GitLab's own
-reconciliation, well before webservice/sidekiq). The job now runs at
-sync-wave `0` (regular sync, **not** PostSync) so it is not blocked by an
-unhealthy `InferenceService`; `spoke-neuroface-cv` also has
+needs `gitlab-minio-secret` to exist (created by `gitlab-external-secrets`
++ MinIO STS in the gitlab-operator chart). The job runs as **PostSync** so
+it does not block Kafka/IS sync waves; `spoke-neuroface-cv` also has
 `ignoreDifferences` on `InferenceService` `.status`, and the job
 force-syncs `ExternalSecret/aws-connection-ppe-models` after writing Vault.
 

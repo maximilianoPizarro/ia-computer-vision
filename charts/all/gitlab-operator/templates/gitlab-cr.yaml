@@ -2,6 +2,13 @@
 {{- $ws := .Values.gitlab.webservice | default dict -}}
 {{- $sk := .Values.gitlab.sidekiq | default dict -}}
 {{- $sh := .Values.gitlab.gitlabShell | default dict -}}
+{{- $ext := .Values.external | default dict -}}
+{{- $pg := $ext.postgresql | default dict -}}
+{{- $redis := $ext.redis | default dict -}}
+{{- $minio := $ext.minio | default dict -}}
+{{- $pgCluster := $pg.clusterName | default "gitlab-rails-db" -}}
+{{- $pgHost := printf "%s-rw" $pgCluster -}}
+{{- $redisHost := $redis.host | default ($redis.name | default "gitlab-redis") -}}
 apiVersion: apps.gitlab.com/v1beta1
 kind: GitLab
 metadata:
@@ -14,6 +21,11 @@ spec:
   chart:
     version: {{ .Values.gitlab.chartVersion | quote }}
     values:
+      # Chart 10.x removed bundled PostgreSQL, Redis, and MinIO — wire externals.
+      postgresql:
+        install: false
+      redis:
+        install: false
       global:
         hosts:
           domain: {{ $appsDomain | quote }}
@@ -34,8 +46,44 @@ spec:
             enabled: true
             tls:
               termination: edge
-        minio:
-          enabled: true
+        psql:
+          host: {{ $pgHost | quote }}
+          password:
+            secret: {{ $pg.passwordSecret | default (printf "%s-app" $pgCluster) | quote }}
+            key: {{ $pg.passwordKey | default "password" | quote }}
+        redis:
+          host: {{ $redisHost | quote }}
+          auth:
+            enabled: true
+            secret: {{ $redis.passwordSecret | default "gitlab-redis-secret" | quote }}
+            key: {{ $redis.passwordKey | default "password" | quote }}
+        appConfig:
+          object_store:
+            enabled: true
+            proxy_download: true
+            connection:
+              secret: {{ $minio.objectStorageSecret | default "gitlab-object-storage" | quote }}
+              key: config
+          artifacts:
+            bucket: gitlab-artifacts
+          lfs:
+            bucket: git-lfs
+          uploads:
+            bucket: gitlab-uploads
+          packages:
+            bucket: gitlab-packages
+          externalDiffs:
+            enabled: true
+            bucket: gitlab-mr-diffs
+          terraformState:
+            enabled: true
+            bucket: gitlab-terraform-state
+          ciSecureFiles:
+            enabled: true
+            bucket: gitlab-ci-secure-files
+          dependencyProxy:
+            enabled: true
+            bucket: gitlab-dependency-proxy
       certmanager:
         install: false
       installCertmanager: false
@@ -45,6 +93,13 @@ spec:
         install: false
       registry:
         enabled: {{ .Values.gitlab.registryEnabled }}
+{{- if .Values.gitlab.registryEnabled }}
+        storage:
+          secret: {{ $minio.registryStorageSecret | default "gitlab-registry-storage" | quote }}
+          key: config
+          redirect:
+            disable: true
+{{- end }}
       gitlab:
         webservice:
           minReplicas: {{ $ws.minReplicas | default 3 }}
@@ -75,6 +130,3 @@ spec:
       gitlab-shell:
         minReplicas: {{ $sh.minReplicas | default 2 }}
         maxReplicas: {{ $sh.maxReplicas | default 2 }}
-      postgresql:
-        persistence:
-          size: {{ .Values.gitlab.postgresStorage | quote }}

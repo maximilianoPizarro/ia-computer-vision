@@ -1,0 +1,202 @@
+{{- $ns := .Values.namespace -}}
+{{- $ext := .Values.external | default dict -}}
+{{- $minio := $ext.minio | default dict -}}
+{{- $secret := $minio.secretName | default "gitlab-minio-secret" -}}
+{{- $svc := $minio.serviceName | default "gitlab-minio-svc" -}}
+{{- $endpoint := $minio.endpoint | default (printf "http://%s.%s.svc:9000" $svc $ns) -}}
+{{- $objSecret := $minio.objectStorageSecret | default "gitlab-object-storage" -}}
+{{- $regSecret := $minio.registryStorageSecret | default "gitlab-registry-storage" -}}
+{{- $mcImage := $minio.mcImage | default "quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z" -}}
+{{- $cliImage := $minio.cliImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
+# Creates GitLab S3 buckets + connection Secrets once MinIO is ready.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-object-storage-setup
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-object-storage-setup
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-object-storage-setup
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-object-storage-setup
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-object-storage-setup
+    namespace: {{ $ns }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-object-storage-setup
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gitlab-object-storage-setup
+    spec:
+      serviceAccountName: gitlab-object-storage-setup
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-minio
+          image: {{ $cliImage | quote }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              echo "Waiting for Secret/{{ $secret }} and Service/{{ $svc }}..."
+              for i in $(seq 1 90); do
+                if oc get secret "{{ $secret }}" -n "{{ $ns }}" >/dev/null 2>&1 \
+                   && oc get svc "{{ $svc }}" -n "{{ $ns }}" >/dev/null 2>&1; then
+                  echo "Secret and Service present (attempt ${i})"
+                  break
+                fi
+                sleep 5
+              done
+              # Wait until MinIO answers on the Service (pod Ready).
+              for i in $(seq 1 90); do
+                if oc get endpoints "{{ $svc }}" -n "{{ $ns }}" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q .; then
+                  echo "MinIO endpoints ready (attempt ${i})"
+                  exit 0
+                fi
+                sleep 5
+              done
+              echo "ERROR: MinIO not ready after ~7.5 minutes"
+              exit 1
+        - name: create-buckets
+          image: {{ $mcImage | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MINIO_ACCESS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: accesskey
+            - name: MINIO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: secretkey
+            - name: MINIO_ENDPOINT
+              value: {{ $endpoint | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              mc alias set local "${MINIO_ENDPOINT}" "${MINIO_ACCESS}" "${MINIO_SECRET}"
+              for b in \
+                git-lfs \
+                gitlab-artifacts \
+                gitlab-backups \
+                gitlab-ci-secure-files \
+                gitlab-dependency-proxy \
+                gitlab-mr-diffs \
+                gitlab-packages \
+                gitlab-pages \
+                gitlab-terraform-state \
+                gitlab-uploads \
+                gitlab-agent-plan-content \
+                registry \
+                runner-cache \
+                tmp \
+                models; do
+                mc mb --ignore-existing "local/${b}" || true
+              done
+              mc ls local/
+              echo "Buckets ready"
+      containers:
+        - name: connection-secrets
+          image: {{ $cliImage | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MINIO_ACCESS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: accesskey
+            - name: MINIO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: secretkey
+            - name: MINIO_ENDPOINT
+              value: {{ $endpoint | quote }}
+            - name: OBJ_SECRET
+              value: {{ $objSecret | quote }}
+            - name: REG_SECRET
+              value: {{ $regSecret | quote }}
+            - name: NS
+              value: {{ $ns | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              HOST="${MINIO_ENDPOINT#http://}"
+              HOST="${HOST#https://}"
+              cat >/tmp/object-storage.yaml <<EOF
+              provider: AWS
+              region: us-east-1
+              aws_access_key_id: ${MINIO_ACCESS}
+              aws_secret_access_key: ${MINIO_SECRET}
+              aws_signature_version: 4
+              host: ${HOST}
+              endpoint: "${MINIO_ENDPOINT}"
+              path_style: true
+              EOF
+              # Trim leading spaces from heredoc indentation
+              sed -i 's/^[[:space:]]*//' /tmp/object-storage.yaml
+
+              cat >/tmp/registry-storage.yaml <<EOF
+              s3:
+                accesskey: ${MINIO_ACCESS}
+                secretkey: ${MINIO_SECRET}
+                bucket: registry
+                region: us-east-1
+                regionendpoint: ${MINIO_ENDPOINT}
+                secure: false
+                v4auth: true
+                pathstyle: true
+              EOF
+              sed -i 's/^[[:space:]]*//' /tmp/registry-storage.yaml
+
+              oc create secret generic "${OBJ_SECRET}" -n "${NS}" \
+                --from-file=config=/tmp/object-storage.yaml \
+                --dry-run=client -o yaml | oc apply -f -
+              oc create secret generic "${REG_SECRET}" -n "${NS}" \
+                --from-file=config=/tmp/registry-storage.yaml \
+                --dry-run=client -o yaml | oc apply -f -
+              echo "Created/updated ${OBJ_SECRET} and ${REG_SECRET}"

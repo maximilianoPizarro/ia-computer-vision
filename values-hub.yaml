@@ -50,6 +50,16 @@ clusterGroup:
       operatorGroup: true
       targetNamespaces:
         - gitlab-system
+    # GitLab chart 10.x removed bundled Postgres/Redis/MinIO. CloudNativePG
+    # (certified) and Redis Operator (community) provide the external DBs;
+    # object storage is a chart-managed MinIO in gitlab-system (AIStor needs
+    # a commercial license and is not zero-touch on Cluster Bot).
+    cnpg-system:
+      operatorGroup: true
+      targetNamespaces: []
+    redis-operator:
+      operatorGroup: true
+      targetNamespaces: []
     gitlab-runner: {}
     rhdh-operator:
       operatorGroup: true
@@ -147,6 +157,19 @@ clusterGroup:
     # 300Mi OOMs the operator while reconciling the full GitLab chart). Declaring it here too caused
     # the clustergroup chart (which has no config.resources support) to win the object and silently
     # strip the override on every sync, leaving the operator to OOMKill/CrashLoopBackOff.
+    #
+    # External deps for GitLab Helm chart 10.x (subscriptions install before
+    # the gitlab-operator Argo app at syncWave 3).
+    cloudnative-pg:
+      name: cloudnative-pg
+      namespace: cnpg-system
+      channel: stable-v1
+      source: certified-operators
+    redis-operator:
+      name: redis-operator
+      namespace: redis-operator
+      channel: stable
+      source: community-operators
     rhdh:
       name: rhdh
       namespace: openshift-operators

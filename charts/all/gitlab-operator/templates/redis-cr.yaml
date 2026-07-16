@@ -1,0 +1,41 @@
+{{- $ns := .Values.namespace -}}
+{{- $ext := .Values.external | default dict -}}
+{{- $redis := $ext.redis | default dict -}}
+{{- $name := $redis.name | default "gitlab-redis" -}}
+apiVersion: redis.redis.opstreelabs.in/v1beta1
+kind: Redis
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  kubernetesConfig:
+    image: {{ $redis.image | default "quay.io/opstree/redis:v7.0.15" | quote }}
+    imagePullPolicy: IfNotPresent
+    redisSecret:
+      name: {{ $redis.passwordSecret | default "gitlab-redis-secret" | quote }}
+      key: {{ $redis.passwordKey | default "password" | quote }}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  redisExporter:
+    enabled: false
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $redis.storage | default "5Gi" | quote }}
+  # OpenShift restricted-compatible identity (non-root).
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000

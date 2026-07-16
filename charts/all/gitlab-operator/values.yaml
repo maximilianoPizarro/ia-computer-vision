@@ -27,9 +27,42 @@ runnerOperator:
   source: community-operators
   installPlanApproval: Automatic
 
+# External deps for GitLab Helm chart 10.x (bundled PG/Redis/MinIO removed).
+# Operators (CNPG + Redis) are subscribed from values-hub.yaml; CRs + MinIO live here.
+external:
+  postgresql:
+    clusterName: gitlab-rails-db
+    database: gitlabhq_production
+    owner: gitlab
+    instances: 1
+    imageName: ghcr.io/cloudnative-pg/postgresql:17
+    # CNPG creates Secret <clusterName>-app with key "password"
+    passwordSecret: gitlab-rails-db-app
+    passwordKey: password
+  redis:
+    name: gitlab-redis
+    # Opstree standalone exposes Service named after the Redis CR
+    host: gitlab-redis
+    passwordSecret: gitlab-redis-secret
+    passwordKey: password
+    storage: 5Gi
+    image: quay.io/opstree/redis:v7.0.15
+  minio:
+    name: gitlab-minio
+    serviceName: gitlab-minio-svc
+    secretName: gitlab-minio-secret
+    storage: 20Gi
+    image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
+    mcImage: quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z
+    endpoint: http://gitlab-minio-svc.gitlab-system.svc:9000
+    objectStorageSecret: gitlab-object-storage
+    registryStorageSecret: gitlab-registry-storage
+    cliImage: registry.redhat.io/openshift4/ose-cli:latest
+
 gitlab:
   # GitLab Operator 3.2.x (certified-operators) only admits chart 10.x
   # (10.2.0 / 10.1.2 / 10.0.4). 9.11.7 is rejected by the validating webhook.
+  # Chart 10.x requires external Postgres, Redis, and object storage (see external:).
   chartVersion: "10.2.0"
   rootPasswordSecret: gitlab-gitlab-initial-root-password
   postgresStorage: 50Gi

@@ -1,0 +1,27 @@
+{{- $ns := .Values.namespace -}}
+{{- $ext := .Values.external | default dict -}}
+{{- $pg := $ext.postgresql | default dict -}}
+{{- $cluster := $pg.clusterName | default "gitlab-rails-db" -}}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $cluster }}
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  instances: {{ $pg.instances | default 1 }}
+  imageName: {{ $pg.imageName | default "ghcr.io/cloudnative-pg/postgresql:17" | quote }}
+  storage:
+    size: {{ .Values.gitlab.postgresStorage | quote }}
+  bootstrap:
+    initdb:
+      database: {{ $pg.database | default "gitlabhq_production" | quote }}
+      owner: {{ $pg.owner | default "gitlab" | quote }}
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        - CREATE EXTENSION IF NOT EXISTS btree_gist;
+        - CREATE EXTENSION IF NOT EXISTS plpgsql;
+        - CREATE EXTENSION IF NOT EXISTS amcheck;
+        - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
