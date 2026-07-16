@@ -185,11 +185,28 @@ spec:
                 exit 0
               fi
 
-              # If backstage realm is absent, nothing to heal (import still pending).
-              disc=$(curl -sk -o /dev/null -w '%{http_code}' \
-                "$KC_HOST/realms/backstage/.well-known/openid-configuration" || echo "000")
+              # Wait for backstage realm import — exiting early on OIDC 404 let FGAP
+              # appear after heal Completed, leaving sync jobs stuck on Admin API 403.
+              echo "Waiting for backstage OIDC discovery before FGAP check..."
+              disc="000"
+              for i in $(seq 1 72); do
+                disc=$(curl -sk -o /dev/null -w '%{http_code}' \
+                  "$KC_HOST/realms/backstage/.well-known/openid-configuration" || echo "000")
+                if [ "$disc" = "200" ]; then
+                  echo "backstage OIDC discovery OK"
+                  break
+                fi
+                echo "attempt $i/72: OIDC discovery HTTP $disc"
+                sleep 10
+              done
               if [ "$disc" != "200" ]; then
-                echo "backstage realm OIDC not ready yet (HTTP $disc) — no FGAP heal needed."
+                echo "WARN: backstage OIDC never became ready — skipping FGAP heal"
+                exit 0
+              fi
+
+              TOKEN=$(get_token || true)
+              if [ -z "$TOKEN" ]; then
+                echo "WARN: lost admin token after realm import — skipping FGAP heal"
                 exit 0
               fi
 
