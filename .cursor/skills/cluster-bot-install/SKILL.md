@@ -356,13 +356,22 @@ match what Keycloak has for the `developer-hub` client.
 Healthy installs: heal exits immediately (“no FGAP heal needed”). Wipe only
 runs when lockout is detected (hub-only workshop data is re-imported).
 
+**After PVC wipe, Keycloak must restart** — otherwise it stays Ready against an
+empty DB (`offline_user_session` / `jgroups_ping` missing) and SSO shows
+“Internal Server Error” while Admin API keeps returning 403. The heal Job now
+deletes `keycloak-0` immediately after Postgres is Ready so Liquibase recreates
+the schema before realm re-import.
+
 **Manual fallback** (if an older tag is still installed):
 ```bash
+oc delete job keycloak-fgap-heal -n keycloak-system --ignore-not-found
 oc delete keycloakrealmimport backstage-realm realm-cv realm-maas realm-neuroface -n keycloak-system --ignore-not-found
 oc scale statefulset postgresql-db -n keycloak-system --replicas=0
 oc delete pod postgresql-db-0 -n keycloak-system --force --grace-period=0
 oc delete pvc data-postgresql-db-0 -n keycloak-system
 oc scale statefulset postgresql-db -n keycloak-system --replicas=1
+# REQUIRED — without this SSO stays Internal Server Error:
+oc delete pod keycloak-0 -n keycloak-system --force --grace-period=0
 oc annotate application rhbk-iam developer-hub -n vp-gitops argocd.argoproj.io/refresh=hard --overwrite
 oc delete job developer-hub-sync-backstage-realm-secrets keycloak-fgap-heal -n keycloak-system --ignore-not-found
 ```
