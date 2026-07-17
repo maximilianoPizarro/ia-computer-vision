@@ -1,10 +1,10 @@
-{{- $ext := .Values.external | default dict -}}
-{{- $redis := $ext.redis | default dict -}}
-{{- if eq ($redis.backend | default "opstree") "opstree" -}}
 # Opstree Redis Operator CSV (community) grants Redis/RedisCluster but omits
 # RedisReplication/RedisSentinel watches the controller always starts. Without
 # these verbs the operator CrashLoopBackOffs on OpenShift ("cannot list
 # redisreplications ... at the cluster scope") and never reconciles gitlab-redis.
+#
+# Deployed as its own early Argo app (syncWave 1) so RBAC exists before the
+# Redis Operator CSV finishes installing — not buried in gitlab-operator wave 3.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -12,7 +12,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   labels:
-    app.kubernetes.io/name: gitlab-operator
+    app.kubernetes.io/name: redis-operator-rbac
     app.kubernetes.io/component: redis-operator-rbac
 rules:
   - apiGroups:
@@ -40,7 +40,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   labels:
-    app.kubernetes.io/name: gitlab-operator
+    app.kubernetes.io/name: redis-operator-rbac
     app.kubernetes.io/component: redis-operator-rbac
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -50,4 +50,3 @@ subjects:
   - kind: ServiceAccount
     name: redis-operator
     namespace: redis-operator
-{{- end }}

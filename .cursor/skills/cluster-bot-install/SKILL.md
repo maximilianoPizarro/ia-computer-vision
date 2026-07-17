@@ -154,9 +154,10 @@ Operator pod CrashLoopBackOff with `cannot list resource "redisreplications"`.
 restricted SCCs). Opstree Redis Operator CSV RBAC covers Redis/RedisCluster
 but the controller also watches RedisReplication/RedisSentinel.
 
-**Pattern fix:** MinIO uses SA `gitlab-minio` + SCC `anyuid` (UID 1000);
-`redis-operator-rbac.yaml` adds the missing ClusterRoleBinding; Redis
-OperatorGroup targets only `gitlab-system`.
+**Pattern fix:** MinIO uses SA `gitlab-minio` + SCC `anyuid` (UID 1000,
+sync-wave 0 before the StatefulSet); early Argo app `redis-operator-rbac`
+(syncWave 1) adds the missing ClusterRoleBinding before the operator CSV
+settles; Redis OperatorGroup targets only `gitlab-system`.
 
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 

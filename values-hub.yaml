@@ -392,6 +392,15 @@ clusterGroup:
         - name: realms[2].adminPermissionsEnabled
           value: "false"
 
+    # Before gitlab-operator (wave 3): Opstree CSV omits RedisReplication/
+    # RedisSentinel RBAC; without this the operator CrashLoops on first boot.
+    redis-operator-rbac:
+      name: redis-operator-rbac
+      namespace: redis-operator
+      argoProject: workshop
+      path: charts/all/redis-operator-rbac
+      syncWave: "1"
+
     gitlab-operator:
       name: gitlab-operator
       namespace: gitlab-system

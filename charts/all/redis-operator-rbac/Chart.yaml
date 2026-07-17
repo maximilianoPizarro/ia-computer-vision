@@ -1,0 +1,8 @@
+apiVersion: v2
+name: redis-operator-rbac
+description: >-
+  Extra ClusterRole for Opstree Redis Operator (RedisReplication/RedisSentinel
+  watches missing from the community CSV). Syncs before gitlab-operator so the
+  operator does not CrashLoop on first boot.
+type: application
+version: 0.1.0

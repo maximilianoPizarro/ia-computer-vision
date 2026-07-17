@@ -20,7 +20,8 @@ metadata:
   name: {{ $sa }}
   namespace: {{ $ns }}
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    # Wave 0 so anyuid binding exists before StatefulSet (wave 1) is admitted.
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     app.kubernetes.io/name: {{ $name }}
     app.kubernetes.io/component: object-storage
@@ -31,7 +32,7 @@ metadata:
   name: {{ $sa }}-anyuid
   namespace: {{ $ns }}
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     app.kubernetes.io/name: {{ $name }}
     app.kubernetes.io/component: object-storage

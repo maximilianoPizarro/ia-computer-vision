@@ -1,0 +1,2 @@
+# Empty defaults — this chart only ships static RBAC for the Redis Operator SA.
+{}
