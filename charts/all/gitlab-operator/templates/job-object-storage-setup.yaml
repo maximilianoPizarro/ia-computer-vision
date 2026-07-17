@@ -123,10 +123,16 @@ spec:
                   key: secretkey
             - name: MINIO_ENDPOINT
               value: {{ $endpoint | quote }}
+            # OpenShift restricted: mc cannot mkdir /.mc — keep config under /tmp.
+            - name: HOME
+              value: /tmp
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
           command:
             - /bin/sh
             - -ec
             - |
+              mkdir -p "${MC_CONFIG_DIR}"
               mc alias set local "${MINIO_ENDPOINT}" "${MINIO_ACCESS}" "${MINIO_SECRET}"
               for b in \
                 git-lfs \

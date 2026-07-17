@@ -169,6 +169,8 @@ settles; Redis OperatorGroup targets only `gitlab-system`.
 
 **Pattern fix:** Role grants `endpoints` + `endpointslices`; wait checks
 StatefulSet `readyReplicas` (and Ready pod) instead of Endpoints only.
+`create-buckets` sets `HOME`/`MC_CONFIG_DIR` under `/tmp` so `mc` works
+under OpenShift restricted SCC (`mkdir /.mc` is denied).
 
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 

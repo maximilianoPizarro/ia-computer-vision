@@ -152,11 +152,16 @@ spec:
                   key: secretkey
             - name: MINIO_ENDPOINT
               value: {{ $endpoint | quote }}
+            - name: HOME
+              value: /tmp
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
           command:
             - /bin/sh
             - -ec
             - |
               # MCG uses TLS; mc needs --insecure for the cluster service CA.
+              mkdir -p "${MC_CONFIG_DIR}"
               mc alias set local "${MINIO_ENDPOINT}" "${MINIO_ACCESS}" "${MINIO_SECRET}" --insecure
               for b in \
                 git-lfs \
