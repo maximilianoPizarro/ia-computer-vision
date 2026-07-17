@@ -92,21 +92,15 @@ spec:
                 fi
                 sleep 5
               done
-              # Wait until MinIO StatefulSet has a Ready replica (do not rely only
-              # on Endpoints — the Job SA historically lacked endpoints get, and
-              # EndpointSlice-only clusters can leave classic Endpoints empty).
+              # Wait for MinIO Ready via StatefulSet/pods (not Endpoints — Job SA
+              # historically lacked endpoints get; classic Endpoints may be empty).
+              STS="{{ $minio.name | default "gitlab-minio" }}"
               for i in $(seq 1 90); do
-                READY="$(oc get sts "{{ $minio.name | default "gitlab-minio" }}" -n "{{ $ns }}" \
-                  -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)"
-                if [ "${READY}" = "1" ] || [ "${READY}" -ge 1 ] 2>/dev/null; then
-                  echo "MinIO StatefulSet readyReplicas=${READY} (attempt ${i})"
-                  exit 0
-                fi
-                # Fallback: any Ready pod labeled as MinIO
-                if oc get pods -n "{{ $ns }}" -l app.kubernetes.io/name={{ $minio.name | default "gitlab-minio" }} \
-                     -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null \
-                     | grep -qx True; then
-                  echo "MinIO pod Ready (attempt ${i})"
+                READY="$(oc get sts "${STS}" -n "{{ $ns }}" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)"
+                PODREADY="$(oc get pods -n "{{ $ns }}" -l app.kubernetes.io/name=${STS} -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
+                echo "attempt ${i}: readyReplicas=${READY:-none} podReady=${PODREADY:-none}"
+                if [ "${READY}" = "1" ] || [ "${PODREADY}" = "True" ]; then
+                  echo "MinIO ready"
                   exit 0
                 fi
                 sleep 5
