@@ -37,7 +37,16 @@ spec:
           https: true
           gitlab:
             name: {{ include "gitlab-operator.host" . | quote }}
+        # Chart 10.2+ defaults gatewayApi.enabled/installEnvoy to true (Envoy
+        # Gateway). Cluster Bot / OpenShift use Routes + optional Istio Gateway
+        # from this chart — not EnvoyProxy CRDs. Without this, the Operator
+        # loops on: no matches for kind "EnvoyProxy" gateway.envoyproxy.io.
+        gatewayApi:
+          enabled: false
+          installEnvoy: false
+          configureCertmanager: false
         ingress:
+          enabled: true
           configureCertmanager: false
           class: openshift-default
           annotations:

@@ -172,6 +172,34 @@ StatefulSet `readyReplicas` (and Ready pod) instead of Endpoints only.
 `create-buckets` sets `HOME`/`MC_CONFIG_DIR` under `/tmp` so `mc` works
 under OpenShift restricted SCC (`mkdir /.mc` is denied).
 
+### 3.1e GitLab chart 10.2 Gateway API / EnvoyProxy -> Preparing forever
+
+**Symptom:** `oc get gitlab gitlab -n gitlab-system` stays `Preparing`;
+MinIO/Redis/Postgres are Ready but no gitaly/webservice/sidekiq pods.
+Operator logs loop on:
+```
+no matches for kind "EnvoyProxy" in version "gateway.envoyproxy.io/v1alpha1"
+```
+
+**Cause:** GitLab chart **10.2+** defaults `global.gatewayApi.enabled` and
+`installEnvoy: true`. The Operator then reconciles Envoy Gateway CRs. Cluster
+Bot / this pattern expose GitLab via OpenShift Routes (+ optional Istio
+`Gateway` in `gitlab-gateway.yaml`) and do **not** install Envoy Gateway.
+
+**Pattern fix:** `gitlab-cr.yaml` sets `global.gatewayApi.enabled: false`,
+`installEnvoy: false`, and `global.ingress.enabled: true` (chart 10.2 also
+defaults ingress off when Gateway API is the default path).
+
+**Manual fallback on an already-broken CR:**
+```bash
+oc patch gitlab gitlab -n gitlab-system --type merge -p '{
+  "spec":{"chart":{"values":{"global":{
+    "gatewayApi":{"enabled":false,"installEnvoy":false,"configureCertmanager":false},
+    "ingress":{"enabled":true}
+  }}}}
+}'
+```
+
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
 **Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login
