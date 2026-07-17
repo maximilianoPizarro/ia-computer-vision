@@ -159,6 +159,17 @@ sync-wave 0 before the StatefulSet); early Argo app `redis-operator-rbac`
 (syncWave 1) adds the missing ClusterRoleBinding before the operator CSV
 settles; Redis OperatorGroup targets only `gitlab-system`.
 
+### 3.1d gitlab-object-storage-setup Init CrashLoop (wait-minio)
+
+**Symptom:** `gitlab-object-storage-setup` stuck `Init:0/2` restarting;
+`wait-minio` exits 1 after ~7.5m while `gitlab-minio-0` is already Running.
+
+**Cause:** wait script used `oc get endpoints` but the Job Role only allowed
+`pods`/`services` — forbidden reads were swallowed and the loop timed out.
+
+**Pattern fix:** Role grants `endpoints` + `endpointslices`; wait checks
+StatefulSet `readyReplicas` (and Ready pod) instead of Endpoints only.
+
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
 **Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login

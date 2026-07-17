@@ -31,7 +31,10 @@ rules:
     resources: ["secrets"]
     verbs: ["get", "create", "update", "patch"]
   - apiGroups: [""]
-    resources: ["pods", "services"]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
     verbs: ["get", "list"]
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
@@ -89,10 +92,21 @@ spec:
                 fi
                 sleep 5
               done
-              # Wait until MinIO answers on the Service (pod Ready).
+              # Wait until MinIO StatefulSet has a Ready replica (do not rely only
+              # on Endpoints — the Job SA historically lacked endpoints get, and
+              # EndpointSlice-only clusters can leave classic Endpoints empty).
               for i in $(seq 1 90); do
-                if oc get endpoints "{{ $svc }}" -n "{{ $ns }}" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q .; then
-                  echo "MinIO endpoints ready (attempt ${i})"
+                READY="$(oc get sts "{{ $minio.name | default "gitlab-minio" }}" -n "{{ $ns }}" \
+                  -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)"
+                if [ "${READY}" = "1" ] || [ "${READY}" -ge 1 ] 2>/dev/null; then
+                  echo "MinIO StatefulSet readyReplicas=${READY} (attempt ${i})"
+                  exit 0
+                fi
+                # Fallback: any Ready pod labeled as MinIO
+                if oc get pods -n "{{ $ns }}" -l app.kubernetes.io/name={{ $minio.name | default "gitlab-minio" }} \
+                     -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null \
+                     | grep -qx True; then
+                  echo "MinIO pod Ready (attempt ${i})"
                   exit 0
                 fi
                 sleep 5
