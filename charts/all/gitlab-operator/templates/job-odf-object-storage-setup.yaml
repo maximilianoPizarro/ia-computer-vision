@@ -234,18 +234,18 @@ spec:
               EOF
               sed -i 's/^[[:space:]]*//' /tmp/object-storage.yaml
 
-              cat >/tmp/registry-storage.yaml <<EOF
-              s3:
-                accesskey: ${MINIO_ACCESS}
-                secretkey: ${MINIO_SECRET}
-                bucket: registry
-                region: us-east-1
-                regionendpoint: ${MINIO_ENDPOINT}
-                secure: ${SECURE_BOOL}
-                v4auth: true
-                pathstyle: true
-              EOF
-              sed -i 's/^[[:space:]]*//' /tmp/registry-storage.yaml
+              # Nested YAML — do not strip all leading spaces (breaks s3: children).
+              printf '%s\n' \
+                's3:' \
+                "  accesskey: ${MINIO_ACCESS}" \
+                "  secretkey: ${MINIO_SECRET}" \
+                '  bucket: registry' \
+                '  region: us-east-1' \
+                "  regionendpoint: ${MINIO_ENDPOINT}" \
+                "  secure: ${SECURE_BOOL}" \
+                '  v4auth: true' \
+                '  pathstyle: true' \
+                >/tmp/registry-storage.yaml
 
               cat >/tmp/s3cmd.cfg <<EOF
               [default]

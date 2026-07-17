@@ -200,6 +200,20 @@ oc patch gitlab gitlab -n gitlab-system --type merge -p '{
 }'
 ```
 
+### 3.1f gitlab-registry CrashLoop — flat YAML in registry-storage secret
+
+**Symptom:** `gitlab-registry-*` CrashLoopBackOff with:
+```
+configuration error: ... cannot unmarshal !!map into string
+```
+
+**Cause:** `gitlab-object-storage-setup` used `sed` to strip all leading
+spaces from the generated `registry-storage` YAML, flattening nested `s3:`
+keys so the Registry config template produced invalid YAML.
+
+**Pattern fix:** write nested registry config with `printf` (preserve
+indent). Object-store / s3cmd stay flat and still use the sed trim.
+
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
 **Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login
