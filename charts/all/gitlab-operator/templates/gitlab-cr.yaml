@@ -118,6 +118,15 @@ spec:
             disable: true
 {{- end }}
       gitlab:
+        # Chart default is 200Mi request / no limit — Rails migrations for 18/19
+        # OOMs or BackoffLimitExceeded on first boot (webservice never starts).
+        migrations:
+          resources:
+            requests:
+              cpu: {{ dig "migrations" "resources" "requests" "cpu" "250m" .Values.gitlab }}
+              memory: {{ dig "migrations" "resources" "requests" "memory" "1Gi" .Values.gitlab }}
+            limits:
+              memory: {{ dig "migrations" "resources" "limits" "memory" "2Gi" .Values.gitlab }}
         webservice:
           minReplicas: {{ $ws.minReplicas | default 3 }}
           maxReplicas: {{ $ws.maxReplicas | default 4 }}

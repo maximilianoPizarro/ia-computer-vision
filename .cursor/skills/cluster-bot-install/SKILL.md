@@ -223,6 +223,29 @@ keys so the Registry config template produced invalid YAML.
 **Pattern fix:** write nested registry config with `printf` (preserve
 indent). Object-store / s3cmd stay flat and still use the sed trim.
 
+### 3.1g gitlab-migrations BackoffLimitExceeded -> CR stuck Preparing, UI 503
+
+**Symptom:** `oc get gitlab gitlab -n gitlab-system` stays `Preparing`;
+`gitlab-migrations-*` Job `Failed` / pod CrashLoop then deleted; no
+`gitlab-webservice-default` or `sidekiq` Deployments. Route returns 503.
+
+**Cause:** GitLab chart default migrations request is **200Mi**. The first
+Rails migrate for 18/19 exceeds that and the Job hits `BackoffLimitExceeded`
+before webservice is created. Postgres/Redis/MinIO can all be Ready.
+
+**Pattern fix:** `gitlab-cr.yaml` sets `gitlab.migrations.resources` to 1Gi
+request / 2Gi limit.
+
+**Manual recovery on an already-failed Job** (schema may still be empty):
+
+```bash
+# If toolbox can migrate, finish schema then delete the failed Job so the
+# operator recreates it (noop migrate) and starts webservice:
+oc exec -n gitlab-system deploy/gitlab-toolbox -- gitlab-rake db:migrate
+oc delete job -n gitlab-system -l app=migrations
+# wait for gitlab-webservice-default; curl https://gitlab.<domain>/ → 302
+```
+
 ### 3.2 SSO HTTP 503 -> Developer Hub OIDC 500 "expected 200 OK, got 503"
 
 **Symptom:** `curl https://sso.<domain>/` returns 503; Developer Hub login

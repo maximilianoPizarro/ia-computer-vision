@@ -102,6 +102,15 @@ gitlab:
   postgresStorage: 50Gi
   gitalyStorage: 50Gi
   registryEnabled: true
+  # Chart default 200Mi is too small for GitLab 18/19 Rails migrations; first
+  # Job hits BackoffLimitExceeded and webservice never starts (CR stays Preparing).
+  migrations:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
   # Sizing for ~50 concurrent workshop users (HTTP + Git push + Sidekiq).
   # Webservice: 2 Puma workers/replica × maxReplicas => handles ~50 concurrent HTTP.
   # Sidekiq: background jobs (pipelines, notifications, webhooks).
