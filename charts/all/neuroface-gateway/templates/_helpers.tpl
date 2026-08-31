@@ -15,31 +15,42 @@
 {{- end -}}
 
 {{/*
-  CORS lives on EnvoyFilter neuroface-gateway-cors-preflight (native
-  envoy.filters.http.cors + Lua OPTIONS 204), not on HTTPRoute. A static
-  ResponseHeaderModifier can only emit one Access-Control-Allow-Origin, so
-  OpenShift console Swagger (console-openshift-console.<domain>) fails while
-  Developer Hub works. Keep this helper empty so leftover includes are safe.
+  CORS lives on EnvoyFilter neuroface-gateway-cors-preflight (Lua OPTIONS
+  204 + envoy_on_response), not on HTTPRoute. Keep this helper empty so
+  leftover includes are safe.
 */}}
 {{- define "neuroface-gateway.corsFilter" -}}
 {{- end -}}
 
 {{/*
-  Lua OPTIONS short-circuit for Hub + OpenShift console origins only.
-  Do not set Access-Control-Allow-* here -- the envoy.filters.http.cors
-  policy reflects Origin. Setting both duplicates the header and browsers
-  reject it.
+  destub-wso2 Lua: OPTIONS 204 WITH CORS headers. An empty 204 (old helper)
+  left unmatched paths without ACAO; Swagger reports that as CORS. replace()
+  on the response so upstream ACAO is a single value. Do not pair ACAO *
+  with Allow-Credentials.
 */}}
 {{- define "neuroface-gateway.corsLua" -}}
-local allowed = {
-  [{{ include "neuroface-gateway.hubOrigin" . | quote }}] = true,
-  [{{ include "neuroface-gateway.consoleOrigin" . | quote }}] = true,
-}
+local ALLOWED_HEADERS = "Authorization, Content-Type, X-API-Key, Accept, Origin, X-Requested-With"
+local ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+local EXPOSE_HEADERS = "WWW-Authenticate, Content-Length, Content-Range"
+
 function envoy_on_request(request_handle)
   local headers = request_handle:headers()
-  local origin = headers:get("origin") or ""
-  if headers:get(":method") == "OPTIONS" and allowed[origin] then
-    request_handle:respond({[":status"] = "204"}, "")
+  if headers:get(":method") == "OPTIONS" then
+    local origin = headers:get("origin") or "*"
+    request_handle:respond({
+      [":status"] = "204",
+      ["access-control-allow-origin"] = origin,
+      ["access-control-allow-methods"] = ALLOWED_METHODS,
+      ["access-control-allow-headers"] = ALLOWED_HEADERS,
+      ["access-control-max-age"] = "86400",
+      ["access-control-expose-headers"] = EXPOSE_HEADERS,
+    }, "")
   end
+end
+
+function envoy_on_response(request_handle)
+  request_handle:headers():replace("access-control-allow-origin", "*")
+  request_handle:headers():replace("access-control-expose-headers", EXPOSE_HEADERS)
+  request_handle:headers():remove("access-control-allow-credentials")
 end
 {{- end -}}

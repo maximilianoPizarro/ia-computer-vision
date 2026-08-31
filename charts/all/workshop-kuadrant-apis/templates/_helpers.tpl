@@ -102,21 +102,41 @@ fi
 {{- end -}}
 
 {{/*
-  CORS is on the Gateway EnvoyFilter (Hub + OpenShift console), not HTTPRoute.
+  CORS is the Gateway Lua EnvoyFilter (not HTTPRoute). Keep this empty so
+  leftover includes stay safe.
 */}}
 {{- define "workshop-kuadrant-apis.corsFilter" -}}
 {{- end -}}
 
+{{/*
+  destub-wso2 Lua: OPTIONS 204 WITH CORS headers (native cors + empty Lua
+  204 left unmatched paths such as / and /mcp with no ACAO; Swagger reports
+  that as CORS). envoy_on_response uses replace() so upstream ACAO is a
+  single value. Do not set Allow-Credentials with ACAO * (browsers reject it).
+*/}}
 {{- define "workshop-kuadrant-apis.corsLua" -}}
-local allowed = {
-  [{{ include "workshop-kuadrant-apis.hubOrigin" . | quote }}] = true,
-  [{{ include "workshop-kuadrant-apis.consoleOrigin" . | quote }}] = true,
-}
+local ALLOWED_HEADERS = "Authorization, Content-Type, X-API-Key, Accept, Origin, X-Requested-With"
+local ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+local EXPOSE_HEADERS = "WWW-Authenticate, Content-Length, Content-Range"
+
 function envoy_on_request(request_handle)
   local headers = request_handle:headers()
-  local origin = headers:get("origin") or ""
-  if headers:get(":method") == "OPTIONS" and allowed[origin] then
-    request_handle:respond({[":status"] = "204"}, "")
+  if headers:get(":method") == "OPTIONS" then
+    local origin = headers:get("origin") or "*"
+    request_handle:respond({
+      [":status"] = "204",
+      ["access-control-allow-origin"] = origin,
+      ["access-control-allow-methods"] = ALLOWED_METHODS,
+      ["access-control-allow-headers"] = ALLOWED_HEADERS,
+      ["access-control-max-age"] = "86400",
+      ["access-control-expose-headers"] = EXPOSE_HEADERS,
+    }, "")
   end
+end
+
+function envoy_on_response(request_handle)
+  request_handle:headers():replace("access-control-allow-origin", "*")
+  request_handle:headers():replace("access-control-expose-headers", EXPOSE_HEADERS)
+  request_handle:headers():remove("access-control-allow-credentials")
 end
 {{- end -}}

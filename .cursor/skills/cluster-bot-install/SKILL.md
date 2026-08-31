@@ -478,14 +478,15 @@ Failed to fetch / CORS. Preflight may be 204/200.
 
 **Two independent causes:**
 
-1. **Wrong `Access-Control-Allow-Origin`:** HTTPRoute `ResponseHeaderModifier`
-   can only emit one origin (`developer-hub`). Console Swagger
-   (`console-openshift-console.<domain>`) then fails the browser check.
-   **Fix:** Gateway `EnvoyFilter` with native `envoy.filters.http.cors` +
-   `CorsPolicy` `allow_origin_string_match` for Hub **and** console, plus
-   Lua OPTIONS 204 (destub-wso2 pattern). Do **not** also set CORS on the
-   HTTPRoute (duplicate headers). Workshop AuthPolicies accept `APIKEY` and
-   `Bearer` (console Swagger sends Bearer).
+1. **Lua OPTIONS 204 without CORS headers:** a native `envoy.filters.http.cors`
+   policy only covers **matched** HTTPRoutes. Lua then answered OPTIONS with
+   empty 204 so `/` (Gateways table host) and `/mcp` (disabled on hub-only)
+   had no `Access-Control-Allow-Origin`; Swagger reports that as CORS.
+   **Fix:** destub-wso2 Lua only — OPTIONS 204 **with** ACAO/Allow-Headers,
+   `envoy_on_response` `replace()` of ACAO to `*` (never `add()`, never pair
+   `*` with `Allow-Credentials`). Do **not** also set CORS on the HTTPRoute
+   or a second cors filter (duplicate ACAO). Workshop AuthPolicies accept
+   `APIKEY` and `Bearer` (console Swagger sends Bearer).
 
 2. **Authorino TLS/issuer:** Authorino cannot fetch OIDC discovery from
    `https://sso.<apps>/realms/cv/.well-known/openid-configuration` because the
@@ -505,10 +506,14 @@ bundle (system + `router-ca` + service-CA) at
 DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')
 HUB="https://developer-hub.${DOMAIN}"
 CON="https://console-openshift-console.${DOMAIN}"
+curl -sk -D - -o /dev/null -X OPTIONS "https://workshop-apis.${DOMAIN}/" \
+  -H "Origin: ${HUB}" -H "Access-Control-Request-Method: GET" \
+  -H "Access-Control-Request-Headers: authorization"
+# expect 204 and Access-Control-Allow-Origin (even with no HTTPRoute on /)
 curl -sk -D - -o /dev/null -X OPTIONS "https://neuroface-cv.${DOMAIN}/health" \
   -H "Origin: ${CON}" -H "Access-Control-Request-Method: GET" \
   -H "Access-Control-Request-Headers: authorization"
-# expect 2xx and Access-Control-Allow-Origin: $CON (not $HUB)
+# expect 2xx and Access-Control-Allow-Origin
 curl -sk -o /dev/null -w "%{http_code}\n" https://neuroface-cv.${DOMAIN}/health
 # 401 without token; 200 with Bearer from sso
 ```

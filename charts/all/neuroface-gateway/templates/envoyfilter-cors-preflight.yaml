@@ -1,11 +1,7 @@
 {{/*
-  destub-wso2 pattern: native envoy.filters.http.cors + VIRTUAL_HOST CorsPolicy
-  (reflects Origin when it matches Hub or OpenShift console) plus Lua that
-  answers OPTIONS with 204 before Kuadrant WASM / the backend. HTTPRoute
-  ResponseHeaderModifier cannot do two origins. Lua must not set CORS
-  headers (duplicate values fail the browser check).
-  priority -10: apply before Kuadrant WASM (priority 0) so OPTIONS never
-  hits Authorino.
+  destub-wso2 pattern: Lua OPTIONS 204 WITH CORS headers (priority -10 so
+  it runs before Kuadrant WASM). Native cors + empty Lua 204 left unmatched
+  paths without ACAO; Swagger reports that as CORS.
 */}}
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
@@ -20,37 +16,6 @@ spec:
     labels:
       gateway.networking.k8s.io/gateway-name: neuroface-gateway
   configPatches:
-    - applyTo: HTTP_FILTER
-      match:
-        context: GATEWAY
-        listener:
-          filterChain:
-            filter:
-              name: envoy.filters.network.http_connection_manager
-              subFilter:
-                name: envoy.filters.http.router
-      patch:
-        operation: INSERT_BEFORE
-        value:
-          name: envoy.filters.http.cors
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
-    - applyTo: VIRTUAL_HOST
-      match:
-        context: GATEWAY
-      patch:
-        operation: MERGE
-        value:
-          typed_per_filter_config:
-            envoy.filters.http.cors:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
-              allow_origin_string_match:
-                - exact: {{ include "neuroface-gateway.hubOrigin" . | quote }}
-                - exact: {{ include "neuroface-gateway.consoleOrigin" . | quote }}
-              allow_methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-              allow_headers: "authorization,content-type,accept,x-requested-with"
-              allow_credentials: true
-              max_age: "86400"
     - applyTo: HTTP_FILTER
       match:
         context: GATEWAY

@@ -1,7 +1,9 @@
 {{- /*
-  destub-wso2 pattern: envoy.filters.http.cors + CorsPolicy (Hub + OpenShift
-  console origins) and Lua OPTIONS 204. HTTPRoute CORS was a single origin
-  and broke console Swagger. Lua does not set CORS headers (duplicates).
+  destub-wso2 pattern: Lua OPTIONS 204 WITH CORS headers (priority -10 so
+  it runs before Kuadrant WASM). Native envoy.filters.http.cors was dropped
+  here: Lua used to answer 204 with no ACAO, which is fine on matched
+  HTTPRoutes (the cors filter short-circuits those) but leaves / and /mcp
+  without ACAO -- Swagger Try it out reports that as CORS.
 */ -}}
 {{- $workshopNs := .Values.workshopGateway.namespace }}
 {{- $workshopGw := .Values.workshopGateway.name }}
@@ -21,37 +23,6 @@ spec:
     labels:
       gateway.networking.k8s.io/gateway-name: {{ $workshopGw }}
   configPatches:
-    - applyTo: HTTP_FILTER
-      match:
-        context: GATEWAY
-        listener:
-          filterChain:
-            filter:
-              name: envoy.filters.network.http_connection_manager
-              subFilter:
-                name: envoy.filters.http.router
-      patch:
-        operation: INSERT_BEFORE
-        value:
-          name: envoy.filters.http.cors
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
-    - applyTo: VIRTUAL_HOST
-      match:
-        context: GATEWAY
-      patch:
-        operation: MERGE
-        value:
-          typed_per_filter_config:
-            envoy.filters.http.cors:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
-              allow_origin_string_match:
-                - exact: {{ include "workshop-kuadrant-apis.hubOrigin" . | quote }}
-                - exact: {{ include "workshop-kuadrant-apis.consoleOrigin" . | quote }}
-              allow_methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-              allow_headers: "authorization,content-type,accept,x-requested-with"
-              allow_credentials: true
-              max_age: "86400"
     - applyTo: HTTP_FILTER
       match:
         context: GATEWAY
@@ -183,37 +154,6 @@ spec:
     labels:
       gateway.networking.k8s.io/gateway-name: {{ $aiGw }}
   configPatches:
-    - applyTo: HTTP_FILTER
-      match:
-        context: GATEWAY
-        listener:
-          filterChain:
-            filter:
-              name: envoy.filters.network.http_connection_manager
-              subFilter:
-                name: envoy.filters.http.router
-      patch:
-        operation: INSERT_BEFORE
-        value:
-          name: envoy.filters.http.cors
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
-    - applyTo: VIRTUAL_HOST
-      match:
-        context: GATEWAY
-      patch:
-        operation: MERGE
-        value:
-          typed_per_filter_config:
-            envoy.filters.http.cors:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
-              allow_origin_string_match:
-                - exact: {{ include "workshop-kuadrant-apis.hubOrigin" . | quote }}
-                - exact: {{ include "workshop-kuadrant-apis.consoleOrigin" . | quote }}
-              allow_methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-              allow_headers: "authorization,content-type,accept,x-requested-with"
-              allow_credentials: true
-              max_age: "86400"
     - applyTo: HTTP_FILTER
       match:
         context: GATEWAY
