@@ -93,10 +93,11 @@ external:
       awsCliImage: registry.redhat.io/ubi9/ubi-minimal:latest
 
 gitlab:
-  # GitLab Operator 3.2.x (certified-operators) only admits chart 10.x
-  # (10.2.0 / 10.1.2 / 10.0.4). 9.11.7 is rejected by the validating webhook.
+  # GitLab Operator 3.3.x (certified-operators) only admits a sliding 10.x
+  # window. 3.3.1 webhook: 10.3.1 / 10.2.5 / 10.1.7 — 10.2.0 is rejected.
+  # Pin the 10.2 patch closest to our tested values (gatewayApi off, Routes).
   # Chart 10.x requires external Postgres, Redis, and object storage (see external:).
-  chartVersion: "10.2.0"
+  chartVersion: "10.2.5"
   rootPasswordSecret: gitlab-gitlab-initial-root-password
   postgresStorage: 50Gi
   gitalyStorage: 50Gi

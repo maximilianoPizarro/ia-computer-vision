@@ -1,19 +1,7 @@
 {{- /*
-  Same fix as neuroface-gateway-cors-preflight.yaml, needed for the same
-  reason: the AuthPolicy `when: request.method != "OPTIONS"` exemption
-  already lets an unauthenticated preflight through Authorino, and each
-  HTTPRoute's own ResponseHeaderModifier (workshop-kuadrant-apis.corsFilter)
-  already sets Access-Control-Allow-* -- but a browser preflight still needs
-  a 2xx *status*, and these routes' upstreams are all external
-  ExternalName/ServiceEntry backends (countriesnow.space, httpbin.org, the
-  RHOAI catalog Llama predictor) that either don't implement OPTIONS at all
-  or reset the connection for it (observed: 503 "upstream connect error ...
-  reset reason: connection termination" for OPTIONS specifically, even
-  though real GET/POST requests succeed). Gateway API HTTPRoute filters have
-  no "direct response" action to fix this at the routing layer (see the
-  neuroface fix's own comment for the full filter-type list), so this
-  answers OPTIONS directly at the Istio/Envoy layer, before it ever reaches
-  the external backend.
+  destub-wso2 pattern: envoy.filters.http.cors + CorsPolicy (Hub + OpenShift
+  console origins) and Lua OPTIONS 204. HTTPRoute CORS was a single origin
+  and broke console Swagger. Lua does not set CORS headers (duplicates).
 */ -}}
 {{- $workshopNs := .Values.workshopGateway.namespace }}
 {{- $workshopGw := .Values.workshopGateway.name }}
@@ -28,6 +16,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
+  priority: -10
   workloadSelector:
     labels:
       gateway.networking.k8s.io/gateway-name: {{ $workshopGw }}
@@ -44,22 +33,42 @@ spec:
       patch:
         operation: INSERT_BEFORE
         value:
+          name: envoy.filters.http.cors
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
+    - applyTo: VIRTUAL_HOST
+      match:
+        context: GATEWAY
+      patch:
+        operation: MERGE
+        value:
+          typed_per_filter_config:
+            envoy.filters.http.cors:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
+              allow_origin_string_match:
+                - exact: {{ include "workshop-kuadrant-apis.hubOrigin" . | quote }}
+                - exact: {{ include "workshop-kuadrant-apis.consoleOrigin" . | quote }}
+              allow_methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+              allow_headers: "authorization,content-type,accept,x-requested-with"
+              allow_credentials: true
+              max_age: "86400"
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
           name: envoy.filters.http.lua.cors_preflight
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
             inlineCode: |
-              -- Only short-circuits the status/method here. The actual
-              -- Access-Control-Allow-* headers still come from each
-              -- HTTPRoute's own ResponseHeaderModifier filter (route
-              -- matching still runs and decorates the response even for
-              -- this locally-generated reply) -- setting them here too
-              -- would just duplicate them.
-              function envoy_on_request(request_handle)
-                local headers = request_handle:headers()
-                if headers:get(":method") == "OPTIONS" then
-                  request_handle:respond({[":status"] = "204"}, "")
-                end
-              end
+{{ include "workshop-kuadrant-apis.corsLua" . | nindent 14 }}
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
@@ -169,6 +178,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
+  priority: -10
   workloadSelector:
     labels:
       gateway.networking.k8s.io/gateway-name: {{ $aiGw }}
@@ -185,13 +195,39 @@ spec:
       patch:
         operation: INSERT_BEFORE
         value:
+          name: envoy.filters.http.cors
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
+    - applyTo: VIRTUAL_HOST
+      match:
+        context: GATEWAY
+      patch:
+        operation: MERGE
+        value:
+          typed_per_filter_config:
+            envoy.filters.http.cors:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
+              allow_origin_string_match:
+                - exact: {{ include "workshop-kuadrant-apis.hubOrigin" . | quote }}
+                - exact: {{ include "workshop-kuadrant-apis.consoleOrigin" . | quote }}
+              allow_methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+              allow_headers: "authorization,content-type,accept,x-requested-with"
+              allow_credentials: true
+              max_age: "86400"
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
           name: envoy.filters.http.lua.cors_preflight
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
             inlineCode: |
-              function envoy_on_request(request_handle)
-                local headers = request_handle:headers()
-                if headers:get(":method") == "OPTIONS" then
-                  request_handle:respond({[":status"] = "204"}, "")
-                end
-              end
+{{ include "workshop-kuadrant-apis.corsLua" . | nindent 14 }}

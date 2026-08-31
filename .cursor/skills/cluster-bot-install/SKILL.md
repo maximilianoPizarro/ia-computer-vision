@@ -21,6 +21,15 @@ description: >-
 workflow-launch openshift-e2e-aws 4.20 "COMPUTE_NODE_TYPE=m6a.4xlarge","CONTROL_PLANE_INSTANCE_TYPE=m6a.2xlarge","COMPUTE_NODE_REPLICAS=4"
 ```
 
+**Do not pass `--lease` to `workflow-launch`.** It is not a bot flag — Cluster Bot
+treats it as a workflow env var and the job fails in ~10s with:
+`parameter "--lease 8h \"COMPUTE_NODE_TYPE" is overridden ... but not declared in any step`
+(putting it after the params corrupts `replicas` instead; either way the cluster is never created).
+
+Default cluster lifetime from `workflow-launch` is **~3 hours** after the cluster is ready
+(`maxAge` in ci-chat-bot). For an 8h cluster use `mce create <version> 8h <platform>` if
+you have MCE access, or plan the hub-only install + demo within the default window.
+
 - Parameter names come from the `openshift-e2e-aws` workflow (`ipi-conf-aws` step) --
   `COMPUTE_TYPE`/`CONTROLPLANE_TYPE` **do not exist** and fail ci-operator config
   resolution in ~10s (`parameter "X" is overridden ... but not declared in any step`).
@@ -462,18 +471,28 @@ owned by RHCL; this pattern must only annotate it.
 waits for the operator-managed Service (tries `kuadrant-system` then
 `redhat-connectivity-link-operator`) and annotates it for serving certs.
 
-### 3.8 Swagger "Try it out" → Failed to fetch (looks like CORS, is Authorino TLS/issuer)
+### 3.8 Swagger "Try it out" → Failed to fetch (CORS origin or Authorino TLS)
 
-**Symptom:** Developer Hub Swagger "Try it out" on `neuroface-cv.../health`
-with a Bearer token shows Undocumented / Failed to fetch / Possible Reasons:
-CORS. Preflight `OPTIONS` already returns 204 with CORS headers.
+**Symptom:** Developer Hub or OpenShift console Swagger "Try it out" shows
+Failed to fetch / CORS. Preflight may be 204/200.
 
-**Cause (not Envoy CORS):** Authorino could not fetch OIDC discovery from
-`https://sso.<apps>/realms/cv/.well-known/openid-configuration` because the
-route cert is signed by OpenShift `router-ca` and `SSL_CERT_FILE` pointed at
-a missing path (or only service-CA). AuthPolicy then 401s every JWT;
-browsers report that as CORS "Failed to fetch". A second failure mode is
-`issuerUrl` still pointing at `keycloak.` while tokens carry `iss=https://sso...`.
+**Two independent causes:**
+
+1. **Wrong `Access-Control-Allow-Origin`:** HTTPRoute `ResponseHeaderModifier`
+   can only emit one origin (`developer-hub`). Console Swagger
+   (`console-openshift-console.<domain>`) then fails the browser check.
+   **Fix:** Gateway `EnvoyFilter` with native `envoy.filters.http.cors` +
+   `CorsPolicy` `allow_origin_string_match` for Hub **and** console, plus
+   Lua OPTIONS 204 (destub-wso2 pattern). Do **not** also set CORS on the
+   HTTPRoute (duplicate headers). Workshop AuthPolicies accept `APIKEY` and
+   `Bearer` (console Swagger sends Bearer).
+
+2. **Authorino TLS/issuer:** Authorino cannot fetch OIDC discovery from
+   `https://sso.<apps>/realms/cv/.well-known/openid-configuration` because the
+   route cert is signed by OpenShift `router-ca` and `SSL_CERT_FILE` pointed at
+   a missing path (or only service-CA). AuthPolicy then 401s every JWT;
+   browsers report that as CORS "Failed to fetch". A second failure mode is
+   `issuerUrl` still pointing at `keycloak.` while tokens carry `iss=https://sso...`.
 
 **Automated fix:** `models-as-a-service` `authorino-tls-env` Job mounts a CA
 bundle (system + `router-ca` + service-CA) at
@@ -483,7 +502,14 @@ bundle (system + `router-ca` + service-CA) at
 
 **Live check:**
 ```bash
-curl -sk -o /dev/null -w "%{http_code}\n" https://neuroface-cv.apps.<domain>/health
+DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')
+HUB="https://developer-hub.${DOMAIN}"
+CON="https://console-openshift-console.${DOMAIN}"
+curl -sk -D - -o /dev/null -X OPTIONS "https://neuroface-cv.${DOMAIN}/health" \
+  -H "Origin: ${CON}" -H "Access-Control-Request-Method: GET" \
+  -H "Access-Control-Request-Headers: authorization"
+# expect 2xx and Access-Control-Allow-Origin: $CON (not $HUB)
+curl -sk -o /dev/null -w "%{http_code}\n" https://neuroface-cv.${DOMAIN}/health
 # 401 without token; 200 with Bearer from sso
 ```
 
@@ -589,6 +615,8 @@ both).
 ```
 workflow-launch openshift-e2e-aws 4.20 "COMPUTE_NODE_TYPE=m6a.4xlarge","CONTROL_PLANE_INSTANCE_TYPE=m6a.2xlarge","COMPUTE_NODE_REPLICAS=4"
 ```
+
+No `--lease` on this command (see section 1). Budget ~3h after `auth` for install + demo.
 
 Then: Validated Patterns Operator →
 `oc apply -f examples/pattern-cr/hub-only-cpu.yaml` (targetRevision `main`).

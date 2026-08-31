@@ -76,10 +76,11 @@ metadata:
   name: ppe-model-seed
   namespace: gitlab-system
   annotations:
-    # PostSync (not sync-wave 0): a DeadlineExceeded Job at wave 0 keeps later
-    # waves (Kafka / InferenceService) from applying — Console then reports
-    # "No such Kafka resource: neuroface-cv/cv-kafka".
-    argocd.argoproj.io/hook: PostSync
+    # Sync (not PostSync, not wave 0): a wave-0 DeadlineExceeded Job blocked
+    # Kafka/IS. PostSync never runs while InferenceService is Degraded (S3 403
+    # until this Job writes real gitlab-minio-secret into Vault) — chicken-and-
+    # egg on Cluster Bot. Sync hooks run after apply and do not wait for Healthy.
+    argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
@@ -138,27 +139,29 @@ spec:
                   aws_access_key_id=key, aws_secret_access_key=secret,
                   region_name="us-east-1")
 
+              already = False
               try:
                   s3.head_object(Bucket=bucket, Key=obj_key)
-                  print("Model already exists at s3://%s/%s -- skip" % (bucket, obj_key))
-                  sys.exit(0)
+                  print("Model already exists at s3://%s/%s" % (bucket, obj_key))
+                  already = True
               except s3.exceptions.ClientError:
                   pass
 
-              try:
-                  s3.head_bucket(Bucket=bucket)
-              except s3.exceptions.ClientError:
-                  s3.create_bucket(Bucket=bucket)
-                  print("Created bucket %s" % bucket)
+              if not already:
+                  try:
+                      s3.head_bucket(Bucket=bucket)
+                  except s3.exceptions.ClientError:
+                      s3.create_bucket(Bucket=bucket)
+                      print("Created bucket %s" % bucket)
 
-              print("Downloading %s ..." % model_url)
-              urllib.request.urlretrieve(model_url, "/tmp/model.pt")
-              sz = os.path.getsize("/tmp/model.pt")
-              print("Downloaded: %.1f MB" % (sz / 1024 / 1024))
+                  print("Downloading %s ..." % model_url)
+                  urllib.request.urlretrieve(model_url, "/tmp/model.pt")
+                  sz = os.path.getsize("/tmp/model.pt")
+                  print("Downloaded: %.1f MB" % (sz / 1024 / 1024))
 
-              s3.upload_file("/tmp/model.pt", bucket, obj_key)
-              resp = s3.head_object(Bucket=bucket, Key=obj_key)
-              print("Uploaded s3://%s/%s (%.1f MB)" % (bucket, obj_key, resp["ContentLength"] / 1024 / 1024))
+                  s3.upload_file("/tmp/model.pt", bucket, obj_key)
+                  resp = s3.head_object(Bucket=bucket, Key=obj_key)
+                  print("Uploaded s3://%s/%s (%.1f MB)" % (bucket, obj_key, resp["ContentLength"] / 1024 / 1024))
 
               # Sync MinIO creds to Vault so the yolo-ppe-serving InferenceService's
               # ExternalSecret (aws-connection-ppe-models, key secret/data/hub/

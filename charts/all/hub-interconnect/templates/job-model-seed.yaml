@@ -49,7 +49,7 @@ metadata:
   namespace: gitlab-system
   annotations:
     argocd.argoproj.io/sync-wave: "4"
-    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 3

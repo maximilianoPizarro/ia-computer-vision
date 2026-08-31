@@ -1,17 +1,11 @@
 {{/*
-  The neuroface-cv (and, on some paths, neuroface-app) upstream containers
-  don't implement OPTIONS themselves -- they answer it with a plain 405 (or,
-  for neuroface-app, happen to answer 200 by accident). A non-2xx response to
-  a browser's CORS preflight fails the whole request regardless of which
-  Access-Control-Allow-* headers are present (see the ResponseHeaderModifier
-  CORS filters on the HTTPRoutes), so any authenticated "Try it out" in
-  Swagger UI (which always sends a non-simple Authorization header, forcing a
-  real preflight) never got past this. Gateway API's HTTPRoute filters have no
-  "direct response" action to fix this at that layer (only
-  RequestHeaderModifier/ResponseHeaderModifier/RequestMirror/RequestRedirect/
-  URLRewrite/ExtensionRef are supported by the installed CRD version), so this
-  answers OPTIONS directly at the Istio/Envoy layer, in front of every route
-  on this Gateway, before it ever reaches a backend.
+  destub-wso2 pattern: native envoy.filters.http.cors + VIRTUAL_HOST CorsPolicy
+  (reflects Origin when it matches Hub or OpenShift console) plus Lua that
+  answers OPTIONS with 204 before Kuadrant WASM / the backend. HTTPRoute
+  ResponseHeaderModifier cannot do two origins. Lua must not set CORS
+  headers (duplicate values fail the browser check).
+  priority -10: apply before Kuadrant WASM (priority 0) so OPTIONS never
+  hits Authorino.
 */}}
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
@@ -21,6 +15,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
+  priority: -10
   workloadSelector:
     labels:
       gateway.networking.k8s.io/gateway-name: neuroface-gateway
@@ -37,19 +32,39 @@ spec:
       patch:
         operation: INSERT_BEFORE
         value:
+          name: envoy.filters.http.cors
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
+    - applyTo: VIRTUAL_HOST
+      match:
+        context: GATEWAY
+      patch:
+        operation: MERGE
+        value:
+          typed_per_filter_config:
+            envoy.filters.http.cors:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
+              allow_origin_string_match:
+                - exact: {{ include "neuroface-gateway.hubOrigin" . | quote }}
+                - exact: {{ include "neuroface-gateway.consoleOrigin" . | quote }}
+              allow_methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+              allow_headers: "authorization,content-type,accept,x-requested-with"
+              allow_credentials: true
+              max_age: "86400"
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
           name: envoy.filters.http.lua.cors_preflight
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
             inlineCode: |
-              -- Only short-circuits the status/method here. The actual
-              -- Access-Control-Allow-* headers still come from each
-              -- HTTPRoute's own ResponseHeaderModifier filter (route
-              -- matching still runs and decorates the response even for
-              -- this locally-generated reply) -- setting them here too
-              -- would just duplicate them.
-              function envoy_on_request(request_handle)
-                local headers = request_handle:headers()
-                if headers:get(":method") == "OPTIONS" then
-                  request_handle:respond({[":status"] = "204"}, "")
-                end
-              end
+{{ include "neuroface-gateway.corsLua" . | nindent 14 }}

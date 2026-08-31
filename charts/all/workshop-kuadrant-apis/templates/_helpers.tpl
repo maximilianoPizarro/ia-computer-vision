@@ -93,27 +93,30 @@ fi
 {{- $key -}}
 {{- end -}}
 
+{{- define "workshop-kuadrant-apis.hubOrigin" -}}
+{{- printf "https://developer-hub.%s" (include "workshop-kuadrant-apis.hubClusterDomain" .) -}}
+{{- end -}}
+
+{{- define "workshop-kuadrant-apis.consoleOrigin" -}}
+{{- printf "https://console-openshift-console.%s" (include "workshop-kuadrant-apis.hubClusterDomain" .) -}}
+{{- end -}}
+
 {{/*
-  CORS response headers so the RHDH-embedded Swagger UI (served from
-  developer-hub.<domain>, a different origin than these gateway routes) can
-  call them via "Try it out", including preflighted requests (custom headers
-  like Authorization: APIKEY <key> or Bearer). Uses "set" (not "add") since
-  some upstreams (e.g. httpbin.org) already emit their own
-  Access-Control-Allow-* -- "add" would duplicate the header, which browsers
-  reject as invalid.
+  CORS is on the Gateway EnvoyFilter (Hub + OpenShift console), not HTTPRoute.
 */}}
 {{- define "workshop-kuadrant-apis.corsFilter" -}}
-- type: ResponseHeaderModifier
-  responseHeaderModifier:
-    set:
-      - name: Access-Control-Allow-Origin
-        value: {{ printf "https://developer-hub.%s" (include "workshop-kuadrant-apis.hubClusterDomain" .) | quote }}
-      - name: Access-Control-Allow-Methods
-        value: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-      - name: Access-Control-Allow-Headers
-        value: "Authorization, Content-Type, Accept"
-      - name: Access-Control-Allow-Credentials
-        value: "true"
-      - name: Access-Control-Max-Age
-        value: "600"
+{{- end -}}
+
+{{- define "workshop-kuadrant-apis.corsLua" -}}
+local allowed = {
+  [{{ include "workshop-kuadrant-apis.hubOrigin" . | quote }}] = true,
+  [{{ include "workshop-kuadrant-apis.consoleOrigin" . | quote }}] = true,
+}
+function envoy_on_request(request_handle)
+  local headers = request_handle:headers()
+  local origin = headers:get("origin") or ""
+  if headers:get(":method") == "OPTIONS" and allowed[origin] then
+    request_handle:respond({[":status"] = "204"}, "")
+  end
+end
 {{- end -}}

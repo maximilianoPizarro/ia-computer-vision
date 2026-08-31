@@ -168,4 +168,4 @@ spec:
 
               echo "rhbk-iam realm readiness complete."
               oc get keycloakrealmimport -n "$KC_NS" \
-                -o custom-columns=NAME:.metadata.name,DONE:.status.conditions[?(@.type==\"Done\")].status,ERR:.status.conditions[?(@.type==\"HasErrors\")].status || true
+                -o custom-columns='NAME:.metadata.name,DONE:.status.conditions[?(@.type=="Done")].status,ERR:.status.conditions[?(@.type=="HasErrors")].status' || true

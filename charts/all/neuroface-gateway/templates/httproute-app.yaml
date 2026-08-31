@@ -21,8 +21,6 @@ spec:
     - timeouts:
         request: 120s
         backendRequest: 120s
-      filters:
-        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-app-east
           port: 8080
@@ -34,8 +32,6 @@ spec:
     - timeouts:
         request: 120s
         backendRequest: 120s
-      filters:
-        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-app-east
           port: 8080
@@ -44,8 +40,6 @@ spec:
     - timeouts:
         request: 120s
         backendRequest: 120s
-      filters:
-        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-app-west
           port: 8080

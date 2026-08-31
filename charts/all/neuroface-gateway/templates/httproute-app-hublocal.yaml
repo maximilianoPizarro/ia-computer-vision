@@ -19,8 +19,6 @@ spec:
     - timeouts:
         request: 120s
         backendRequest: 120s
-      filters:
-        {{- include "neuroface-gateway.corsFilter" . | nindent 8 }}
       backendRefs:
         - name: neuroface-app-hub
           port: 8080

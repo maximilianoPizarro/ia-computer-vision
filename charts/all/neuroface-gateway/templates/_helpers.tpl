@@ -6,26 +6,40 @@
 {{- .Values.clusterDomain | default $g.localClusterDomain | default $g.hubClusterDomain | default "apps.cluster.example.com" -}}
 {{- end -}}
 
+{{- define "neuroface-gateway.hubOrigin" -}}
+{{- printf "https://developer-hub.%s" (include "neuroface-gateway.clusterDomain" .) -}}
+{{- end -}}
+
+{{- define "neuroface-gateway.consoleOrigin" -}}
+{{- printf "https://console-openshift-console.%s" (include "neuroface-gateway.clusterDomain" .) -}}
+{{- end -}}
+
 {{/*
-  CORS response headers so the RHDH-embedded Swagger UI (served from
-  developer-hub.<domain>, a different origin than these gateway routes) can
-  call them via "Try it out", including preflighted requests (custom headers
-  like Authorization). Uses "set" (not "add") because some backends already
-  emit their own Access-Control-Allow-* on OPTIONS -- "add" would duplicate
-  the header, which browsers reject as invalid.
+  CORS lives on EnvoyFilter neuroface-gateway-cors-preflight (native
+  envoy.filters.http.cors + Lua OPTIONS 204), not on HTTPRoute. A static
+  ResponseHeaderModifier can only emit one Access-Control-Allow-Origin, so
+  OpenShift console Swagger (console-openshift-console.<domain>) fails while
+  Developer Hub works. Keep this helper empty so leftover includes are safe.
 */}}
 {{- define "neuroface-gateway.corsFilter" -}}
-- type: ResponseHeaderModifier
-  responseHeaderModifier:
-    set:
-      - name: Access-Control-Allow-Origin
-        value: {{ printf "https://developer-hub.%s" (include "neuroface-gateway.clusterDomain" .) | quote }}
-      - name: Access-Control-Allow-Methods
-        value: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-      - name: Access-Control-Allow-Headers
-        value: "Authorization, Content-Type, Accept"
-      - name: Access-Control-Allow-Credentials
-        value: "true"
-      - name: Access-Control-Max-Age
-        value: "600"
+{{- end -}}
+
+{{/*
+  Lua OPTIONS short-circuit for Hub + OpenShift console origins only.
+  Do not set Access-Control-Allow-* here -- the envoy.filters.http.cors
+  policy reflects Origin. Setting both duplicates the header and browsers
+  reject it.
+*/}}
+{{- define "neuroface-gateway.corsLua" -}}
+local allowed = {
+  [{{ include "neuroface-gateway.hubOrigin" . | quote }}] = true,
+  [{{ include "neuroface-gateway.consoleOrigin" . | quote }}] = true,
+}
+function envoy_on_request(request_handle)
+  local headers = request_handle:headers()
+  local origin = headers:get("origin") or ""
+  if headers:get(":method") == "OPTIONS" and allowed[origin] then
+    request_handle:respond({[":status"] = "204"}, "")
+  end
+end
 {{- end -}}

@@ -31,6 +31,14 @@ spec:
         credentials:
           authorizationHeader:
             prefix: APIKEY
+      api-key-users-bearer:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: Bearer
 ---
 apiVersion: extensions.kuadrant.io/v1alpha1
 kind: PlanPolicy
@@ -81,6 +89,14 @@ spec:
         credentials:
           authorizationHeader:
             prefix: APIKEY
+      api-key-users-bearer:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: Bearer
 ---
 apiVersion: extensions.kuadrant.io/v1alpha1
 kind: PlanPolicy
@@ -131,6 +147,14 @@ spec:
         credentials:
           authorizationHeader:
             prefix: APIKEY
+      api-key-users-bearer:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: Bearer
 ---
 apiVersion: extensions.kuadrant.io/v1alpha1
 kind: PlanPolicy
@@ -184,6 +208,14 @@ spec:
         credentials:
           authorizationHeader:
             prefix: APIKEY
+      api-key-users-bearer:
+        apiKey:
+          allNamespaces: true
+          selector:
+            {{- include "workshop-kuadrant-apis.workshopApiKeySelector" . | nindent 12 }}
+        credentials:
+          authorizationHeader:
+            prefix: Bearer
 ---
 apiVersion: extensions.kuadrant.io/v1alpha1
 kind: PlanPolicy
