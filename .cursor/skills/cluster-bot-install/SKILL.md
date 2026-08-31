@@ -558,3 +558,39 @@ oc get apiproducts.devportal.kuadrant.io -A
 Expect `sso:302`, `dh:200`, `oidc-start:302` (not 500/503), `gitlab:200`
 (once webservice pods are 2/2 Running), all AuthPolicy `True`, and the
 `neuroface-*-openapi` APIProducts present.
+
+### 4.1 Demo gate — Connectivity Link apps Synced (before recording Arcade)
+
+After `main` includes `connectivityLinkArgoCD` tuning in `values-hub.yaml`,
+these apps should report **Synced** even though the Kuadrant operator mutates
+`Authorino`/`Limitador` spec and policy `.status` fields live:
+
+```bash
+for app in workshop-kuadrant-apis neuroface-gateway models-as-a-service developer-hub rhbk; do
+  oc get application "$app" -n vp-gitops -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+done
+```
+
+Expect all five `Synced` / `Healthy` (or `Progressing` only while PostSync
+hooks still run — wait for `kuadrant-operator-readiness` in
+`neuroface-gateway-system` to complete before declaring failure).
+
+If an app stays `OutOfSync` on `Authorino` or `APIProduct` **after** hooks
+finish, confirm the Application has `syncOptions: RespectIgnoreDifferences=true`
+and the shared `ignoreDifferences` block from `values-hub.yaml` (re-sync the
+`ia-computer-vision` pattern Application or hard-refresh the child app).
+
+Workshop Kuadrant restart hook is wait-only; operator restart is owned by
+`neuroface-gateway` `kuadrant-operator-readiness` (do not manually restart
+both).
+
+### 4.2 Cluster Bot launch (hub-only demo)
+
+```
+workflow-launch openshift-e2e-aws 4.20 "COMPUTE_NODE_TYPE=m6a.4xlarge","CONTROL_PLANE_INSTANCE_TYPE=m6a.2xlarge","COMPUTE_NODE_REPLICAS=4"
+```
+
+Then: Validated Patterns Operator →
+`oc apply -f examples/pattern-cr/hub-only-cpu.yaml` (targetRevision `main`).
+Do **not** add `values-hub-rhpds.yaml` or `values-hub-odf-datagrid.yaml`.
+Allow ~1–2 h for Argo CD, then run §4 and §4.1 before Arcade recording.

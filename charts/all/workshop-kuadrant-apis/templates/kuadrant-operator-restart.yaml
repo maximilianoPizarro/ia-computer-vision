@@ -1,5 +1,6 @@
-# Kuadrant operator must restart after Istio/Gateway API is installed so it detects the
-# gateway provider. Without this, AuthPolicy/PlanPolicy stay Accepted=False (MissingDependency).
+# Waits for Kuadrant CR Ready after Istio GatewayClass exists. Does NOT restart
+# the Kuadrant operator -- neuroface-gateway's kuadrant-operator-readiness PostSync
+# Job owns the cluster-wide operator restart + AuthPolicy Accepted verification.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -19,21 +20,11 @@ metadata:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "patch"]
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["gatewayclasses"]
     verbs: ["get", "list"]
-  # Without this, `oc get kuadrant kuadrant -n kuadrant-system` inside the
-  # script's readiness-wait loop always returns Forbidden (silently
-  # swallowed by `|| true`), so $ready never becomes "True" even once the
-  # Kuadrant CR genuinely is Ready -- the loop then burns all 36 x 10s
-  # iterations (6 minutes) before giving up with a WARN on every single
-  # sync, needlessly leaving this Application's operation "Running" the
-  # whole time.
   - apiGroups: ["kuadrant.io"]
-    resources: ["kuadrants"]
+    resources: ["kuadrants", "authpolicies"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -69,53 +60,58 @@ spec:
       annotations:
         sidecar.istio.io/inject: "false"
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Never
       serviceAccountName: kuadrant-operator-restart
       containers:
-        - name: restart
+        - name: wait-ready
           image: {{ .Values.kuadrantOperatorRestart.image | default "registry.redhat.io/openshift4/ose-cli:latest" | quote }}
           command:
             - /bin/bash
             - -ec
             - |
               set -euo pipefail
-              NS="{{ .Values.kuadrantOperatorRestart.operatorNamespace | default "redhat-connectivity-link-operator" }}"
-              DEP="{{ .Values.kuadrantOperatorRestart.deployment | default "kuadrant-operator-controller-manager" }}"
+
+              count_invalid_authpolicies() {
+                if command -v jq >/dev/null 2>&1; then
+                  oc get authpolicy -A -o json 2>/dev/null | jq '[.items[] | select((.status.conditions // []) | map(select(.type=="Accepted")) | .[0].status != "True")] | length'
+                else
+                  oc get authpolicy -A -o json 2>/dev/null | python3 -c 'import json,sys;d=json.load(sys.stdin);print(sum(1 for i in d.get("items",[]) if next((c for c in (i.get("status") or {}).get("conditions") or [] if c.get("type")=="Accepted"),{}).get("status")!="True"))'
+                fi
+              }
+
               echo "Waiting for GatewayClass istio (Istio mesh ready)..."
               for i in $(seq 1 60); do
                 if oc get gatewayclass istio -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}' 2>/dev/null | grep -qx True; then
                   echo "GatewayClass istio is Accepted"
                   break
                 fi
+                if [ "$i" -eq 60 ]; then
+                  echo "WARN: GatewayClass istio not Accepted after 10 minutes"
+                fi
                 sleep 10
               done
-              oc get gatewayclass istio >/dev/null 2>&1 || { echo "WARN: GatewayClass istio not found; skipping restart"; exit 0; }
-              echo "Restarting $DEP in $NS (Kuadrant detects Gateway API provider at pod startup)..."
-              oc rollout restart "deployment/$DEP" -n "$NS"
-              oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s
+
+              TOTAL=$(oc get authpolicy -A --no-headers 2>/dev/null | wc -l | tr -d ' ')
+              if [ "${TOTAL:-0}" -gt 0 ]; then
+                INVALID=$(count_invalid_authpolicies 2>/dev/null || echo "999")
+                INVALID=$(echo "$INVALID" | tr -d '[:space:]')
+                if [ "$INVALID" = "0" ]; then
+                  echo "All $TOTAL AuthPolicy resource(s) already Accepted -- skipping operator restart (handled by neuroface-gateway readiness Job when needed)."
+                else
+                  echo "WARN: $INVALID/$TOTAL AuthPolicy(ies) not Accepted -- neuroface-gateway kuadrant-operator-readiness Job will restart the operator."
+                fi
+              else
+                echo "No AuthPolicy resources yet (neuroface-gateway may still be syncing)."
+              fi
+
               echo "Waiting for Kuadrant CR Ready..."
               for i in $(seq 1 36); do
                 ready=$(oc get kuadrant kuadrant -n kuadrant-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
                 if [[ "$ready" == "True" ]]; then
                   echo "Kuadrant Ready"
-                  break
+                  exit 0
                 fi
                 sleep 10
               done
-
-              # Secondary safety net: if AuthPolicies are still MissingDependency
-              # (neuroface-gateway readiness Job raced or thrashing), restart once more.
-              echo "Checking AuthPolicy Accepted status..."
-              for attempt in 1 2 3; do
-                invalid=$(oc get authpolicy -A -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Accepted")]}{.status}{"\n"}{end}{end}' 2>/dev/null | grep -c False || true)
-                if [[ "${invalid:-0}" -eq 0 ]]; then
-                  echo "All AuthPolicies Accepted (or none present yet)."
-                  exit 0
-                fi
-                echo "Attempt $attempt/3: $invalid AuthPolicy(ies) not Accepted -- restarting $DEP..."
-                oc rollout restart "deployment/$DEP" -n "$NS" || true
-                oc rollout status "deployment/$DEP" -n "$NS" --timeout=180s || true
-                sleep 20
-              done
-              echo "WARN: some AuthPolicies still not Accepted; neuroface-gateway readiness Job may still be reconciling"
+              echo "WARN: Kuadrant CR not Ready after 6 minutes"
               exit 0

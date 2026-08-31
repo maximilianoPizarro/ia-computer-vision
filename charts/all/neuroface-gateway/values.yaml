@@ -5,14 +5,13 @@ hubLocal:
   enabled: false
   appService: neuroface-frontend.neuroface-hub.svc.cluster.local
   cvService: yolo-ppe-serving.neuroface-cv.svc.cluster.local
-gateway:
-  replicas: 2
 clusters:
   east:
     domain: ""
   west:
     domain: ""
 gateway:
+  replicas: 2
   weights:
     east: 50
     west: 50
@@ -35,7 +34,7 @@ gateway:
       consecutive5xxErrors: 3
       interval: 10s
       baseEjectionTime: 30s
-      maxEjectionPercent: 100
+      maxEjectionPercent: 50
 
 kuadrant:
   enabled: false

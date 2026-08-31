@@ -246,6 +246,58 @@ clusterGroup:
     - '/overrides/values-{{ $.Values.global.clusterPlatform }}.yaml'
     - '/overrides/values-{{ $.Values.global.clusterVersion }}-{{ $.Values.clusterGroup.name }}.yaml'
 
+  # Shared Argo CD tuning for Connectivity Link apps (not an Application entry).
+  connectivityLinkArgoCD:
+    syncPolicy: &connectivityLinkSyncPolicy
+      automated: {}
+      retry:
+        limit: 20
+      syncOptions:
+        - RespectIgnoreDifferences=true
+    ignoreDifferences: &connectivityLinkIgnoreDifferences
+      - group: kuadrant.io
+        kind: AuthPolicy
+        jqPathExpressions:
+          - .status
+      - group: kuadrant.io
+        kind: RateLimitPolicy
+        jqPathExpressions:
+          - .status
+      - group: kuadrant.io
+        kind: Kuadrant
+        jqPathExpressions:
+          - .status
+      - group: operator.authorino.kuadrant.io
+        kind: Authorino
+        jqPathExpressions:
+          - .status
+          - .spec
+      - group: limitador.kuadrant.io
+        kind: Limitador
+        jqPathExpressions:
+          - .status
+          - .spec.limits
+      - group: gateway.networking.k8s.io
+        kind: HTTPRoute
+        jqPathExpressions:
+          - .status
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        jqPathExpressions:
+          - .status
+      - group: networking.istio.io
+        kind: EnvoyFilter
+        jqPathExpressions:
+          - .status
+      - group: devportal.kuadrant.io
+        kind: APIProduct
+        jqPathExpressions:
+          - .status
+      - group: extensions.kuadrant.io
+        kind: PlanPolicy
+        jqPathExpressions:
+          - .status
+
   applications:
     openshift-gitops:
       name: openshift-gitops
@@ -354,9 +406,10 @@ clusterGroup:
         - name: keycloak.ingress.hostname
           value: 'sso.{{ .Values.global.localClusterDomain }}'
         # Do NOT set keycloak.ingress.enabled via Helm parameters: Argo passes
-        # them as strings and the upstream chart's `eq ... true` breaks. The
-        # rhbk Ingress for sso.<domain> will be HostAlreadyClaimed against
-        # developer-hub's Route/sso; that is harmless — Route/sso stays Admitted.
+        # them as strings and the upstream chart's `eq ... true` breaks.
+        # Canonical SSO hostname: rhbk Ingress/Route for sso.<domain>. Developer Hub
+        # does NOT create Route/sso (see route-sso.yaml); Route/keycloak is only an
+        # alias for stale OIDC redirects to keycloak.<domain>.
 
     rhbk-iam:
       name: rhbk-iam
@@ -418,6 +471,11 @@ clusterGroup:
       path: charts/all/developer-hub
       # After rhbk-iam (wave 5): backstage-realm import needs Keycloak running.
       syncWave: "6"
+      ignoreDifferences:
+        - group: k8s.keycloak.org
+          kind: KeycloakRealmImport
+          jqPathExpressions:
+            - .status
       overrides:
         - name: userCount
           value: "30"
@@ -474,6 +532,8 @@ clusterGroup:
       argoProject: ai
       path: charts/all/models-as-a-service
       syncWave: "6"
+      syncPolicy: *connectivityLinkSyncPolicy
+      ignoreDifferences: *connectivityLinkIgnoreDifferences
       overrides:
         - name: userCount
           value: "30"
@@ -551,6 +611,8 @@ clusterGroup:
       argoProject: mesh
       path: charts/all/neuroface-gateway
       syncWave: "6"
+      syncPolicy: *connectivityLinkSyncPolicy
+      ignoreDifferences: *connectivityLinkIgnoreDifferences
       overrides:
         - name: clusters.east.domain
           value: "east"
@@ -560,17 +622,10 @@ clusterGroup:
           value: "50"
         - name: gateway.weights.west
           value: "50"
-        # neuroface-cv (PPE/CV route) only, independent from the weights above
-        # (main NeuroFace app, which is healthy on both spokes). The east
-        # spoke's neuroface-cv backend is down due to a pre-existing,
-        # cluster-level GitOps/OLM issue on that spoke (missing Subscriptions,
-        # unstable argocd-application-controller -- unrelated to this pattern's
-        # own config) -- route 100% to west until that's resolved and east's
-        # backend is confirmed healthy again, then revert to 50/50.
         - name: gateway.cvWeights.east
-          value: "0"
+          value: "50"
         - name: gateway.cvWeights.west
-          value: "100"
+          value: "50"
         - name: gateway.replicas
           value: "2"
         - name: kuadrant.enabled
@@ -600,6 +655,8 @@ clusterGroup:
       argoProject: workshop
       path: charts/all/workshop-kuadrant-apis
       syncWave: "6"
+      syncPolicy: *connectivityLinkSyncPolicy
+      ignoreDifferences: *connectivityLinkIgnoreDifferences
       overrides:
         - name: apis.mcp.enabled
           value: "false"
