@@ -5,6 +5,58 @@ main:
     clusterGroupChartVersion: "0.9.*"
     helmRepoUrl: https://charts.validatedpatterns.io
 
+# YAML anchors only — not consumed by the clustergroup chart schema.
+_anchors:
+  connectivityLinkSyncPolicy: &connectivityLinkSyncPolicy
+    automated: {}
+    retry:
+      limit: 20
+    syncOptions:
+      - RespectIgnoreDifferences=true
+  connectivityLinkIgnoreDifferences: &connectivityLinkIgnoreDifferences
+    - group: kuadrant.io
+      kind: AuthPolicy
+      jqPathExpressions:
+        - .status
+    - group: kuadrant.io
+      kind: RateLimitPolicy
+      jqPathExpressions:
+        - .status
+    - group: kuadrant.io
+      kind: Kuadrant
+      jqPathExpressions:
+        - .status
+    - group: operator.authorino.kuadrant.io
+      kind: Authorino
+      jqPathExpressions:
+        - .status
+        - .spec
+    - group: limitador.kuadrant.io
+      kind: Limitador
+      jqPathExpressions:
+        - .status
+        - .spec.limits
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      jqPathExpressions:
+        - .status
+    - group: networking.istio.io
+      kind: EnvoyFilter
+      jqPathExpressions:
+        - .status
+    - group: devportal.kuadrant.io
+      kind: APIProduct
+      jqPathExpressions:
+        - .status
+    - group: extensions.kuadrant.io
+      kind: PlanPolicy
+      jqPathExpressions:
+        - .status
+
 clusterGroup:
   name: hub
   # NOTE: clusterGroup.argoCD.rbac below is INERT for singleArgoCD hub. Hub RBAC is
@@ -245,58 +297,6 @@ clusterGroup:
   sharedValueFiles:
     - '/overrides/values-{{ $.Values.global.clusterPlatform }}.yaml'
     - '/overrides/values-{{ $.Values.global.clusterVersion }}-{{ $.Values.clusterGroup.name }}.yaml'
-
-  # Shared Argo CD tuning for Connectivity Link apps (not an Application entry).
-  connectivityLinkArgoCD:
-    syncPolicy: &connectivityLinkSyncPolicy
-      automated: {}
-      retry:
-        limit: 20
-      syncOptions:
-        - RespectIgnoreDifferences=true
-    ignoreDifferences: &connectivityLinkIgnoreDifferences
-      - group: kuadrant.io
-        kind: AuthPolicy
-        jqPathExpressions:
-          - .status
-      - group: kuadrant.io
-        kind: RateLimitPolicy
-        jqPathExpressions:
-          - .status
-      - group: kuadrant.io
-        kind: Kuadrant
-        jqPathExpressions:
-          - .status
-      - group: operator.authorino.kuadrant.io
-        kind: Authorino
-        jqPathExpressions:
-          - .status
-          - .spec
-      - group: limitador.kuadrant.io
-        kind: Limitador
-        jqPathExpressions:
-          - .status
-          - .spec.limits
-      - group: gateway.networking.k8s.io
-        kind: HTTPRoute
-        jqPathExpressions:
-          - .status
-      - group: gateway.networking.k8s.io
-        kind: Gateway
-        jqPathExpressions:
-          - .status
-      - group: networking.istio.io
-        kind: EnvoyFilter
-        jqPathExpressions:
-          - .status
-      - group: devportal.kuadrant.io
-        kind: APIProduct
-        jqPathExpressions:
-          - .status
-      - group: extensions.kuadrant.io
-        kind: PlanPolicy
-        jqPathExpressions:
-          - .status
 
   applications:
     openshift-gitops:
