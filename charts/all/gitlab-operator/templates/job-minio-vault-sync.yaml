@@ -149,14 +149,22 @@ spec:
               python3 <<'PY'
               import base64, json, os, subprocess, sys, time
 
-              def oc(*args, check=True):
-                  return subprocess.run(
-                      ["oc", *args], capture_output=True, text=True, check=check,
+              def oc_out(*args):
+                  return subprocess.check_output(["oc", *args], universal_newlines=True)
+
+              def oc_rc(*args):
+                  proc = subprocess.Popen(
+                      ["oc", *args],
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                      universal_newlines=True,
                   )
+                  out, err = proc.communicate()
+                  return proc.returncode, out, err
 
               ns = os.environ["MINIO_NS"]
               secret_name = os.environ["MINIO_SECRET"]
-              raw = json.loads(oc("get", "secret", secret_name, "-n", ns, "-o", "json").stdout)
+              raw = json.loads(oc_out("get", "secret", secret_name, "-n", ns, "-o", "json"))
               data = raw.get("data") or {}
               if "accesskey" not in data or "secretkey" not in data:
                   print("ERROR: gitlab-minio-secret missing accesskey/secretkey", flush=True)
@@ -164,9 +172,7 @@ spec:
               key = base64.b64decode(data["accesskey"]).decode()
               secret = base64.b64decode(data["secretkey"]).decode()
 
-              vault_raw = json.loads(
-                  oc("get", "secret", "vaultkeys", "-n", "imperative", "-o", "json").stdout
-              )
+              vault_raw = json.loads(oc_out("get", "secret", "vaultkeys", "-n", "imperative", "-o", "json"))
               vault_data = json.loads(base64.b64decode(vault_raw["data"]["vault_data_json"]))
               root_token = vault_data.get("root_token")
               if not root_token:
@@ -174,34 +180,33 @@ spec:
                   sys.exit(1)
 
               payload = json.dumps({"data": {"accesskey": key, "secretkey": secret}})
-              r = subprocess.run(
+              vault_out = subprocess.check_output(
                   [
                       "curl", "-sk", "-X", "POST",
                       "https://vault.vault.svc:8200/v1/secret/data/hub/minio-credentials",
                       "-H", "X-Vault-Token: " + root_token,
                       "-d", payload,
                   ],
-                  capture_output=True, text=True, timeout=15,
+                  universal_newlines=True,
               )
-              if "version" in (r.stdout or ""):
+              if "version" in vault_out:
                   print("Vault minio-credentials: synced", flush=True)
               else:
-                  print("Vault sync failed: %s" % (r.stdout or r.stderr or "")[:200], flush=True)
+                  print("Vault sync failed: %s" % vault_out[:200], flush=True)
                   sys.exit(1)
 
               stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-              es = oc(
+              rc, out, err = oc_rc(
                   "annotate", "externalsecret", "aws-connection-ppe-models",
                   "-n", "neuroface-cv",
                   "force-sync=" + stamp, "--overwrite",
-                  check=False,
               )
-              if es.returncode == 0:
+              if rc == 0:
                   print("Triggered force-sync on ExternalSecret/aws-connection-ppe-models", flush=True)
               else:
                   print(
                       "WARN: ExternalSecret/aws-connection-ppe-models not patched yet (%s) — YOLO may still use placeholder keys until the CV app exists."
-                      % (es.stderr or es.stdout or "")[:200],
+                      % (err or out or "")[:200],
                       flush=True,
                   )
               PY
