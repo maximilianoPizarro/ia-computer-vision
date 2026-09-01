@@ -18,6 +18,10 @@
 #     - /values-hub-only.yaml
 #   File: examples/pattern-cr/hub-only-cpu.yaml
 #
+# Catalog / OpenTLC sandboxes that already ship cert-manager: also layer
+# /values-hub-preinstalled-operators.yaml (examples/pattern-cr/hub-only-cpu-preinstalled.yaml).
+# Do not use values-hub-rhpds.yaml for that — it is Scenario D only.
+#
 # Pattern CR — hub-only GPU on a fresh multi-node cluster:
 #   extraValueFiles:
 #     - /values-hub-gpu.yaml

@@ -245,19 +245,9 @@ spec:
               else
                 echo "Runner secret already exists — skipping."
               fi
-              # NOTE: Minio credentials are NOT synced to Vault here. The previous
-              # implementation execed into vault-0 and read /vault/data/root-token,
-              # which does not exist on this pattern's Vault (initialized via K8s
-              # auth, not a persisted root token file) -- it silently no-op'd on
-              # every run (oc exec + vault kv put failed auth, swallowed by the
-              # `|| echo WARN` fallback), leaving secret/data/hub/minio-credentials
-              # stuck at vault-secrets-bootstrap's random placeholder forever.
-              # The real sync now happens in charts/all/hub-interconnect's and
-              # charts/all/spoke-neuroface-cv's job-model-seed.yaml (PostSync,
-              # same gitlab-system namespace, default ServiceAccount), which
-              # authenticates to Vault via the Kubernetes auth method (role
-              # "secret-manager") -- the same working pattern vault-secrets-
-              # bootstrap itself uses. See docs/content/patterns/ia-computer-vision/
-              # scaffolding-and-secrets.adoc.
+              # MinIO → Vault lives in job-minio-vault-sync.yaml (Sync hook on
+              # this GitLab app, root token from imperative/vaultkeys). Do not
+              # put it on spoke-neuroface-cv: GitOps skips that app's hooks while
+              # InferenceService is Degraded from the placeholder S3 keys.
 
               echo "gitlab-workshop-bootstrap complete."

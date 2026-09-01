@@ -6,6 +6,10 @@
 #   - The cluster has no operators pre-installed beyond OCP + Validated Patterns Operator
 #   - Recommended sizing: 3× m6a.2xlarge control plane + 4–5× m6a.4xlarge workers
 #
+# If the cluster already has openshift-cert-manager-operator (OpenTLC catalog),
+# use hub-only-cpu-preinstalled.yaml instead — a second OperatorGroup fails
+# the CSV with TooManyOperatorGroups. Do not add values-hub-rhpds.yaml here.
+#
 # Apply: oc apply -f examples/pattern-cr/hub-only-cpu.yaml
 # Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
 ---

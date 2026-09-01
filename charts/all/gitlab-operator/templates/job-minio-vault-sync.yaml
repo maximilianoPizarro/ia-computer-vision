@@ -1,0 +1,208 @@
+{{- $ns := .Values.namespace | default "gitlab-system" -}}
+{{- $minio := (.Values.external | default dict).minio | default dict -}}
+{{- $minioSecret := $minio.secretName | default "gitlab-minio-secret" -}}
+{{- $cliImage := $minio.cliImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
+{{- /*
+  Copy gitlab-minio-secret into Vault secret/data/hub/minio-credentials and
+  force-sync ExternalSecret/aws-connection-ppe-models. Lives on the GitLab
+  app (not spoke-neuroface-cv) so GitOps does not skip it when the
+  InferenceService is Degraded from the placeholder S3 keys.
+*/ -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-minio-vault-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-minio-vault-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $minioSecret | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-minio-vault-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-minio-vault-sync
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-minio-vault-sync
+    namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-minio-vault-sync-vaultkeys
+  namespace: imperative
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["vaultkeys"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-minio-vault-sync-vaultkeys
+  namespace: imperative
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-minio-vault-sync-vaultkeys
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-minio-vault-sync
+    namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitlab-minio-vault-sync-eso
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    resourceNames: ["aws-connection-ppe-models"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitlab-minio-vault-sync-eso
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gitlab-minio-vault-sync-eso
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-minio-vault-sync
+    namespace: {{ $ns }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-minio-vault-sync
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: gitlab-minio-vault-sync
+      containers:
+        - name: sync
+          image: {{ $cliImage | quote }}
+          env:
+            - name: MINIO_SECRET
+              value: {{ $minioSecret | quote }}
+            - name: MINIO_NS
+              value: {{ $ns | quote }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              echo "Waiting for Secret/${MINIO_SECRET} in ${MINIO_NS}..."
+              for i in $(seq 1 90); do
+                if oc get secret "$MINIO_SECRET" -n "$MINIO_NS" >/dev/null 2>&1; then
+                  echo "gitlab-minio-secret ready (attempt $i)."
+                  break
+                fi
+                echo "attempt $i/90: secret not found"
+                sleep 10
+              done
+              if ! oc get secret "$MINIO_SECRET" -n "$MINIO_NS" >/dev/null 2>&1; then
+                echo "ERROR: ${MINIO_SECRET} not ready after 15 minutes" >&2
+                exit 1
+              fi
+              python3 <<'PY'
+              import base64, json, os, subprocess, sys, time
+
+              def oc(*args, check=True):
+                  return subprocess.run(
+                      ["oc", *args], capture_output=True, text=True, check=check,
+                  )
+
+              ns = os.environ["MINIO_NS"]
+              secret_name = os.environ["MINIO_SECRET"]
+              raw = json.loads(oc("get", "secret", secret_name, "-n", ns, "-o", "json").stdout)
+              data = raw.get("data") or {}
+              if "accesskey" not in data or "secretkey" not in data:
+                  print("ERROR: gitlab-minio-secret missing accesskey/secretkey", flush=True)
+                  sys.exit(1)
+              key = base64.b64decode(data["accesskey"]).decode()
+              secret = base64.b64decode(data["secretkey"]).decode()
+
+              vault_raw = json.loads(
+                  oc("get", "secret", "vaultkeys", "-n", "imperative", "-o", "json").stdout
+              )
+              vault_data = json.loads(base64.b64decode(vault_raw["data"]["vault_data_json"]))
+              root_token = vault_data.get("root_token")
+              if not root_token:
+                  print("ERROR: root_token missing in imperative/vaultkeys", flush=True)
+                  sys.exit(1)
+
+              payload = json.dumps({"data": {"accesskey": key, "secretkey": secret}})
+              r = subprocess.run(
+                  [
+                      "curl", "-sk", "-X", "POST",
+                      "https://vault.vault.svc:8200/v1/secret/data/hub/minio-credentials",
+                      "-H", "X-Vault-Token: " + root_token,
+                      "-d", payload,
+                  ],
+                  capture_output=True, text=True, timeout=15,
+              )
+              if "version" in (r.stdout or ""):
+                  print("Vault minio-credentials: synced", flush=True)
+              else:
+                  print("Vault sync failed: %s" % (r.stdout or r.stderr or "")[:200], flush=True)
+                  sys.exit(1)
+
+              stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+              es = oc(
+                  "annotate", "externalsecret", "aws-connection-ppe-models",
+                  "-n", "neuroface-cv",
+                  "force-sync=" + stamp, "--overwrite",
+                  check=False,
+              )
+              if es.returncode == 0:
+                  print("Triggered force-sync on ExternalSecret/aws-connection-ppe-models", flush=True)
+              else:
+                  print(
+                      "WARN: ExternalSecret/aws-connection-ppe-models not patched yet (%s) — YOLO may still use placeholder keys until the CV app exists."
+                      % (es.stderr or es.stdout or "")[:200],
+                      flush=True,
+                  )
+              PY
+              echo "gitlab-minio-vault-sync complete."

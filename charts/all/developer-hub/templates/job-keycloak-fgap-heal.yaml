@@ -149,30 +149,30 @@ spec:
               # Exit 0 = Admin API healthy. Exit 1 = FGAP lockout.
               # Exit 2 = realm/clients not ready yet (do NOT wipe).
               admin_api_ok() {
-                local token="$1" code body keys
+                local token="$1" realm="${2:-backstage}" code body keys
                 code=$(curl -sk -o /tmp/fgap-clients.json -w '%{http_code}' \
                   -H "Authorization: Bearer $token" \
-                  "$KC_HOST/admin/realms/backstage/clients?max=1" || echo "000")
+                  "$KC_HOST/admin/realms/${realm}/clients?max=1" || echo "000")
                 body=$(cat /tmp/fgap-clients.json 2>/dev/null || echo "")
                 if [ "$code" = "403" ] || echo "$body" | grep -q '403 Forbidden'; then
-                  echo "FGAP detected: backstage clients Admin API HTTP $code"
+                  echo "FGAP detected: ${realm} clients Admin API HTTP $code"
                   return 1
                 fi
                 if [ "$code" = "404" ] || [ "$code" = "000" ] || [ "$code" = "503" ]; then
-                  echo "backstage clients Admin API not ready yet (HTTP $code)"
+                  echo "${realm} clients Admin API not ready yet (HTTP $code)"
                   return 2
                 fi
                 if [ "$code" != "200" ]; then
-                  echo "backstage clients Admin API unexpected HTTP $code"
+                  echo "${realm} clients Admin API unexpected HTTP $code"
                   return 2
                 fi
                 # Truncated realm representation is another FGAP signal.
                 # One-line python — multiline "try:" at column 0 breaks the YAML | block.
                 curl -sk -H "Authorization: Bearer $token" \
-                  "$KC_HOST/admin/realms/backstage" -o /tmp/fgap-realm.json || true
+                  "$KC_HOST/admin/realms/${realm}" -o /tmp/fgap-realm.json || true
                 keys=$(python3 -c "import json; r=json.load(open('/tmp/fgap-realm.json')); print(len(r.keys()) if isinstance(r,dict) else 0)" 2>/dev/null || echo "0")
                 if [ "$keys" -gt 0 ] && [ "$keys" -lt 20 ]; then
-                  echo "FGAP detected: truncated RealmRepresentation keys=$keys"
+                  echo "FGAP detected: truncated ${realm} RealmRepresentation keys=$keys"
                   return 1
                 fi
                 return 0
@@ -225,6 +225,39 @@ spec:
               set -e
               if [ "$api_rc" -eq 0 ]; then
                 echo "backstage realm Admin API healthy — no FGAP heal needed."
+                # Realm cv can still have FGAP after a re-import (KeycloakRealmImport
+                # does not mutate an existing realm). Wipe would take down Developer Hub
+                # login; only warn so rhbk-iam-sync-client-secrets / scaffolder can be
+                # diagnosed without destroying Postgres.
+                set +e
+                admin_api_ok "$TOKEN" cv
+                cv_rc=$?
+                set -e
+                if [ "$cv_rc" -eq 1 ]; then
+                  echo "Realm cv Admin API locked while backstage is healthy — restarting Keycloak (no Postgres wipe). In-memory FGAP often survives adminPermissionsEnabled=false in the DB."
+                  oc delete pod keycloak-0 -n "$KC_NS" --force --grace-period=0 2>/dev/null || true
+                  for i in $(seq 1 60); do
+                    kc=$(oc get pod keycloak-0 -n "$KC_NS" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo false)
+                    del=$(oc get pod keycloak-0 -n "$KC_NS" -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null || true)
+                    echo "attempt $i/60: keycloak_ready=$kc deleting=${del:-none}"
+                    if [ -z "$del" ] && [ "$kc" = "true" ]; then
+                      break
+                    fi
+                    sleep 5
+                  done
+                  TOKEN=$(get_token || true)
+                  set +e
+                  admin_api_ok "$TOKEN" cv
+                  cv_rc=$?
+                  set -e
+                  if [ "$cv_rc" -eq 0 ]; then
+                    echo "cv Admin API recovered after Keycloak restart — refreshing rhbk-iam so client secrets can sync."
+                    oc annotate application rhbk-iam -n "$ARGO_NS" \
+                      argocd.argoproj.io/refresh=hard --overwrite || true
+                  else
+                    echo "WARN: realm cv still locked after Keycloak restart. Scaffolder OIDC self-service may fail unauthorized_client. Do not wipe Postgres while backstage is healthy."
+                  fi
+                fi
                 exit 0
               fi
               if [ "$api_rc" -ne 1 ]; then

@@ -5,12 +5,15 @@ description: >-
   the ia-computer-vision hub-only CPU pattern, and recover from the known
   first-boot issues a cluster with NO pre-installed operators hits (cert-manager
   missing, RHBK/ESO sync-wave races, Keycloak Fine-Grained Admin Permissions
-  locking out the backstage realm, Kuadrant Gateway API dependency race). Use
-  when asked to launch a Cluster Bot cluster for this pattern, or when
-  diagnosing SSO 503s, Developer Hub "unauthorized_client"/"Realm does not
-  exist" errors, GitLab stuck in "Preparing" (cert-manager missing OR chart
-  10.x missing external Postgres/Redis/MinIO), invalid Kuadrant AuthPolicy, or
-  missing API Products/Swagger definitions right after a fresh install.
+  locking out the backstage realm, Kuadrant Gateway API dependency race). Also
+  covers OpenTLC/catalog sandboxes that already have cert-manager (TooManyOperatorGroups
+  without values-hub-rhpds.yaml), Kuadrant WASM fail-closed 503s, FGAP on realm
+  cv vs backstage, and hub-local HTTPRoute ExternalName 503s. Use when asked to
+  launch a Cluster Bot cluster for this pattern, or when diagnosing SSO 503s,
+  Developer Hub "unauthorized_client"/"Realm does not exist" errors, GitLab stuck
+  in "Preparing" (cert-manager missing OR chart 10.x missing external
+  Postgres/Redis/MinIO), invalid Kuadrant AuthPolicy, or missing API
+  Products/Swagger definitions right after a fresh install.
 ---
 
 # Cluster Bot install -- ia-computer-vision hub-only CPU
@@ -102,6 +105,26 @@ No manual step needed on a fresh install -- GitLab's own controller retry
 loop (backoff up to ~16 min) would eventually self-heal even in the unlikely
 case of a residual race, but with cert-manager present from the start it
 should just work on the first pass.
+
+**OpenTLC / catalog CPU sandboxes (not Scenario D):** the catalog already
+created `OperatorGroup/cert-manager-operator-og`. Adding the pattern's
+`cert-manager-operator-operator-group` fails the CSV with
+`TooManyOperatorGroups`. Use Scenario A2:
+
+```
+extraValueFiles:
+  - /values-hub-only.yaml
+  - /values-hub-preinstalled-operators.yaml
+```
+
+File: `examples/pattern-cr/hub-only-cpu-preinstalled.yaml`. That overlay
+ONLY sets `clusterGroup.namespaces.cert-manager-operator.operatorGroup: false`.
+**Do not** add `values-hub-rhpds.yaml` on OpenTLC CPU -- it changes
+`ssoHostPrefix` to `rhdh-sso` and assumes RHOAI is pre-installed.
+
+Live recovery if the second OG already exists: delete
+`cert-manager-operator-operator-group`, keep the catalog OG, recreate the
+subscription if the CSV stays Failed.
 
 **Manual fallback if you hit an already-broken GitLab install** (e.g. an
 older cluster missing this fix): install `openshift-cert-manager-operator`
@@ -326,8 +349,14 @@ is a PostSync hook (sync-wave 5, same wave as `servicemesh-config`) that
 waits for the `istio` GatewayClass to be `Accepted`, then runs
 `oc rollout restart` on the Kuadrant + Limitador operator deployments,
 waits for AuthPolicies to appear, and **re-verifies** they are `Accepted`
-(up to 6 Kuadrant-only restarts). `workshop-kuadrant-apis` has a secondary
-PostSync restart hook as a safety net.
+(up to 6 Kuadrant-only restarts). After AuthPolicies are Accepted (or on
+timeout) it waits until
+`http://kuadrant-operator-wasm.redhat-connectivity-link-operator.svc:8082/plugin.wasm`
+returns 200 and restarts `neuroface-gateway-istio` plus
+`workshop-apis-gateway-istio`. Envoy fetches WASM once at start
+(fail-closed / FAIL_RELOAD): if the fetch 404s, AuthPolicy routes stay 503
+(or briefly fail-open 200 with no auth) until those gateway pods restart.
+`workshop-kuadrant-apis` has a secondary PostSync restart hook as a safety net.
 
 **Bug found 2026-07-13 (ci-ln-3tzt90t):** the verify loop piped JSON into
 `python3 -c` with YAML-indented source, which always hit `IndentationError`
@@ -380,13 +409,20 @@ match what Keycloak has for the `developer-hub` client.
 
 | Component | Behavior |
 |-----------|----------|
-| `keycloak-fgap-heal` (developer-hub PostSync wave 5) | Detects FGAP (403 or truncated realm) → deletes realm-imports → wipes `postgresql-db` PVC → hard-refreshes `rhbk-iam` + `developer-hub` → waits until Admin API is healthy |
+| `keycloak-fgap-heal` (developer-hub PostSync wave 5) | Detects FGAP (403 or truncated realm) on **backstage** → deletes realm-imports → wipes `postgresql-db` PVC → hard-refreshes `rhbk-iam` + `developer-hub` → waits until Admin API is healthy. If **backstage is healthy** but **realm cv** is still 403/truncated, **restarts `keycloak-0` only** (in-memory FGAP; `adminPermissionsEnabled=false` in Postgres is not enough) and refreshes `rhbk-iam` — does **not** wipe Postgres (that takes down Developer Hub login). |
 | `developer-hub-sync-backstage-realm-secrets` (wave 6) | Waits for clients; fail-fast on Admin API 403 (does not spin) |
 | `rhbk-iam-sync-client-secrets` | Same wait/retry + 403 fail-fast for realm `cv` |
 | Realm CRs | Keep `adminPermissionsEnabled: false` on backstage + rhbk-iam realms |
 
 Healthy installs: heal exits immediately (“no FGAP heal needed”). Wipe only
-runs when lockout is detected (hub-only workshop data is re-imported).
+runs when **backstage** lockout is detected (hub-only workshop data is re-imported).
+
+Scaffolder step "Authenticate provisioner (realm cv)" `unauthorized_client`
+is often: (1) cv Admin API 403 so sync never PUTs `backstage-provisioner`,
+and/or (2) Keycloak's live client secret (autogenerated, ~38 chars) != Vault
+(24 chars). After cv Admin API returns 200, `rhbk-iam-sync-client-secrets`
+must complete (`OK cv/backstage-provisioner`). Manual recovery: restart
+`keycloak-0`, then delete/recreate that Job (do not wipe Postgres).
 
 **After PVC wipe, Keycloak must restart** — otherwise it stays Ready against an
 empty DB (`offline_user_session` / `jgroups_ping` missing) and SSO shows
@@ -424,6 +460,17 @@ CPU installs (`hubLocal.enabled: true`) target the exact same
 
 **Pattern fix (already applied):** the guard now also fires when
 `hubLocal.enabled` is `"true"`.
+
+Connectivity Link console **Definition** tab reads `APIProduct.status.openapi.raw`,
+not `docsURL`. Catalog `/definition` URLs are Developer Hub SPA HTML. Chart
+`job-sync-apiproduct-openapi.yaml` PostSync-patches status and a CronJob
+(`*/10 * * * *`) repeats it. SA/RBAC are persistent (not PostSync hooks).
+
+**Hub-local 503 `upstream_host: null`:** Istio ambient does not populate EDS
+for ExternalName Services. Hub-only HTTPRoutes must `backendRef` the real
+ClusterIP (`neuroface-frontend` in `neuroface-hub`, `yolo-ppe-serving` in
+`neuroface-cv`) plus `ReferenceGrant`s. Do not label `neuroface-hub`
+`istio.io/dataplane-mode=ambient` without confirming ztunnel namespace.
 
 **Recovery on an already-installed cluster (before the ArgoCD app resyncs):**
 ```bash

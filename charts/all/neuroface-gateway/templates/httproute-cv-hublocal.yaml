@@ -26,7 +26,8 @@ spec:
               type: ReplaceFullPath
               replaceFullPath: /health
       backendRefs:
-        - name: neuroface-cv-hub
+        - name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
           port: 8080
           weight: 100
     - matches:
@@ -40,7 +41,8 @@ spec:
               type: ReplaceFullPath
               replaceFullPath: /health
       backendRefs:
-        - name: neuroface-cv-hub
+        - name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
           port: 8080
           weight: 100
     - matches:
@@ -54,7 +56,8 @@ spec:
               type: ReplaceFullPath
               replaceFullPath: /v1/predict
       backendRefs:
-        - name: neuroface-cv-hub
+        - name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
           port: 8080
           weight: 100
     - matches:
@@ -62,7 +65,8 @@ spec:
             type: PathPrefix
             value: /api/ppe
       backendRefs:
-        - name: neuroface-cv-hub
+        - name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
           port: 8080
           weight: 100
     - matches:
@@ -70,7 +74,8 @@ spec:
             type: PathPrefix
             value: /health
       backendRefs:
-        - name: neuroface-cv-hub
+        - name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
           port: 8080
           weight: 100
     - matches:
@@ -78,11 +83,13 @@ spec:
             type: PathPrefix
             value: /v1/predict
       backendRefs:
-        - name: neuroface-cv-hub
+        - name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
           port: 8080
           weight: 100
     - backendRefs:
-        - name: neuroface-cv-hub
+        - name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
           port: 8080
           weight: 100
 {{- end }}

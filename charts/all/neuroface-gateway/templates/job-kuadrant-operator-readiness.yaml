@@ -69,6 +69,62 @@ rules:
     verbs: ["get", "list", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: neuroface-gateway-kuadrant-readiness-gateways
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: neuroface-gateway-kuadrant-readiness-gateways
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: neuroface-gateway-kuadrant-readiness-gateways
+subjects:
+  - kind: ServiceAccount
+    name: neuroface-gateway-kuadrant-readiness
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: neuroface-gateway-kuadrant-readiness-workshop-gw
+  namespace: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: neuroface-gateway-kuadrant-readiness-workshop-gw
+  namespace: workshop-kuadrant-apis
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: neuroface-gateway-kuadrant-readiness-workshop-gw
+subjects:
+  - kind: ServiceAccount
+    name: neuroface-gateway-kuadrant-readiness
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: neuroface-gateway-kuadrant-readiness
@@ -159,6 +215,30 @@ spec:
                 oc get pods -n "$NS" -o name 2>/dev/null | grep kuadrant-operator-controller | xargs -r oc delete -n "$NS" --force --grace-period=0 || true
               }
 
+              # Kuadrant WASM is fetched once at Envoy start (fail-closed / FAIL_RELOAD).
+              # If kuadrant-operator-wasm is not Ready yet, plugin.wasm 404s and every
+              # AuthPolicy route returns 503 (or fail-open 200 with no auth). Restart
+              # Istio gateway Deployments after the WASM HTTP endpoint returns 200.
+              reload_gateways_for_wasm() {
+                local wasm="http://kuadrant-operator-wasm.redhat-connectivity-link-operator.svc.cluster.local:8082/plugin.wasm"
+                local i code
+                echo "Waiting for Kuadrant WASM plugin.wasm..."
+                for i in $(seq 1 36); do
+                  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$wasm" || echo "000")
+                  if [ "$code" = "200" ]; then
+                    echo "plugin.wasm HTTP 200"
+                    break
+                  fi
+                  echo "attempt $i/36: wasm HTTP $code"
+                  sleep 5
+                done
+                echo "Restarting Istio gateway Deployments so Envoy re-fetches WASM..."
+                oc rollout restart deployment/neuroface-gateway-istio -n "{{ .Release.Namespace }}" || true
+                oc rollout restart deployment/workshop-apis-gateway-istio -n workshop-kuadrant-apis || true
+                oc rollout status deployment/neuroface-gateway-istio -n "{{ .Release.Namespace }}" --timeout=180s || true
+                oc rollout status deployment/workshop-apis-gateway-istio -n workshop-kuadrant-apis --timeout=180s || true
+              }
+
               echo "Waiting for Istio GatewayClass to be Accepted..."
               for i in $(seq 1 60); do
                 STATUS=$(oc get gatewayclass istio -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}' 2>/dev/null || echo "")
@@ -198,6 +278,7 @@ spec:
                 if [ "$INVALID" = "0" ]; then
                   echo "All AuthPolicy resources Accepted."
                   oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status,REASON:.status.conditions[0].reason || true
+                  reload_gateways_for_wasm
                   exit 0
                 fi
                 echo "Attempt $attempt/6: $INVALID/$TOTAL AuthPolicy(ies) not Accepted -- restarting Kuadrant + Authorino..."
@@ -209,6 +290,7 @@ spec:
 
               echo "WARNING: some AuthPolicy resources still not Accepted after retries."
               oc get authpolicy -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,ACCEPTED:.status.conditions[0].status,REASON:.status.conditions[0].reason || true
+              reload_gateways_for_wasm
               # Non-zero so Argo surfaces the hook failure; do not thrash (restartPolicy: Never).
               exit 1
 {{- end }}

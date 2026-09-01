@@ -31,6 +31,12 @@ Ready-to-apply YAML files live in the repository under `examples/pattern-cr/`.
 | No
 | `/values-hub-only.yaml`
 
+| **A2 — Hub-only CPU, catalog cert-manager**
+| 1 hub
+| No
+| Yes (OpenTLC / catalog `openshift-cert-manager-operator` only)
+| `/values-hub-only.yaml`, `/values-hub-preinstalled-operators.yaml`
+
 | **B — Hub + spokes CPU**
 | hub + east + west
 | No
@@ -58,7 +64,7 @@ Ready-to-apply YAML files live in the repository under `examples/pattern-cr/`.
 
 [NOTE]
 ====
-*Scenario A* is the recommended default for a single hub cluster with CPU inference and no pre-installed operators. It disables Skupper and ACM spoke import, runs NeuroFace and Kafka locally on the hub, and avoids `Missing`/`Degraded` Argo CD applications that appear when spoke clusters do not exist.
+*Scenario A* is the recommended default for a single hub cluster with CPU inference and no pre-installed operators. It disables Skupper and ACM spoke import, runs NeuroFace and Kafka locally on the hub, and avoids `Missing`/`Degraded` Argo CD applications that appear when spoke clusters do not exist. Use *Scenario A2* when the catalog already installed cert-manager (typical OpenTLC CPU sandbox). Do not add `values-hub-rhpds.yaml` for that case.
 ====
 
 === Decision flow
@@ -68,7 +74,9 @@ flowchart TD
   start[How many clusters?] --> one[One hub only]
   start --> three[Hub + east + west]
   one --> gpu{GPU inference?}
-  gpu -->|No| A["Scenario A: hub-only-cpu.yaml"]
+  gpu -->|No| preCpu{Catalog cert-manager?}
+  preCpu -->|No| A["Scenario A: hub-only-cpu.yaml"]
+  preCpu -->|Yes| A2["Scenario A2: hub-only-cpu-preinstalled.yaml"]
   gpu -->|Yes| pre{Operators pre-installed?}
   pre -->|No| C["Scenario C: hub-only-gpu-multi-node.yaml"]
   pre -->|Yes| D["Scenario D: hub-only-gpu-single-node-preinstalled.yaml"]
@@ -123,6 +131,55 @@ $ oc apply -f examples/pattern-cr/hub-only-cpu.yaml
 [source,bash]
 ----
 $ EXTRA_HELM_OPTS='-f values-hub-only.yaml' ./pattern.sh make install
+----
+
+== Scenario A2 — Hub-only CPU with catalog cert-manager
+
+Use this when you provision **one hub cluster** with CPU-only inference **and** the cluster already has `openshift-cert-manager-operator` from the catalog (OpenTLC and similar sandboxes). The catalog OperatorGroup is typically `cert-manager-operator-og`. The default pattern also creates `cert-manager-operator-operator-group` in the same namespace, and OLM then fails the CSV with `TooManyOperatorGroups`.
+
+**Do not** add `values-hub-rhpds.yaml` as a substitute. That overlay is Scenario D only: it rewrites SSO to `rhdh-sso`, disables the cert-manager subscription, and assumes Red Hat OpenShift AI and related operators are already installed.
+
+**Example file:** `examples/pattern-cr/hub-only-cpu-preinstalled.yaml`
+
+[source,yaml]
+----
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-only.yaml
+    - /values-hub-preinstalled-operators.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io
+----
+
+**What `values-hub-preinstalled-operators.yaml` does:**
+
+* Sets `clusterGroup.namespaces.cert-manager-operator.operatorGroup: false` so the pattern does not create a second OperatorGroup
+* Does not disable the cert-manager subscription
+* Does not change `ssoHostPrefix`
+
+**Apply:**
+
+[source,bash]
+----
+$ oc apply -f examples/pattern-cr/hub-only-cpu-preinstalled.yaml
+----
+
+**CLI equivalent:**
+
+[source,bash]
+----
+$ EXTRA_HELM_OPTS='-f values-hub-only.yaml -f values-hub-preinstalled-operators.yaml' ./pattern.sh make install
 ----
 
 == Scenario B — Hub + spokes CPU
@@ -244,6 +301,9 @@ spec:
 | `values-hub-only.yaml`
 | Hub without east/west spokes — disables Skupper/ACM spoke import, runs NeuroFace and Kafka on the hub
 
+| `values-hub-preinstalled-operators.yaml`
+| OpenTLC / catalog cert-manager — skips a second OperatorGroup only. Pair with `values-hub-only.yaml` (Scenario A2). Do not use `values-hub-rhpds.yaml` for this
+
 | `values-hub-gpu.yaml`
 | GPU model serving — adds NFD, NVIDIA GPU Operator subscriptions, and GPU InferenceServices
 
@@ -270,6 +330,9 @@ Overlays are **opt-in** and **composable**. None load unless listed in `extraVal
 
 | Adding `values-hub-rhpds.yaml` on a fresh cluster
 | Omit it — use Scenario A or C instead
+
+| Adding `values-hub-rhpds.yaml` on an OpenTLC CPU sandbox to skip a second cert-manager OperatorGroup
+| Use Scenario A2 (`values-hub-preinstalled-operators.yaml`) instead — `rhpds` changes SSO and assumes Scenario D operators
 
 | Putting `values-hub-only.yaml` after `values-hub-rhpds.yaml` in Scenario D
 | Put `rhpds` last — otherwise hubLocal / kafka / spoke-disable overrides are dropped

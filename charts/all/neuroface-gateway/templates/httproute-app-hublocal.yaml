@@ -20,7 +20,8 @@ spec:
         request: 120s
         backendRequest: 120s
       backendRefs:
-        - name: neuroface-app-hub
+        - name: {{ include "neuroface-gateway.hubLocalAppName" . }}
+          namespace: {{ include "neuroface-gateway.hubLocalAppNamespace" . }}
           port: 8080
           weight: 100
 {{- end }}

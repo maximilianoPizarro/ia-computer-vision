@@ -78,8 +78,10 @@ metadata:
   annotations:
     # Sync (not PostSync, not wave 0): a wave-0 DeadlineExceeded Job blocked
     # Kafka/IS. PostSync never runs while InferenceService is Degraded (S3 403
-    # until this Job writes real gitlab-minio-secret into Vault) — chicken-and-
-    # egg on Cluster Bot. Sync hooks run after apply and do not wait for Healthy.
+    # until Vault has real gitlab-minio keys) — chicken-and-egg on Cluster Bot.
+    # GitLab chart job-minio-vault-sync.yaml owns the Vault write so YOLO is
+    # not gated on this app's health. This Job still uploads the model and
+    # re-puts keys when it does run. Sync hooks run after apply and do not wait for Healthy.
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation

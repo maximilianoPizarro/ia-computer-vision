@@ -1,0 +1,25 @@
+# OPT-IN overlay for hub-only (or hub+spokes) clusters that already have
+# openshift-cert-manager-operator from the catalog / OpenTLC / a previous
+# install. The pattern's default values-hub.yaml creates OperatorGroup
+# cert-manager-operator-operator-group in the same namespace as the catalog
+# OperatorGroup (cert-manager-operator-og). OLM then fails the CSV with
+# TooManyOperatorGroups.
+#
+# This overlay ONLY skips the second OperatorGroup. It does NOT:
+#   - disable the cert-manager subscription (Argo may already own it)
+#   - change ssoHostPrefix (that is values-hub-rhpds.yaml / Scenario D)
+#   - skip NFD / GPU / ODS OperatorGroups
+#
+# Do NOT use values-hub-rhpds.yaml as a substitute on OpenTLC CPU sandboxes:
+# that file also rewrites SSO to rhdh-sso and assumes RHOAI is pre-installed.
+#
+# Pattern CR (hub-only CPU + catalog cert-manager):
+#   extraValueFiles:
+#     - /values-hub-only.yaml
+#     - /values-hub-preinstalled-operators.yaml
+#   File: examples/pattern-cr/hub-only-cpu-preinstalled.yaml
+
+clusterGroup:
+  namespaces:
+    cert-manager-operator:
+      operatorGroup: false

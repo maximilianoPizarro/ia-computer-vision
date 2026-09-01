@@ -1,0 +1,32 @@
+# Hub-only, CPU inference, catalog sandbox that already has cert-manager
+# (OpenTLC / similar). Same as hub-only-cpu.yaml plus the OperatorGroup skip.
+#
+# Use when:
+#   - You have ONE hub cluster (no east/west spokes)
+#   - CPU-only inference
+#   - openshift-cert-manager-operator is already installed (CSV in
+#     cert-manager-operator, OperatorGroup cert-manager-operator-og)
+#   - You do NOT have the full RHPDS Scenario D stack (do not add
+#     values-hub-rhpds.yaml — it changes ssoHostPrefix and disables the
+#     cert-manager subscription)
+#
+# Apply: oc apply -f examples/pattern-cr/hub-only-cpu-preinstalled.yaml
+# Docs:  docs/content/patterns/ia-computer-vision/pattern-cr-guide.adoc
+---
+apiVersion: gitops.hybrid-cloud-patterns.io/v1alpha1
+kind: Pattern
+metadata:
+  name: ia-computer-vision
+  namespace: openshift-operators
+spec:
+  clusterGroupName: hub
+  extraValueFiles:
+    - /values-hub-only.yaml
+    - /values-hub-preinstalled-operators.yaml
+  gitSpec:
+    targetRepo: https://github.com/maximilianoPizarro/ia-computer-vision.git
+    targetRevision: main
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: "0.9.*"
+    helmRepoUrl: https://charts.validatedpatterns.io

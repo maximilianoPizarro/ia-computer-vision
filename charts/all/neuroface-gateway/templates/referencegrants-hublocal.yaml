@@ -1,0 +1,37 @@
+{{- if eq (.Values.hubLocal.enabled | toString | default "false") "true" }}
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: neuroface-gateway-httproute
+  namespace: {{ include "neuroface-gateway.hubLocalAppNamespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: neuroface-gateway-system
+  to:
+    - group: ""
+      kind: Service
+      name: {{ include "neuroface-gateway.hubLocalAppName" . }}
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: neuroface-gateway-httproute
+  namespace: {{ include "neuroface-gateway.hubLocalCvNamespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: neuroface-gateway-system
+  to:
+    - group: ""
+      kind: Service
+      name: {{ include "neuroface-gateway.hubLocalCvName" . }}
+{{- end }}

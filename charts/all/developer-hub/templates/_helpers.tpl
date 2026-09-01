@@ -184,3 +184,63 @@ progressing past this resource's sync wave.
 {{- $d := include "developer-hub.spokeDomainFromApiUrl" $url -}}
 {{- $d | default "cluster-west.example.com" -}}
 {{- end -}}
+
+{{/*
+  Patches APIProduct.status.openapi.raw so Connectivity Link DevPortal
+  Definition tab renders Swagger (catalog /definition URLs are SPA HTML).
+*/}}
+{{- define "developer-hub.syncApiProductOpenapiScript" -}}
+python3 <<'PY'
+import json, os, subprocess, tempfile
+from datetime import datetime, timezone
+
+def oc(*args):
+    return subprocess.check_output(["oc", *args], universal_newlines=True)
+
+cm = json.loads(
+    oc(
+        "get", "configmap", "developer-hub-apiproduct-openapi-specs",
+        "-n", "developer-hub", "-o", "json",
+    )
+)["data"]
+mapping = json.loads(cm["mapping.yaml"])
+now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+synced = 0
+for ref, filename in mapping.items():
+    ns, name = ref.split("/", 1)
+    raw = cm.get(filename)
+    if not raw:
+        print(f"SKIP {ref}: missing {filename}", flush=True)
+        continue
+    try:
+        subprocess.run(
+            ["oc", "get", "apiproduct", name, "-n", ns],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        print(f"SKIP {ref}: APIProduct not found", flush=True)
+        continue
+    patch_body = {"status": {"openapi": {"raw": raw, "lastSyncTime": now}}}
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", suffix=".json", delete=False,
+    ) as patch_file:
+        json.dump(patch_body, patch_file, ensure_ascii=False)
+        patch_path = patch_file.name
+    try:
+        subprocess.run(
+            [
+                "oc", "patch", "apiproduct", name, "-n", ns,
+                "--type=merge", "--subresource=status",
+                "--patch-file", patch_path,
+            ],
+            check=True,
+        )
+    finally:
+        os.unlink(patch_path)
+    print(f"OK {ref}", flush=True)
+    synced += 1
+print(f"Synced OpenAPI to {synced} APIProduct(s)", flush=True)
+PY
+{{- end -}}

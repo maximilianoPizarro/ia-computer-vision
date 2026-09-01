@@ -54,3 +54,29 @@ function envoy_on_response(request_handle)
   request_handle:headers():remove("access-control-allow-credentials")
 end
 {{- end -}}
+
+{{/*
+  Hub-local backends: parse FQDN neuroface-frontend.neuroface-hub.svc.cluster.local
+  into Service name + namespace for Gateway API backendRefs + ReferenceGrant.
+  Istio ambient does not populate EDS for ExternalName Services (503
+  upstream_host=null). Cross-namespace ClusterIP refs do.
+*/}}
+{{- define "neuroface-gateway.hubLocalAppName" -}}
+{{- $fqdn := .Values.hubLocal.appService | default "neuroface-frontend.neuroface-hub.svc.cluster.local" -}}
+{{- index (splitList "." $fqdn) 0 -}}
+{{- end -}}
+
+{{- define "neuroface-gateway.hubLocalAppNamespace" -}}
+{{- $fqdn := .Values.hubLocal.appService | default "neuroface-frontend.neuroface-hub.svc.cluster.local" -}}
+{{- index (splitList "." $fqdn) 1 -}}
+{{- end -}}
+
+{{- define "neuroface-gateway.hubLocalCvName" -}}
+{{- $fqdn := .Values.hubLocal.cvService | default "yolo-ppe-serving.neuroface-cv.svc.cluster.local" -}}
+{{- index (splitList "." $fqdn) 0 -}}
+{{- end -}}
+
+{{- define "neuroface-gateway.hubLocalCvNamespace" -}}
+{{- $fqdn := .Values.hubLocal.cvService | default "yolo-ppe-serving.neuroface-cv.svc.cluster.local" -}}
+{{- index (splitList "." $fqdn) 1 -}}
+{{- end -}}
