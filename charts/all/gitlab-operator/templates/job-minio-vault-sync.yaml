@@ -14,7 +14,7 @@ metadata:
   name: gitlab-minio-vault-sync
   namespace: {{ $ns }}
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -22,7 +22,7 @@ metadata:
   name: gitlab-minio-vault-sync
   namespace: {{ $ns }}
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -35,7 +35,7 @@ metadata:
   name: gitlab-minio-vault-sync
   namespace: {{ $ns }}
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -51,7 +51,7 @@ metadata:
   name: gitlab-minio-vault-sync-vaultkeys
   namespace: imperative
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -64,7 +64,7 @@ metadata:
   name: gitlab-minio-vault-sync-vaultkeys
   namespace: imperative
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -79,7 +79,7 @@ kind: ClusterRole
 metadata:
   name: gitlab-minio-vault-sync-eso
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 rules:
   - apiGroups: ["external-secrets.io"]
@@ -92,7 +92,7 @@ kind: ClusterRoleBinding
 metadata:
   name: gitlab-minio-vault-sync-eso
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -111,7 +111,7 @@ metadata:
   annotations:
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   backoffLimit: 6
   activeDeadlineSeconds: 1800
