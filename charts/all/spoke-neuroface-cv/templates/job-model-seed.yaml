@@ -76,14 +76,12 @@ metadata:
   name: ppe-model-seed
   namespace: gitlab-system
   annotations:
-    # Sync (not PostSync, not wave 0): a wave-0 DeadlineExceeded Job blocked
-    # Kafka/IS. PostSync never runs while InferenceService is Degraded (S3 403
-    # until Vault has real gitlab-minio keys) — chicken-and-egg on Cluster Bot.
-    # GitLab chart job-minio-vault-sync.yaml owns the Vault write so YOLO is
-    # not gated on this app's health. This Job still uploads the model and
-    # re-puts keys when it does run. Sync hooks run after apply and do not wait for Healthy.
+    # Wave 0 Sync hook: must finish BEFORE InferenceService (wave 1).
+    # A wave-5 hook never runs while the IS health check fails (no model in
+    # MinIO yet), which deadlocks Kafka and this upload. The Job itself waits
+    # for gitlab-minio-secret, so it can start before GitLab is ready.
     argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 8
