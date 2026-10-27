@@ -35,6 +35,39 @@ subjects:
     name: developer-hub
     namespace: developer-hub
 ---
+# OpenTLC / RHOAI catalog installs a Keycloak in namespace "keycloak" that
+# claims sso.<domain> before this pattern. That instance has no realm
+# backstage, so Developer Hub OIDC stays "Realm does not exist" and the
+# pattern Ingress stays HostAlreadyClaimed. This only runs when that CR exists.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: developer-hub-keycloak-readiness
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - apiGroups: ["k8s.keycloak.org"]
+    resources: ["keycloaks"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: developer-hub-keycloak-readiness
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: developer-hub-keycloak-readiness
+subjects:
+  - kind: ServiceAccount
+    name: developer-hub
+    namespace: developer-hub
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -54,7 +87,8 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: wait
-          image: {{ .Values.pluginReadiness.image | default "registry.redhat.io/ubi9/ubi-minimal:latest" | quote }}
+          # ose-cli: the catalog-Keycloak move below needs `oc`. ubi-minimal does not ship it.
+          image: registry.redhat.io/openshift4/ose-cli:latest
           env:
             - name: KEYCLOAK_NS
               value: {{ include "developer-hub.keycloakNamespace" . | quote }}
@@ -67,6 +101,30 @@ spec:
             - -c
             - |
               set -euo pipefail
+              SSO_HOST="${SSO_URL#https://}"
+              SSO_HOST="${SSO_HOST%%/*}"
+              APPS_DOMAIN="${SSO_HOST#sso.}"
+              ALT_HOST="sandbox-sso.${APPS_DOMAIN}"
+              if oc get keycloak.k8s.keycloak.org keycloak -n keycloak >/dev/null 2>&1; then
+                CUR="$(oc get keycloak.k8s.keycloak.org keycloak -n keycloak -o jsonpath='{.spec.hostname.hostname}')"
+                if [ "${CUR}" = "${SSO_HOST}" ]; then
+                  echo "Catalog Keycloak owns ${SSO_HOST}; moving it to ${ALT_HOST}"
+                  oc patch keycloak.k8s.keycloak.org keycloak -n keycloak --type merge \
+                    -p "{\"spec\":{\"hostname\":{\"hostname\":\"${ALT_HOST}\"}}}"
+                  oc delete route keycloak -n keycloak --ignore-not-found
+                  oc get route -n keycloak-system -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.host}{" "}{.status.ingress[0].conditions[0].reason}{"\n"}{end}' \
+                    | while read -r name host reason; do
+                        if [ "${host}" = "${SSO_HOST}" ] && [ "${reason}" = "HostAlreadyClaimed" ]; then
+                          oc delete route "${name}" -n keycloak-system --ignore-not-found --wait=false
+                        fi
+                      done
+                else
+                  echo "Catalog Keycloak hostname is ${CUR:-<empty>}; leaving it"
+                fi
+              else
+                echo "No catalog Keycloak in namespace keycloak"
+              fi
+
               echo "Waiting for SSO route ${SSO_URL}..."
               for i in $(seq 1 90); do
                 CODE=$(curl -sk -o /dev/null -w "%{http_code}" "${SSO_URL}/" || echo "000")
