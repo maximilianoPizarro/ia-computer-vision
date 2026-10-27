@@ -112,6 +112,35 @@ subjects:
     name: gitlab-token-setup
     namespace: developer-hub
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-token-setup-vaultkeys
+  namespace: imperative
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["vaultkeys"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-token-setup-vaultkeys
+  namespace: imperative
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-token-setup-vaultkeys
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-token-setup
+    namespace: developer-hub
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -146,10 +175,18 @@ spec:
             - -c
             - |
               set -euo pipefail
-              if ! oc get deploy gitlab-toolbox -n "${GITLAB_NAMESPACE}" -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q '^1$'; then
-                echo "SKIP: GitLab toolbox not ready yet in ${GITLAB_NAMESPACE}"
-                exit 0
-              fi
+              echo "Waiting for GitLab toolbox in ${GITLAB_NAMESPACE}..."
+              for i in $(seq 1 60); do
+                if oc get deploy gitlab-toolbox -n "${GITLAB_NAMESPACE}" -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q '^1$'; then
+                  echo "Toolbox ready"
+                  break
+                fi
+                if [ "$i" -eq 60 ]; then
+                  echo "GitLab toolbox not ready after 10 minutes"
+                  exit 1
+                fi
+                sleep 10
+              done
 
               CURRENT=$(oc get secret "${OIDC_SECRET}" -n "${RHDH_NAMESPACE}" \
                 -o jsonpath='{.data.GITLAB_TOKEN}' 2>/dev/null | base64 -d 2>/dev/null || true)
@@ -201,18 +238,20 @@ spec:
               echo "Patched ${OIDC_SECRET} with GITLAB_TOKEN."
 
               if oc get pod vault-0 -n vault >/dev/null 2>&1; then
-                oc exec -n vault vault-0 -- sh -c "
-                  set -e
-                  export VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true
-                  ROOT=\$(cat /vault/data/root-token 2>/dev/null || true)
-                  if [ -n \"\${ROOT}\" ]; then
-                    export VAULT_TOKEN=\${ROOT}
-                    vault kv patch secret/hub/developer-hub-secrets gitlab-token=\"${NEW_TOKEN}\"
+                ROOT="$(oc get secret vaultkeys -n imperative -o jsonpath='{.data.vault_data_json}' 2>/dev/null | base64 -d 2>/dev/null | sed -n 's/.*"root_token":"\([^"]*\)".*/\1/p' || true)"
+                if [ -z "${ROOT}" ]; then
+                  ROOT="$(oc exec -n vault vault-0 -- cat /vault/data/root-token 2>/dev/null || true)"
+                fi
+                if [ -n "${ROOT}" ]; then
+                  oc exec -n vault vault-0 -- sh -c "
+                    set -e
+                    export VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN='${ROOT}'
+                    vault kv patch secret/hub/developer-hub-secrets gitlab-token='${NEW_TOKEN}'
                     echo 'Patched Vault secret/hub/developer-hub-secrets gitlab-token.'
-                  else
-                    echo 'WARN: Vault root token not found — patch gitlab-token in Vault manually.'
-                  fi
-                " || echo "WARN: Could not patch Vault gitlab-token (non-fatal)."
+                  " || echo "WARN: Could not patch Vault gitlab-token (non-fatal)."
+                else
+                  echo "WARN: Vault root token not found — patch gitlab-token in Vault manually."
+                fi
               fi
 
               oc rollout restart "deployment/${RHDH_DEPLOYMENT}" -n "${RHDH_NAMESPACE}"
