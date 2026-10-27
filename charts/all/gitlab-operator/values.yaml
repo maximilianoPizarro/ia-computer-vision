@@ -71,8 +71,10 @@ external:
     serviceName: gitlab-minio-svc
     secretName: gitlab-minio-secret
     storage: 20Gi
-    image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
-    mcImage: quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z
+    # quay.io/minio/* is no longer anonymously pullable (401). bitnamilegacy
+    # still publishes the Dec 2024 server/client images with `minio` and `mc` on PATH.
+    image: docker.io/bitnamilegacy/minio:2024.12.18-debian-12-r1
+    mcImage: docker.io/bitnamilegacy/minio-client:2024.11.21-debian-12-r4
     endpoint: http://gitlab-minio-svc.gitlab-system.svc:9000
     objectStorageSecret: gitlab-object-storage
     registryStorageSecret: gitlab-registry-storage

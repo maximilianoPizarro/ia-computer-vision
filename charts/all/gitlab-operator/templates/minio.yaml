@@ -88,8 +88,11 @@ spec:
         fsGroup: 1000
       containers:
         - name: minio
-          image: {{ $minio.image | default "quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z" | quote }}
+          image: {{ $minio.image | default "docker.io/bitnamilegacy/minio:2024.12.18-debian-12-r1" | quote }}
           imagePullPolicy: IfNotPresent
+          # Official and bitnamilegacy images both ship the `minio` binary.
+          # Pin the command so a Bitnami entrypoint script does not swallow args.
+          command: ["minio"]
           args:
             - server
             - /data

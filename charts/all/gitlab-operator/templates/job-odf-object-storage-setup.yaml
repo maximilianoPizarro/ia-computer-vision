@@ -11,7 +11,7 @@
 {{- $objSecret := $minio.objectStorageSecret | default "gitlab-object-storage" -}}
 {{- $regSecret := $minio.registryStorageSecret | default "gitlab-registry-storage" -}}
 {{- $cliImage := $minio.cliImage | default "registry.redhat.io/openshift4/ose-cli:latest" -}}
-{{- $mcImage := $minio.mcImage | default "quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z" -}}
+{{- $mcImage := $minio.mcImage | default "docker.io/bitnamilegacy/minio-client:2024.11.21-debian-12-r4" -}}
 # After NooBaaAccount is ready: copy keys into gitlab-minio-secret, create
 # GitLab buckets, and write connection Secrets (same names as chart MinIO path).
 apiVersion: v1
