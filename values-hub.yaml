@@ -463,9 +463,9 @@ clusterGroup:
       overrides:
         - name: userCount
           value: "30"
-        # Operator 3.3.1 webhook rejects 10.2.0 (chart default until this pin).
+        # Operator 3.5.1 webhook rejects 10.2.5.
         - name: gitlab.chartVersion
-          value: "10.2.5"
+          value: "10.5.1"
 
     developer-hub:
       name: developer-hub
