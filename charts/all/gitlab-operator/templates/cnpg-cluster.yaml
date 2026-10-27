@@ -25,3 +25,9 @@ spec:
         - CREATE EXTENSION IF NOT EXISTS plpgsql;
         - CREATE EXTENSION IF NOT EXISTS amcheck;
         - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+  # GitLab db:schema:load locks every relation at once. The Postgres default
+  # (64) fails with "out of shared memory" and the migrations Job exits 1
+  # before webservice can start.
+  postgresql:
+    parameters:
+      max_locks_per_transaction: {{ $pg.maxLocksPerTransaction | default "256" | quote }}
